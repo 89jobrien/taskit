@@ -241,18 +241,19 @@ enum SmolVmCmd {
 fn main() -> Result<()> {
     let workspace = config::load()?;
     env::set_current_dir(&workspace.root)?;
-    let _config = workspace.config;
+    let config = workspace.config;
+    let ws = &config.workspace;
     let sh = Shell::new()?;
 
     let cli = Cli::parse();
     runner::set_dry_run(cli.dry_run);
     match cli.cmd {
-        Cmd::Fmt { check, affected } => fmt::run(&sh, check, affected),
+        Cmd::Fmt { check, affected } => fmt::run(&sh, ws, check, affected),
         Cmd::Lint {
             crate_name,
             affected,
             continue_on_error,
-        } => lint::run(&sh, crate_name.as_deref(), affected, continue_on_error),
+        } => lint::run(&sh, ws, crate_name.as_deref(), affected, continue_on_error),
         Cmd::Test {
             crate_name,
             affected,
@@ -260,6 +261,7 @@ fn main() -> Result<()> {
             offline,
         } => testing::run::run(
             &sh,
+            ws,
             crate_name.as_deref(),
             affected,
             continue_on_error,
@@ -288,16 +290,16 @@ fn main() -> Result<()> {
             expected,
             warn_only,
         } => protocol::sites::run(Path::new(&file), &pattern, expected, warn_only),
-        Cmd::Quick => quick::run(&sh),
+        Cmd::Quick => quick::run(&sh, ws),
         Cmd::Ci {
             fail_fast,
             include_network,
-        } => ci::run(&sh, fail_fast, include_network),
+        } => ci::run(&sh, ws, fail_fast, include_network),
         Cmd::CompileTests => testing::compile::run(&sh),
         Cmd::CheckDeps => check_deps::run(&sh),
         Cmd::CheckFreshness => check_freshness::run(&sh),
         Cmd::PreCommit => hooks::pre_commit(&sh),
-        Cmd::PrePush => hooks::pre_push(&sh),
+        Cmd::PrePush => hooks::pre_push(&sh, ws),
         Cmd::InstallHooks => hooks::install_hooks(),
         Cmd::Audit => audit::run(&sh),
         Cmd::Clean { older_than } => clean::run(&sh, older_than.as_deref()),
