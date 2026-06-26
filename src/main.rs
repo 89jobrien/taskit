@@ -239,10 +239,9 @@ enum SmolVmCmd {
 }
 
 fn main() -> Result<()> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("xtask must be in workspace root/xtask/");
-    env::set_current_dir(root)?;
+    let workspace = config::load()?;
+    env::set_current_dir(&workspace.root)?;
+    let _config = workspace.config;
     let sh = Shell::new()?;
 
     let cli = Cli::parse();
