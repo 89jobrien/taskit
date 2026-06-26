@@ -118,7 +118,11 @@ pub fn pre_commit(sh: &Shell) -> Result<()> {
     Ok(())
 }
 
-pub fn pre_push(sh: &Shell, ws: &crate::config::WorkspaceConfig) -> Result<()> {
+pub fn pre_push(
+    sh: &Shell,
+    ws: &crate::config::WorkspaceConfig,
+    proto: Option<&crate::config::ProtocolConfig>,
+) -> Result<()> {
     eprintln!("Running pre-push checks...");
     let affected = crate::affected::detect(sh, ws)?;
     if affected.is_empty() {
@@ -160,13 +164,7 @@ pub fn pre_push(sh: &Shell, ws: &crate::config::WorkspaceConfig) -> Result<()> {
         }
     }
     let root = std::env::current_dir()?;
-    let lock_path = root.join("xtask/protocol-drift.lock");
-    if !lock_path.exists() {
-        eprintln!(
-            "[protocol-drift] warning: lockfile not found — \
-             run `cargo xtask check-protocol-drift --update` to create it"
-        );
-    } else if let Err(e) = crate::protocol::drift::run(&root, false, true, false) {
+    if let Err(e) = crate::protocol::drift::run(&root, proto, false, true, false) {
         eprintln!("[protocol-drift] warning: check could not complete: {e:#}");
     }
 

@@ -2,11 +2,20 @@ use anyhow::Result;
 use xshell::Shell;
 
 use crate::{
-    DEFAULT_COVERAGE_THRESHOLD, check_deps, config::WorkspaceConfig, dev_setup, fmt, lint,
-    protocol, schema, step::Pipeline, testing,
+    DEFAULT_COVERAGE_THRESHOLD, check_deps,
+    config::{ProtocolConfig, WorkspaceConfig},
+    dev_setup, fmt, lint, protocol, schema,
+    step::Pipeline,
+    testing,
 };
 
-pub fn run(sh: &Shell, ws: &WorkspaceConfig, fail_fast: bool, include_network: bool) -> Result<()> {
+pub fn run(
+    sh: &Shell,
+    ws: &WorkspaceConfig,
+    proto: Option<&ProtocolConfig>,
+    fail_fast: bool,
+    include_network: bool,
+) -> Result<()> {
     let offline = !include_network;
     Pipeline::new(fail_fast)
         .gate("self-check", dev_setup::self_check)
@@ -23,7 +32,7 @@ pub fn run(sh: &Shell, ws: &WorkspaceConfig, fail_fast: bool, include_network: b
         .step("check-deps", || check_deps::run(sh))
         .step("check-protocol-drift", || {
             let root = std::env::current_dir()?;
-            protocol::drift::run(&root, false, false, false)
+            protocol::drift::run(&root, proto, false, false, false)
         })
         .step("check-protocol-sites", || {
             protocol::sites::run(

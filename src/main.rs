@@ -243,6 +243,7 @@ fn main() -> Result<()> {
     env::set_current_dir(&workspace.root)?;
     let config = workspace.config;
     let ws = &config.workspace;
+    let proto = config.protocol.as_ref();
     let sh = Shell::new()?;
 
     let cli = Cli::parse();
@@ -282,7 +283,7 @@ fn main() -> Result<()> {
             hook,
         } => {
             let root = env::current_dir()?;
-            protocol::drift::run(&root, update, warn_only, hook)
+            protocol::drift::run(&root, proto, update, warn_only, hook)
         }
         Cmd::CheckProtocolSites {
             file,
@@ -294,12 +295,12 @@ fn main() -> Result<()> {
         Cmd::Ci {
             fail_fast,
             include_network,
-        } => ci::run(&sh, ws, fail_fast, include_network),
+        } => ci::run(&sh, ws, proto, fail_fast, include_network),
         Cmd::CompileTests => testing::compile::run(&sh),
         Cmd::CheckDeps => check_deps::run(&sh),
-        Cmd::CheckFreshness => check_freshness::run(&sh),
+        Cmd::CheckFreshness => check_freshness::run(&sh, proto),
         Cmd::PreCommit => hooks::pre_commit(&sh),
-        Cmd::PrePush => hooks::pre_push(&sh, ws),
+        Cmd::PrePush => hooks::pre_push(&sh, ws, proto),
         Cmd::InstallHooks => hooks::install_hooks(),
         Cmd::Audit => audit::run(&sh),
         Cmd::Clean { older_than } => clean::run(&sh, older_than.as_deref()),
