@@ -2,7 +2,10 @@ use anyhow::{Context, Result};
 use std::collections::BTreeSet;
 use xshell::{Shell, cmd};
 
-use crate::config::{CrateEntry, PropagationEntry, WorkspaceConfig};
+use crate::config::WorkspaceConfig;
+
+#[cfg(test)]
+use crate::config::{CrateEntry, PropagationEntry};
 
 /// Detect affected crates from git diff against `origin/main`.
 ///
