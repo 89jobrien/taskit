@@ -295,7 +295,14 @@ fn main() -> Result<()> {
         Cmd::Ci {
             fail_fast,
             include_network,
-        } => ci::run(&sh, ws, proto, fail_fast, include_network),
+        } => ci::run(
+            &sh,
+            ws,
+            proto,
+            config.ci.as_ref(),
+            fail_fast,
+            include_network,
+        ),
         Cmd::CompileTests => testing::compile::run(&sh),
         Cmd::CheckDeps => check_deps::run(&sh),
         Cmd::CheckFreshness => check_freshness::run(&sh, proto),
