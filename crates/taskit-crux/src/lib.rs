@@ -8,7 +8,13 @@ use taskit_core::step::{PipelineOutcome, StepResult, StepStatus};
 ///
 /// Currently a stub — full implementation requires the `crux-script` crate.
 pub struct EmbeddedCruxRunner {
-    pub cruxfile_path: PathBuf,
+    cruxfile_path: PathBuf,
+}
+
+impl EmbeddedCruxRunner {
+    pub fn new(cruxfile_path: PathBuf) -> Self {
+        Self { cruxfile_path }
+    }
 }
 
 impl PipelineRunner for EmbeddedCruxRunner {
@@ -49,26 +55,21 @@ mod tests {
 
     #[test]
     fn embedded_runner_implements_trait() {
-        let runner = EmbeddedCruxRunner {
-            cruxfile_path: PathBuf::from("ci.crux"),
-        };
-        let _: &dyn PipelineRunner = &runner;
+        let runner = EmbeddedCruxRunner::new(PathBuf::from("/nonexistent/ci.crux"));
+        let result = runner.run_pipeline(Path::new("taskit.toml"), false);
+        assert!(result.is_err(), "missing cruxfile should return Err");
     }
 
     #[test]
     fn embedded_runner_missing_cruxfile_returns_err() {
-        let runner = EmbeddedCruxRunner {
-            cruxfile_path: PathBuf::from("/nonexistent/ci.crux"),
-        };
+        let runner = EmbeddedCruxRunner::new(PathBuf::from("/nonexistent/ci.crux"));
         let result = runner.run_pipeline(Path::new("taskit.toml"), false);
         assert!(result.is_err());
     }
 
     #[test]
     fn embedded_runner_conformance() {
-        let runner = EmbeddedCruxRunner {
-            cruxfile_path: PathBuf::from("/nonexistent"),
-        };
+        let runner = EmbeddedCruxRunner::new(PathBuf::from("/nonexistent"));
         let result = runner.run_pipeline(Path::new("/nonexistent/taskit.toml"), false);
         assert!(
             result.is_err(),

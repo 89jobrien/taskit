@@ -19,13 +19,17 @@ mod tests {
     }
 
     #[test]
-    fn all_variants_exist() {
-        let _variants = [
+    fn all_variants_are_distinct() {
+        let variants = [
             OutputFormat::Human,
             OutputFormat::Json,
             OutputFormat::Github,
             OutputFormat::Junit,
             OutputFormat::Diagnostic,
         ];
+        // Verify each variant has a distinct debug representation
+        let names: Vec<String> = variants.iter().map(|v| format!("{v:?}")).collect();
+        let unique: std::collections::HashSet<&String> = names.iter().collect();
+        assert_eq!(names.len(), unique.len(), "all variants should be distinct");
     }
 }

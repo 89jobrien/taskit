@@ -8,12 +8,32 @@ use xshell::Shell;
 
 /// Adapter: runs the built-in pipeline using taskit's native step engine.
 pub struct BuiltinRunner<'a> {
-    pub sh: &'a Shell,
-    pub ws: &'a WorkspaceConfig,
-    pub proto: Option<&'a ProtocolConfig>,
-    pub cov: Option<&'a CoverageConfig>,
-    pub ci: Option<&'a CiConfig>,
-    pub offline: bool,
+    pub(crate) sh: &'a Shell,
+    pub(crate) ws: &'a WorkspaceConfig,
+    pub(crate) proto: Option<&'a ProtocolConfig>,
+    pub(crate) cov: Option<&'a CoverageConfig>,
+    pub(crate) ci: Option<&'a CiConfig>,
+    pub(crate) offline: bool,
+}
+
+impl<'a> BuiltinRunner<'a> {
+    pub fn new(
+        sh: &'a Shell,
+        ws: &'a WorkspaceConfig,
+        proto: Option<&'a ProtocolConfig>,
+        cov: Option<&'a CoverageConfig>,
+        ci: Option<&'a CiConfig>,
+        offline: bool,
+    ) -> Self {
+        Self {
+            sh,
+            ws,
+            proto,
+            cov,
+            ci,
+            offline,
+        }
+    }
 }
 
 impl PipelineRunner for BuiltinRunner<'_> {
@@ -47,7 +67,13 @@ impl PipelineRunner for BuiltinRunner<'_> {
 
 /// Adapter: runs a Cruxfile via subprocess (`crux run <path>`).
 pub struct SubprocessCruxRunner {
-    pub cruxfile_path: PathBuf,
+    cruxfile_path: PathBuf,
+}
+
+impl SubprocessCruxRunner {
+    pub fn new(cruxfile_path: PathBuf) -> Self {
+        Self { cruxfile_path }
+    }
 }
 
 impl PipelineRunner for SubprocessCruxRunner {
@@ -114,17 +140,23 @@ mod tests {
 
     #[test]
     fn builtin_runner_implements_trait() {
+        use taskit_core::config::CiStep;
         let sh = Shell::new().unwrap();
         let ws = WorkspaceConfig::default();
-        let runner = BuiltinRunner {
-            sh: &sh,
-            ws: &ws,
-            proto: None,
-            cov: None,
-            ci: None,
-            offline: false,
+        // Use self-check step (fast) to avoid running the full default pipeline
+        let ci = CiConfig {
+            steps: vec![CiStep {
+                name: "self-check".into(),
+                cmd: "self-check".into(),
+                gate: false,
+            }],
+            cruxfile: None,
         };
-        let _: &dyn PipelineRunner = &runner;
+        let runner = BuiltinRunner::new(&sh, &ws, None, None, Some(&ci), false);
+        let outcome = runner
+            .run_pipeline(Path::new("taskit.toml"), false)
+            .unwrap();
+        assert_eq!(outcome.results.len(), 1);
     }
 
     #[test]
@@ -140,14 +172,7 @@ mod tests {
             }],
             cruxfile: None,
         };
-        let runner = BuiltinRunner {
-            sh: &sh,
-            ws: &ws,
-            proto: None,
-            cov: None,
-            ci: Some(&ci),
-            offline: false,
-        };
+        let runner = BuiltinRunner::new(&sh, &ws, None, None, Some(&ci), false);
         // Runs the config-driven path (not the full default pipeline)
         let outcome = runner
             .run_pipeline(Path::new("taskit.toml"), false)
@@ -160,28 +185,23 @@ mod tests {
 
     #[test]
     fn subprocess_runner_missing_cruxfile_returns_err() {
-        let runner = SubprocessCruxRunner {
-            cruxfile_path: PathBuf::from("/nonexistent/ci.crux"),
-        };
+        let runner = SubprocessCruxRunner::new(PathBuf::from("/nonexistent/ci.crux"));
         let result = runner.run_pipeline(Path::new("/nonexistent/ci.crux"), false);
         assert!(result.is_err());
     }
 
     #[test]
     fn subprocess_runner_implements_trait() {
-        let runner = SubprocessCruxRunner {
-            cruxfile_path: PathBuf::from("ci.crux"),
-        };
-        let _: &dyn PipelineRunner = &runner;
+        let runner = SubprocessCruxRunner::new(PathBuf::from("/nonexistent/ci.crux"));
+        let result = runner.run_pipeline(Path::new("taskit.toml"), false);
+        assert!(result.is_err(), "missing cruxfile should return Err");
     }
 
     // ── Conformance ─────────────────────────────────────────────────────
 
     #[test]
     fn subprocess_runner_conformance() {
-        let runner = SubprocessCruxRunner {
-            cruxfile_path: PathBuf::from("/nonexistent"),
-        };
+        let runner = SubprocessCruxRunner::new(PathBuf::from("/nonexistent"));
         assert_pipeline_runner_contract(&runner);
     }
 }

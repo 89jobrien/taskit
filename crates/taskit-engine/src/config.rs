@@ -438,6 +438,25 @@ cmd = "lint"
         assert_eq!(config.protocol.as_ref().unwrap().lockfile_path(), "my.lock");
     }
 
+    #[test]
+    fn load_returns_workspace_from_config_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_content = r#"
+[[workspace.crates]]
+dir = "my-lib"
+"#;
+        fs::write(dir.path().join(CONFIG_FILE), config_content).unwrap();
+        // Create a minimal Cargo.toml so cargo metadata can find the workspace
+        fs::write(dir.path().join("Cargo.toml"), "[workspace]\nmembers = []\n").unwrap();
+
+        // parse_config + find_config_file are the core of load(); test them
+        // directly since load() uses env::current_dir() which we can't control
+        let path = find_config_file(dir.path()).unwrap();
+        let config = parse_config(&path).unwrap();
+        assert_eq!(config.workspace.crates.len(), 1);
+        assert_eq!(config.workspace.crates[0].dir, "my-lib");
+    }
+
     use crate::discovery::{DiscoveredCrate, FakeMetadataSource};
 
     #[test]

@@ -23,8 +23,6 @@ pub mod update_claude;
 pub mod util;
 pub mod version;
 
-pub const DEFAULT_COVERAGE_THRESHOLD: f64 = 80.0;
-
 /// Resolved workspace root and parsed config.
 #[derive(Debug)]
 pub struct Workspace {
@@ -36,6 +34,10 @@ pub struct Workspace {
 mod tests {
     #[test]
     fn engine_crate_compiles() {
-        assert!(true);
+        // Verify the crate's public surface is accessible
+        let _ws = super::Workspace {
+            root: std::path::PathBuf::from("."),
+            config: taskit_core::config::Config::default(),
+        };
     }
 }

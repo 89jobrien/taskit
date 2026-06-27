@@ -38,7 +38,7 @@ pub fn run(
 }
 
 /// Build and run a pipeline from `[[ci.steps]]` in `taskit.toml`.
-pub fn run_from_config_internal(
+pub(crate) fn run_from_config_internal(
     sh: &Shell,
     ws: &WorkspaceConfig,
     proto: Option<&ProtocolConfig>,
@@ -117,7 +117,7 @@ fn dispatch_cmd<'a>(
 }
 
 /// The built-in default pipeline, used when no `[[ci.steps]]` are configured.
-pub fn run_default_internal(
+pub(crate) fn run_default_internal(
     sh: &Shell,
     ws: &WorkspaceConfig,
     proto: Option<&ProtocolConfig>,

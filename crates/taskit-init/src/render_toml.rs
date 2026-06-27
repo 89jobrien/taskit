@@ -19,20 +19,18 @@ pub fn render_toml(plan: &InitPlan) -> String {
     }
     out.push_str("]\n");
 
-    // [workspace.propagation]
-    if !plan.propagation.is_empty() {
-        out.push_str("\n[workspace.propagation]\n");
-        for p in &plan.propagation {
-            out.push_str(&format!(
-                "{} = [{}]\n",
-                p.source,
-                p.dependents
-                    .iter()
-                    .map(|t| format!("\"{}\"", t))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ));
-        }
+    // [[workspace.propagation]]
+    for p in &plan.propagation {
+        out.push_str("\n[[workspace.propagation]]\n");
+        out.push_str(&format!("source = \"{}\"\n", p.source));
+        out.push_str(&format!(
+            "dependents = [{}]\n",
+            p.dependents
+                .iter()
+                .map(|t| format!("\"{}\"", t))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
     }
 
     // [[workspace.surfaces]]
@@ -147,6 +145,26 @@ mod tests {
         let toml = render_toml(&plan);
         assert!(toml.contains("[[workspace.surfaces]]"));
         assert!(toml.contains("name = \"schema\""));
+    }
+
+    #[test]
+    fn render_with_propagation() {
+        use taskit_core::config::PropagationEntry;
+        let plan = InitPlan {
+            crates: vec![],
+            propagation: vec![PropagationEntry {
+                source: "common".into(),
+                dependents: vec!["api".into(), "cli".into()],
+            }],
+            surfaces: vec![],
+            coverage: None,
+            ci_steps: vec![],
+            offline_skip: None,
+        };
+        let toml = render_toml(&plan);
+        assert!(toml.contains("[[workspace.propagation]]"));
+        assert!(toml.contains("source = \"common\""));
+        assert!(toml.contains("dependents = [\"api\", \"cli\"]"));
     }
 
     #[test]
