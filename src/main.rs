@@ -156,9 +156,25 @@ enum Cmd {
     TestReport,
     /// Review pending insta snapshots
     SnapshotReview,
+    /// Generate taskit.toml and Cruxfile for the current workspace
+    Init {
+        /// Overwrite existing taskit.toml
+        #[arg(long)]
+        force: bool,
+        /// Interactive mode with prompts
+        #[arg(long)]
+        interactive: bool,
+    },
 }
 
 fn main() -> Result<()> {
+    let cli = Cli::parse();
+
+    // Init runs before config loading (taskit.toml may not exist yet)
+    if let Cmd::Init { force, interactive } = cli.cmd {
+        return taskit_init::run(force, interactive);
+    }
+
     let workspace = taskit_engine::config::load()?;
     env::set_current_dir(&workspace.root)?;
     let config = workspace.config;
@@ -166,7 +182,6 @@ fn main() -> Result<()> {
     let proto = config.protocol.as_ref();
     let sh = Shell::new()?;
 
-    let cli = Cli::parse();
     runner::set_dry_run(cli.dry_run);
     match cli.cmd {
         Cmd::Fmt { check, affected } => fmt::run(&sh, ws, check, affected),
@@ -251,5 +266,6 @@ fn main() -> Result<()> {
         } => testing::bench::run(&sh, crate_name.as_deref(), save_baseline),
         Cmd::TestReport => testing::report::run(&sh),
         Cmd::SnapshotReview => testing::snapshot::run(&sh),
+        Cmd::Init { .. } => unreachable!("handled above"),
     }
 }

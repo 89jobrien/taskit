@@ -27,6 +27,11 @@ path = "src/main.rs"
 [dependencies]
 taskit-core = { path = "crates/taskit-core" }
 taskit-engine = { path = "crates/taskit-engine" }
+taskit-init = { path = "crates/taskit-init" }
+taskit-crux = { path = "crates/taskit-crux", optional = true }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 xshell = "0.2"
+
+[features]
+crux = ["dep:taskit-crux"]

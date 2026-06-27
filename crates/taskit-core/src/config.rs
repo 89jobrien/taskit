@@ -40,7 +40,7 @@ impl CrateEntry {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct PropagationEntry {
     pub source: String,
     pub dependents: Vec<String>,
