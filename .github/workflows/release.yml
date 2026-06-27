@@ -9,17 +9,6 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  publish:
-    name: publish to crates.io
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
-      - name: cargo publish
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish
-
   build:
     name: build ${{ matrix.target }}
     runs-on: ${{ matrix.runner }}
