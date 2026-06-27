@@ -1,0 +1,11 @@
+[package]
+name = "taskit-core"
+version = "0.4.0"
+edition.workspace = true
+license.workspace = true
+description = "Core types and traits for taskit"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
