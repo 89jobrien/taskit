@@ -1,0 +1,126 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 2 * * *" # daily — audit, geiger, coverage
+    - cron: "0 3 * * 0" # weekly (Sunday) — mutants
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - name: cargo audit
+        run: cargo audit
+
+  deny:
+    name: cargo deny
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - uses: EmbarkStudios/cargo-deny-action@v2
+
+  geiger:
+    name: unsafe audit (cargo-geiger)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: install cargo-geiger
+        run: cargo install cargo-geiger --locked
+      - name: cargo geiger
+        run: |
+          cargo geiger 2>&1 | tee geiger-report.txt
+          {
+            echo "## cargo-geiger unsafe audit"
+            echo '```'
+            tail -40 geiger-report.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: geiger-report
+          path: geiger-report.txt
+          retention-days: 30
+
+  coverage:
+    name: coverage check
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest,cargo-llvm-cov
+      - name: cargo llvm-cov
+        run: |
+          cargo llvm-cov nextest --all-targets --lcov --output-path lcov.info
+          cargo llvm-cov report --summary-only 2>&1 | tee coverage-summary.txt
+          {
+            echo "## coverage summary"
+            echo '```'
+            cat coverage-summary.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lcov
+          path: lcov.info
+          retention-days: 30
+
+  mutants:
+    name: mutation testing (cargo-mutants)
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 3 * * 0'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: install cargo-mutants
+        run: cargo install cargo-mutants --locked
+      - name: cargo mutants
+        run: cargo mutants --timeout 60
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutants-report
+          path: mutants.out/
+          retention-days: 30
+      - name: summary
+        if: always()
+        run: |
+          if [ -f mutants.out/caught.txt ]; then
+            {
+              echo "## cargo-mutants"
+              echo "### Caught"
+              echo '```'
+              head -50 mutants.out/caught.txt
+              echo '```'
+              if [ -f mutants.out/missed.txt ] && [ -s mutants.out/missed.txt ]; then
+                echo "### Missed"
+                echo '```'
+                cat mutants.out/missed.txt
+                echo '```'
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
