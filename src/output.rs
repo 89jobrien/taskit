@@ -10,6 +10,7 @@ pub enum OutputFormat {
     Json,
     Github,
     Junit,
+    Diagnostic,
 }
 
 /// Port: formats pipeline results for different output targets.
@@ -24,6 +25,7 @@ impl OutputFormat {
             OutputFormat::Json => Box::new(JsonFormatter),
             OutputFormat::Github => Box::new(GithubFormatter),
             OutputFormat::Junit => Box::new(JunitFormatter),
+            OutputFormat::Diagnostic => Box::new(DiagnosticFormatter),
         }
     }
 }
@@ -222,6 +224,38 @@ fn xml_escape(s: &str) -> String {
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;")
+}
+
+// -- Diagnostic (miette) -----------------------------------------------------
+
+pub struct DiagnosticFormatter;
+
+impl OutputFormatter for DiagnosticFormatter {
+    fn render(&self, outcome: &PipelineOutcome) -> String {
+        if outcome.passed {
+            let table = HumanFormatter.render(outcome);
+            let n = outcome.results.len();
+            let secs = outcome.total.as_secs_f64();
+            format!(
+                "{table}pipeline passed ({n} step{}, {secs:.1}s)\n",
+                if n == 1 { "" } else { "s" }
+            )
+        } else {
+            let err = pipeline_error(outcome);
+            let mut buf = String::new();
+            let is_tty = std::io::IsTerminal::is_terminal(&std::io::stderr());
+            if is_tty {
+                use miette::GraphicalReportHandler;
+                let handler = GraphicalReportHandler::new();
+                let _ = handler.render_report(&mut buf, &err);
+            } else {
+                use miette::NarratableReportHandler;
+                let handler = NarratableReportHandler::new();
+                let _ = handler.render_report(&mut buf, &err);
+            }
+            buf
+        }
+    }
 }
 
 // -- Miette error reporting --------------------------------------------------
@@ -516,6 +550,35 @@ mod tests {
             detail: Some("clippy warnings".into()),
         };
         assert!(err.to_string().contains("lint"));
+    }
+
+    // -- Diagnostic --
+
+    #[test]
+    fn diagnostic_formatter_success_contains_oneliner() {
+        let outcome = passing_outcome();
+        let fmt = OutputFormat::Diagnostic.formatter();
+        let output = fmt.render(&outcome);
+        assert!(output.contains("pipeline passed"));
+        assert!(output.contains("1 step"));
+    }
+
+    #[test]
+    fn diagnostic_formatter_success_contains_table() {
+        let outcome = passing_outcome();
+        let fmt = OutputFormat::Diagnostic.formatter();
+        let output = fmt.render(&outcome);
+        assert!(output.contains("fmt"));
+        assert!(output.contains("PASS"));
+    }
+
+    #[test]
+    fn diagnostic_formatter_failure_contains_diagnostic() {
+        let outcome = sample_outcome();
+        let fmt = OutputFormat::Diagnostic.formatter();
+        let output = fmt.render(&outcome);
+        assert!(output.contains("pipeline failed"));
+        assert!(output.contains("test"));
     }
 
     // -- write_output --
