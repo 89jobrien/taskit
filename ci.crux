@@ -3,39 +3,37 @@ budget:
   duration_ms: 600000   # 10 minutes hard cap
 
 steps:
-  - step: ci
-    pipe:
-      - step: self-check
-        handler: shell::capture
-        args:
-          cmd: taskit self-check
+  - step: self-check
+    handler: shell::capture
+    args:
+      cmd: taskit self-check
 
-      - step: fmt-check
-        handler: shell::capture
-        args:
-          cmd: taskit fmt --check
+  - step: fmt-check
+    handler: shell::capture
+    args:
+      cmd: taskit fmt --check
 
-      - step: lint
-        handler: shell::capture
-        args:
-          cmd: taskit lint
+  - step: lint
+    handler: shell::capture
+    args:
+      cmd: taskit lint
 
-      - step: compile-tests
-        handler: shell::capture
-        args:
-          cmd: taskit compile-tests
+  - step: compile-tests
+    handler: shell::capture
+    args:
+      cmd: taskit compile-tests
 
-      - step: test
-        handler: shell::capture
-        args:
-          cmd: taskit test --offline
+  - step: test
+    handler: shell::capture
+    args:
+      cmd: taskit test --offline
 
-      - step: check-deps
-        handler: shell::capture
-        args:
-          cmd: taskit check-deps
+  - step: check-deps
+    handler: shell::capture
+    args:
+      cmd: taskit check-deps
 
-      - step: check-protocol-drift
-        handler: shell::capture
-        args:
-          cmd: taskit check-protocol-drift
+  - step: check-protocol-drift
+    handler: shell::capture
+    args:
+      cmd: taskit check-protocol-drift
