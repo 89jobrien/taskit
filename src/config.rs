@@ -1,9 +1,8 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::{
     env, fs,
     path::{Path, PathBuf},
-    process::Command,
 };
 
 const CONFIG_FILE: &str = "taskit.toml";
@@ -18,6 +17,7 @@ pub struct Config {
     pub workspace: WorkspaceConfig,
     pub protocol: Option<ProtocolConfig>,
     pub ci: Option<CiConfig>,
+    pub coverage: Option<CoverageConfig>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -93,6 +93,86 @@ pub struct CiStep {
     pub gate: bool,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct CoverageConfig {
+    /// Package to measure coverage for. Required.
+    pub crate_name: String,
+    /// Minimum coverage percentage. Default: 80.0.
+    pub threshold: Option<f64>,
+}
+
+impl CoverageConfig {
+    pub fn threshold(&self) -> f64 {
+        self.threshold.unwrap_or(crate::DEFAULT_COVERAGE_THRESHOLD)
+    }
+}
+
+impl Config {
+    /// Build a Config entirely from cargo metadata + conventions.
+    pub fn discover(workspace_root: &Path) -> Result<Config> {
+        use crate::discovery::CargoMetadataSource;
+        let source = CargoMetadataSource {
+            workspace_root: workspace_root.to_path_buf(),
+        };
+        Self::discover_with(workspace_root, &source)
+    }
+
+    /// Build a Config from a given metadata source + conventions.
+    /// Primarily exists for testability.
+    pub fn discover_with(
+        workspace_root: &Path,
+        source: &dyn crate::discovery::MetadataSource,
+    ) -> Result<Config> {
+        use crate::discovery;
+
+        let members = source.workspace_members()?;
+        let deps = source.intra_workspace_deps()?;
+
+        let crates: Vec<CrateEntry> = members
+            .iter()
+            .map(|m| CrateEntry {
+                dir: m.dir.clone(),
+                pkg: if m.pkg == m.dir {
+                    None
+                } else {
+                    Some(m.pkg.clone())
+                },
+            })
+            .collect();
+
+        let known_names: Vec<String> = members.iter().map(|m| m.pkg.clone()).collect();
+        let propagation = discovery::derive_propagation(&deps, &known_names);
+
+        let surfaces = discovery::scan_surfaces(workspace_root)?;
+        let protocol = if surfaces.is_empty() {
+            None
+        } else {
+            Some(ProtocolConfig {
+                surfaces: surfaces
+                    .into_iter()
+                    .map(|s| SurfaceEntry {
+                        name: s.name,
+                        path: s.path,
+                    })
+                    .collect(),
+                lockfile: None,
+            })
+        };
+
+        Ok(Config {
+            workspace: WorkspaceConfig {
+                root: None,
+                crates,
+                propagation,
+                offline_skip: None,
+            },
+            protocol,
+            ci: None,
+            coverage: None,
+        })
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Discovery
 // ---------------------------------------------------------------------------
@@ -119,7 +199,7 @@ pub fn load() -> Result<Workspace> {
             .parent()
             .expect("config file always has a parent directory")
             .to_path_buf();
-        let config = parse_config(&config_path)?;
+        let mut config = parse_config(&config_path)?;
         // If [workspace].root is set, resolve it relative to the config file's directory.
         let root = match &config.workspace.root {
             Some(override_root) => {
@@ -130,18 +210,20 @@ pub fn load() -> Result<Workspace> {
             }
             None => root,
         };
+        // Fill empty sections from discovery
+        if let Ok(discovered) = Config::discover(&root) {
+            merge_discovered(&mut config, discovered);
+        }
         return Ok(Workspace { root, config });
     }
 
-    // No taskit.toml found — fall back to cargo metadata.
+    // No taskit.toml found — full discovery via cargo metadata.
     let root = cargo_workspace_root().context(
         "no taskit.toml found and `cargo metadata` failed; \
          run taskit from inside a Cargo workspace",
     )?;
-    Ok(Workspace {
-        root,
-        config: Config::default(),
-    })
+    let config = Config::discover(&root).unwrap_or_default();
+    Ok(Workspace { root, config })
 }
 
 /// Walk up the directory tree from `start`, returning the path to the first
@@ -159,6 +241,24 @@ fn find_config_file(start: &Path) -> Option<PathBuf> {
     }
 }
 
+/// Merge discovered config into an explicit config.
+///
+/// Per-section rule: if the explicit config has any entries in a
+/// section, the entire section comes from config. If empty, the
+/// section is filled from discovery.
+fn merge_discovered(config: &mut Config, discovered: Config) {
+    if config.workspace.crates.is_empty() {
+        config.workspace.crates = discovered.workspace.crates;
+    }
+    if config.workspace.propagation.is_empty() {
+        config.workspace.propagation = discovered.workspace.propagation;
+    }
+    if config.protocol.is_none() {
+        config.protocol = discovered.protocol;
+    }
+    // ci and coverage are never discovered — config only
+}
+
 fn parse_config(path: &Path) -> Result<Config> {
     let content =
         fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
@@ -167,24 +267,11 @@ fn parse_config(path: &Path) -> Result<Config> {
 
 /// Ask Cargo for the workspace root via `cargo metadata`.
 fn cargo_workspace_root() -> Result<PathBuf> {
-    let output = Command::new("cargo")
-        .args(["metadata", "--no-deps", "--format-version", "1"])
-        .output()
+    let metadata = cargo_metadata::MetadataCommand::new()
+        .no_deps()
+        .exec()
         .context("failed to run `cargo metadata`")?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("`cargo metadata` failed: {stderr}");
-    }
-
-    let json: serde_json::Value = serde_json::from_slice(&output.stdout)
-        .context("failed to parse `cargo metadata` output")?;
-
-    let root = json["workspace_root"]
-        .as_str()
-        .context("`cargo metadata` output missing `workspace_root` field")?;
-
-    Ok(PathBuf::from(root))
+    Ok(metadata.workspace_root.into())
 }
 
 // ---------------------------------------------------------------------------
@@ -374,5 +461,187 @@ cmd = "lint"
             pkg: Some("bar".into()),
         };
         assert_eq!(e.pkg_name(), "bar");
+    }
+
+    // --- merge_discovered ---
+
+    #[test]
+    fn merge_fills_empty_crates_from_discovery() {
+        let mut config = Config::default();
+        let discovered = Config {
+            workspace: WorkspaceConfig {
+                root: None,
+                crates: vec![CrateEntry {
+                    dir: "discovered".into(),
+                    pkg: None,
+                }],
+                propagation: vec![],
+                offline_skip: None,
+            },
+            ..Config::default()
+        };
+        merge_discovered(&mut config, discovered);
+        assert_eq!(config.workspace.crates.len(), 1);
+        assert_eq!(config.workspace.crates[0].dir, "discovered");
+    }
+
+    #[test]
+    fn merge_keeps_explicit_crates_over_discovery() {
+        let mut config = Config {
+            workspace: WorkspaceConfig {
+                root: None,
+                crates: vec![CrateEntry {
+                    dir: "explicit".into(),
+                    pkg: None,
+                }],
+                propagation: vec![],
+                offline_skip: None,
+            },
+            ..Config::default()
+        };
+        let discovered = Config {
+            workspace: WorkspaceConfig {
+                root: None,
+                crates: vec![CrateEntry {
+                    dir: "discovered".into(),
+                    pkg: None,
+                }],
+                propagation: vec![],
+                offline_skip: None,
+            },
+            ..Config::default()
+        };
+        merge_discovered(&mut config, discovered);
+        assert_eq!(config.workspace.crates.len(), 1);
+        assert_eq!(config.workspace.crates[0].dir, "explicit");
+    }
+
+    #[test]
+    fn merge_fills_empty_propagation_from_discovery() {
+        let mut config = Config::default();
+        let discovered = Config {
+            workspace: WorkspaceConfig {
+                root: None,
+                crates: vec![],
+                propagation: vec![PropagationEntry {
+                    source: "common".into(),
+                    dependents: vec!["api".into()],
+                }],
+                offline_skip: None,
+            },
+            ..Config::default()
+        };
+        merge_discovered(&mut config, discovered);
+        assert_eq!(config.workspace.propagation.len(), 1);
+    }
+
+    #[test]
+    fn merge_fills_protocol_when_none() {
+        let mut config = Config::default();
+        let discovered = Config {
+            protocol: Some(ProtocolConfig {
+                surfaces: vec![SurfaceEntry {
+                    name: "found".into(),
+                    path: "x.rs".into(),
+                }],
+                lockfile: None,
+            }),
+            ..Config::default()
+        };
+        merge_discovered(&mut config, discovered);
+        assert!(config.protocol.is_some());
+    }
+
+    #[test]
+    fn merge_keeps_explicit_protocol() {
+        let mut config = Config {
+            protocol: Some(ProtocolConfig {
+                surfaces: vec![],
+                lockfile: Some("my.lock".into()),
+            }),
+            ..Config::default()
+        };
+        let discovered = Config {
+            protocol: Some(ProtocolConfig {
+                surfaces: vec![SurfaceEntry {
+                    name: "found".into(),
+                    path: "x.rs".into(),
+                }],
+                lockfile: None,
+            }),
+            ..Config::default()
+        };
+        merge_discovered(&mut config, discovered);
+        assert_eq!(config.protocol.as_ref().unwrap().lockfile_path(), "my.lock");
+    }
+
+    // --- Config::discover_with ---
+
+    use crate::discovery::{DiscoveredCrate, FakeMetadataSource};
+
+    #[test]
+    fn discover_with_populates_crates_from_source() {
+        let source = FakeMetadataSource {
+            members: vec![DiscoveredCrate {
+                dir: "my-lib".into(),
+                pkg: "my-lib".into(),
+                manifest_path: PathBuf::from("/ws/my-lib/Cargo.toml"),
+            }],
+            deps: vec![],
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config::discover_with(dir.path(), &source).unwrap();
+        assert_eq!(config.workspace.crates.len(), 1);
+        assert_eq!(config.workspace.crates[0].dir, "my-lib");
+    }
+
+    #[test]
+    fn discover_with_derives_propagation() {
+        let source = FakeMetadataSource {
+            members: vec![
+                DiscoveredCrate {
+                    dir: "common".into(),
+                    pkg: "common".into(),
+                    manifest_path: PathBuf::from("/ws/common/Cargo.toml"),
+                },
+                DiscoveredCrate {
+                    dir: "api".into(),
+                    pkg: "api".into(),
+                    manifest_path: PathBuf::from("/ws/api/Cargo.toml"),
+                },
+            ],
+            deps: vec![("common".into(), "api".into())],
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config::discover_with(dir.path(), &source).unwrap();
+        assert_eq!(config.workspace.propagation.len(), 1);
+        assert_eq!(config.workspace.propagation[0].source, "common");
+    }
+
+    #[test]
+    fn discover_with_no_members_returns_empty_config() {
+        let source = FakeMetadataSource {
+            members: vec![],
+            deps: vec![],
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config::discover_with(dir.path(), &source).unwrap();
+        assert!(config.workspace.crates.is_empty());
+        assert!(config.workspace.propagation.is_empty());
+    }
+
+    #[test]
+    fn discover_with_sets_pkg_when_different_from_dir() {
+        let source = FakeMetadataSource {
+            members: vec![DiscoveredCrate {
+                dir: "my-cli".into(),
+                pkg: "my-binary".into(),
+                manifest_path: PathBuf::from("/ws/my-cli/Cargo.toml"),
+            }],
+            deps: vec![],
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config::discover_with(dir.path(), &source).unwrap();
+        assert_eq!(config.workspace.crates[0].pkg_name(), "my-binary");
     }
 }

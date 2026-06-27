@@ -1,6 +1,6 @@
 [package]
 name = "taskit"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 description = "Config-driven cargo xtask runner with affected-crate detection, protocol-drift tracking, and CI pipeline orchestration"
 license = "MIT OR Apache-2.0"
@@ -11,7 +11,16 @@ categories = ["development-tools", "command-line-utilities"]
 readme = "README.md"
 publish = true
 
+[lib]
+name = "taskit"
+path = "src/lib.rs"
+
+[[bin]]
+name = "taskit"
+path = "src/main.rs"
+
 [dependencies]
+cargo_metadata = "0.19"
 clap = { version = "4", features = ["derive"] }
 xshell = "0.2"
 anyhow = "1"
