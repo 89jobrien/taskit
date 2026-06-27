@@ -16,24 +16,9 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  check:
-    name: fmt + clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-      - name: cargo fmt --check
-        run: cargo fmt --all -- --check
-      - name: cargo clippy
-        run: cargo clippy --all-targets -- -D warnings
-
-  test:
-    name: test (${{ matrix.os }})
+  pipeline:
+    name: crux ci (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: check
     strategy:
       fail-fast: false
       matrix:
@@ -41,24 +26,29 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
-      - name: cargo nextest run
-        run: cargo nextest run --all-targets
+      - name: install taskit
+        run: cargo install taskit --locked
+      - name: install crux
+        run: cargo install crux-agentic --locked
+      - name: crux run ci.crux
+        run: crux run ci.crux
 
   ci-ok:
     name: CI passed
     runs-on: ubuntu-latest
     if: always()
-    needs: [check, test]
+    needs: [pipeline]
     steps:
       - name: check job results
         run: |
           results=(
-            "${{ needs.check.result }}"
-            "${{ needs.test.result }}"
+            "${{ needs.pipeline.result }}"
           )
           for r in "${results[@]}"; do
             if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
