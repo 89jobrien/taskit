@@ -13,6 +13,7 @@ pub mod discovery;
 pub mod fmt;
 pub mod hooks;
 pub mod lint;
+pub mod output;
 pub mod progress;
 pub mod protocol;
 pub mod quick;

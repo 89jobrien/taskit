@@ -2,10 +2,12 @@ use anyhow::{Result, bail};
 use xshell::Shell;
 
 use crate::{
-    DEFAULT_COVERAGE_THRESHOLD, check_deps,
-    config::{CiConfig, ProtocolConfig, WorkspaceConfig},
-    dev_setup, fmt, lint, protocol,
-    step::Pipeline,
+    check_deps,
+    config::{CiConfig, CoverageConfig, ProtocolConfig, WorkspaceConfig},
+    dev_setup, fmt, lint,
+    output::OutputFormat,
+    protocol,
+    step::{Pipeline, PipelineOutcome},
     testing,
 };
 
@@ -14,21 +16,25 @@ use crate::{
 /// When `ci` contains steps they are dispatched dynamically from the config,
 /// allowing workspaces to define their own pipeline in `taskit.toml`.
 /// When `ci` is `None` or empty the built-in default pipeline is used.
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     sh: &Shell,
     ws: &WorkspaceConfig,
     proto: Option<&ProtocolConfig>,
     ci: Option<&CiConfig>,
+    cov: Option<&CoverageConfig>,
     fail_fast: bool,
     include_network: bool,
+    output_format: OutputFormat,
 ) -> Result<()> {
     let offline = !include_network;
-    match ci {
+    let outcome = match ci {
         Some(cfg) if !cfg.steps.is_empty() => {
-            run_from_config(sh, ws, proto, cfg, fail_fast, offline)
+            run_from_config(sh, ws, proto, cov, cfg, fail_fast, offline)
         }
-        _ => run_default(sh, ws, proto, fail_fast, offline),
-    }
+        _ => run_default(sh, ws, proto, cov, fail_fast, offline),
+    };
+    crate::output::write_output(output_format, &outcome).map_err(|e| anyhow::anyhow!("{e}"))
 }
 
 /// Build and run a pipeline from `[[ci.steps]]` in `taskit.toml`.
@@ -36,13 +42,30 @@ fn run_from_config(
     sh: &Shell,
     ws: &WorkspaceConfig,
     proto: Option<&ProtocolConfig>,
+    cov: Option<&CoverageConfig>,
     cfg: &CiConfig,
     fail_fast: bool,
     offline: bool,
-) -> Result<()> {
+) -> PipelineOutcome {
+    // Build pipeline; if dispatch fails, return a single-step failure outcome.
     let mut pipeline = Pipeline::new(fail_fast);
     for step in &cfg.steps {
-        let f = dispatch_cmd(&step.cmd, sh, ws, proto, offline)?;
+        let f = match dispatch_cmd(&step.cmd, sh, ws, proto, cov, offline) {
+            Ok(f) => f,
+            Err(e) => {
+                return PipelineOutcome {
+                    results: vec![crate::step::StepResult {
+                        name: step.name.clone(),
+                        status: crate::step::StepStatus::Fail,
+                        duration: std::time::Duration::ZERO,
+                        error: Some(e.to_string()),
+                        gate: step.gate,
+                    }],
+                    total: std::time::Duration::ZERO,
+                    passed: false,
+                };
+            }
+        };
         if step.gate {
             pipeline = pipeline.gate(&step.name, f);
         } else {
@@ -55,13 +78,14 @@ fn run_from_config(
 /// Map a `cmd` string to a closure that runs the corresponding built-in step.
 ///
 /// The `cmd` syntax mirrors taskit's CLI subcommands:
-/// `"fmt --check"`, `"lint"`, `"test"`, `"coverage"`, `"schema --check"`,
-/// `"compile-tests"`, `"check-deps"`, `"check-protocol-drift"`, `"self-check"`.
+/// `"fmt --check"`, `"lint"`, `"test"`, `"coverage"`, `"compile-tests"`,
+/// `"check-deps"`, `"check-protocol-drift"`, `"self-check"`.
 fn dispatch_cmd<'a>(
     cmd: &str,
     sh: &'a Shell,
     ws: &'a WorkspaceConfig,
     proto: Option<&'a ProtocolConfig>,
+    cov: Option<&'a CoverageConfig>,
     offline: bool,
 ) -> Result<Box<dyn FnOnce() -> Result<()> + 'a>> {
     let parts: Vec<&str> = cmd.split_whitespace().collect();
@@ -74,9 +98,13 @@ fn dispatch_cmd<'a>(
         "lint" => Box::new(move || lint::run(sh, ws, None, false, false)),
         "compile-tests" => Box::new(move || testing::compile::run(sh)),
         "test" => Box::new(move || testing::run::run(sh, ws, None, false, false, offline)),
-        "coverage" => {
-            Box::new(move || testing::coverage::run(sh, "maestro-api", DEFAULT_COVERAGE_THRESHOLD))
-        }
+        "coverage" => Box::new(move || match cov {
+            Some(c) => testing::coverage::run(sh, &c.crate_name, c.threshold()),
+            None => {
+                eprintln!("coverage: skipped (no [coverage] in taskit.toml)");
+                Ok(())
+            }
+        }),
         "check-deps" => Box::new(move || check_deps::run(sh)),
         "check-protocol-drift" => Box::new(move || {
             let root = std::env::current_dir()?;
@@ -93,10 +121,11 @@ fn run_default(
     sh: &Shell,
     ws: &WorkspaceConfig,
     proto: Option<&ProtocolConfig>,
+    cov: Option<&CoverageConfig>,
     fail_fast: bool,
     offline: bool,
-) -> Result<()> {
-    Pipeline::new(fail_fast)
+) -> PipelineOutcome {
+    let mut pipeline = Pipeline::new(fail_fast)
         .gate("self-check", dev_setup::self_check)
         .step("fmt --check", || fmt::run(sh, ws, true, false))
         .step("lint", || lint::run(sh, ws, None, false, false))
@@ -104,23 +133,21 @@ fn run_default(
         .step("test", || {
             testing::run::run(sh, ws, None, false, false, offline)
         })
-        .step("coverage (maestro-api)", || {
-            testing::coverage::run(sh, "maestro-api", DEFAULT_COVERAGE_THRESHOLD)
-        })
         .step("check-deps", || check_deps::run(sh))
         .step("check-protocol-drift", || {
             let root = std::env::current_dir()?;
             protocol::drift::run(&root, proto, false, false, false)
-        })
-        .step("check-protocol-sites", || {
-            protocol::sites::run(
-                std::path::Path::new("maestro-common/src/session.rs"),
-                "CreateSessionRequest {",
-                4,
-                false,
-            )
-        })
-        .run()
+        });
+
+    if let Some(c) = cov {
+        let crate_name = c.crate_name.clone();
+        let threshold = c.threshold();
+        pipeline = pipeline.step(&format!("coverage ({crate_name})"), move || {
+            testing::coverage::run(sh, &crate_name, threshold)
+        });
+    }
+
+    pipeline.run()
 }
 
 #[cfg(test)]
@@ -137,7 +164,7 @@ mod tests {
     fn dispatch_cmd_unknown_returns_error() {
         let sh = make_sh();
         let ws = WorkspaceConfig::default();
-        match dispatch_cmd("frobnicate", &sh, &ws, None, false) {
+        match dispatch_cmd("frobnicate", &sh, &ws, None, None, false) {
             Err(e) => assert!(
                 e.to_string().contains("unknown ci step command"),
                 "unexpected error: {e}"
@@ -150,7 +177,7 @@ mod tests {
     fn dispatch_cmd_empty_string_returns_error() {
         let sh = make_sh();
         let ws = WorkspaceConfig::default();
-        assert!(dispatch_cmd("", &sh, &ws, None, false).is_err());
+        assert!(dispatch_cmd("", &sh, &ws, None, None, false).is_err());
     }
 
     #[test]
@@ -170,7 +197,7 @@ mod tests {
         ];
         for cmd in known {
             assert!(
-                dispatch_cmd(cmd, &sh, &ws, None, false).is_ok(),
+                dispatch_cmd(cmd, &sh, &ws, None, None, false).is_ok(),
                 "dispatch_cmd({cmd:?}) should return Ok"
             );
         }
@@ -178,11 +205,10 @@ mod tests {
 
     #[test]
     fn dispatch_cmd_fmt_check_flag_parsed() {
-        // Verify the flag is parsed without error (closure not called here).
         let sh = make_sh();
         let ws = WorkspaceConfig::default();
-        assert!(dispatch_cmd("fmt --check", &sh, &ws, None, false).is_ok());
-        assert!(dispatch_cmd("fmt", &sh, &ws, None, false).is_ok());
+        assert!(dispatch_cmd("fmt --check", &sh, &ws, None, None, false).is_ok());
+        assert!(dispatch_cmd("fmt", &sh, &ws, None, None, false).is_ok());
     }
 
     // --- run_from_config with empty steps ---
@@ -192,8 +218,7 @@ mod tests {
         let sh = make_sh();
         let ws = WorkspaceConfig::default();
         let cfg = CiConfig { steps: vec![] };
-        // An empty pipeline has no steps and passes trivially.
-        let result = run_from_config(&sh, &ws, None, &cfg, false, false);
-        assert!(result.is_ok());
+        let outcome = run_from_config(&sh, &ws, None, None, &cfg, false, false);
+        assert!(outcome.passed);
     }
 }

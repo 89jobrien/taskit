@@ -1,38 +1,23 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::{env, path::Path};
+use taskit::{
+    audit, check_deps, check_freshness, ci, clean, config, dev_setup, fmt, hooks, lint,
+    output::OutputFormat, protocol, quick, runner, testing, update_claude, version,
+};
 use xshell::Shell;
 
-const DEFAULT_COVERAGE_THRESHOLD: f64 = 80.0;
-
-mod affected;
-mod audit;
-mod cache;
-mod check_deps;
-mod check_freshness;
-mod ci;
-mod clean;
-mod config;
-mod dev_setup;
-mod fmt;
-mod hooks;
-mod lint;
-mod progress;
-mod protocol;
-mod quick;
-mod runner;
-mod step;
-mod testing;
-mod update_claude;
-mod util;
-mod version;
+use taskit::DEFAULT_COVERAGE_THRESHOLD;
 
 #[derive(Parser)]
-#[command(name = "xtask", about = "Maestro workspace dev tasks")]
+#[command(name = "taskit", about = "Config-driven cargo xtask runner")]
 struct Cli {
     /// Print commands without executing them
     #[arg(long, global = true)]
     dry_run: bool,
+    /// Output format: human (default), json, github, junit
+    #[arg(long, global = true, default_value = "human")]
+    output: OutputFormat,
     #[command(subcommand)]
     cmd: Cmd,
 }
@@ -92,13 +77,13 @@ enum Cmd {
     /// Count construction sites for key structs
     CheckProtocolSites {
         /// File to scan
-        #[arg(long, default_value = "maestro-common/src/session.rs")]
+        #[arg(long)]
         file: String,
         /// Pattern to search for
-        #[arg(long, default_value = "CreateSessionRequest {")]
+        #[arg(long)]
         pattern: String,
         /// Expected count
-        #[arg(long, default_value = "4")]
+        #[arg(long)]
         expected: usize,
         #[arg(long)]
         warn_only: bool,
@@ -148,8 +133,9 @@ enum Cmd {
     },
     /// Run property-based tests
     Proptest {
+        /// Package to run proptests for (required)
         #[arg(long, value_name = "CRATE")]
-        crate_name: Option<String>,
+        crate_name: String,
     },
     /// Run cargo-fuzz on a target
     Fuzz {
@@ -205,11 +191,17 @@ fn main() -> Result<()> {
         Cmd::Coverage {
             crate_name,
             threshold,
-        } => testing::coverage::run(
-            &sh,
-            crate_name.as_deref().unwrap_or("maestro-api"),
-            threshold,
-        ),
+        } => {
+            let pkg = crate_name
+                .as_deref()
+                .or(config.coverage.as_ref().map(|c| c.crate_name.as_str()));
+            match pkg {
+                Some(name) => testing::coverage::run(&sh, name, threshold),
+                None => anyhow::bail!(
+                    "no crate specified: use --crate-name or set [coverage].crate_name in taskit.toml"
+                ),
+            }
+        }
         Cmd::CheckProtocolDrift {
             update,
             warn_only,
@@ -233,23 +225,25 @@ fn main() -> Result<()> {
             ws,
             proto,
             config.ci.as_ref(),
+            config.coverage.as_ref(),
             fail_fast,
             include_network,
+            cli.output,
         ),
         Cmd::CompileTests => testing::compile::run(&sh),
         Cmd::CheckDeps => check_deps::run(&sh),
         Cmd::CheckFreshness => check_freshness::run(&sh, proto),
         Cmd::PreCommit => hooks::pre_commit(&sh),
-        Cmd::PrePush => hooks::pre_push(&sh, ws, proto),
+        Cmd::PrePush => hooks::pre_push(&sh, ws, proto, config.coverage.as_ref()),
         Cmd::InstallHooks => hooks::install_hooks(),
         Cmd::Audit => audit::run(&sh),
         Cmd::Clean { older_than } => clean::run(&sh, older_than.as_deref()),
-        Cmd::Version => version::run(&sh),
+        Cmd::Version => version::run(&sh, ws),
         Cmd::DevSetup => dev_setup::setup(&sh),
         Cmd::SelfCheck => dev_setup::self_check(),
         Cmd::SelfTest => testing::self_test::run(&sh),
         Cmd::UpdateClaudeVersion { version: ver } => update_claude::run(&sh, &ver),
-        Cmd::Proptest { crate_name } => testing::proptest::run(&sh, crate_name.as_deref()),
+        Cmd::Proptest { crate_name } => testing::proptest::run(&sh, &crate_name),
         Cmd::Fuzz { target, duration } => testing::fuzz::run(&sh, &target, duration),
         Cmd::Bench {
             crate_name,

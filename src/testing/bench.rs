@@ -38,8 +38,8 @@ mod tests {
 
     #[test]
     fn build_bench_args_single_crate() {
-        let args = build_bench_args(Some("maestro-api"), false);
-        assert_eq!(args, vec!["bench", "-p", "maestro-api"]);
+        let args = build_bench_args(Some("my-api"), false);
+        assert_eq!(args, vec!["bench", "-p", "my-api"]);
     }
 
     #[test]
@@ -50,17 +50,10 @@ mod tests {
 
     #[test]
     fn build_bench_args_single_crate_with_baseline() {
-        let args = build_bench_args(Some("maestro-api"), true);
+        let args = build_bench_args(Some("my-api"), true);
         assert_eq!(
             args,
-            vec![
-                "bench",
-                "-p",
-                "maestro-api",
-                "--",
-                "--save-baseline",
-                "main"
-            ]
+            vec!["bench", "-p", "my-api", "--", "--save-baseline", "main"]
         );
     }
 

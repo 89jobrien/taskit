@@ -122,6 +122,7 @@ pub fn pre_push(
     sh: &Shell,
     ws: &crate::config::WorkspaceConfig,
     proto: Option<&crate::config::ProtocolConfig>,
+    cov: Option<&crate::config::CoverageConfig>,
 ) -> Result<()> {
     eprintln!("Running pre-push checks...");
     let affected = crate::affected::detect(sh, ws)?;
@@ -159,8 +160,10 @@ pub fn pre_push(
             sh,
             "cargo nextest run --locked -p {pkg} --lib --status-level none --final-status-level fail --hide-progress-bar --fail-fast"
         ))?;
-        if pkg == "maestro-api" {
-            crate::testing::coverage::run(sh, "maestro-api", crate::DEFAULT_COVERAGE_THRESHOLD)?;
+        if let Some(c) = cov
+            && *pkg == c.crate_name
+        {
+            crate::testing::coverage::run(sh, &c.crate_name, c.threshold())?;
         }
     }
     let root = std::env::current_dir()?;
@@ -316,7 +319,7 @@ mod tests {
     fn pre_push_cache_roundtrip() {
         let orig = PrePushCache {
             head_sha: "abc123".to_string(),
-            crates: vec!["maestro-api".to_string(), "maestro-cli".to_string()],
+            crates: vec!["my-api".to_string(), "my-cli".to_string()],
         };
         let json = serde_json::to_string(&orig).unwrap();
         let back: PrePushCache = serde_json::from_str(&json).unwrap();
@@ -339,7 +342,7 @@ mod tests {
     #[test]
     fn matching_sha_and_crates_is_a_hit() {
         let sha = "deadbeef".to_string();
-        let crates = vec!["maestro-api".to_string()];
+        let crates = vec!["my-api".to_string()];
         let cached = PrePushCache {
             head_sha: sha.clone(),
             crates: crates.clone(),
@@ -357,14 +360,14 @@ mod tests {
     fn different_sha_is_not_a_hit() {
         let cached = PrePushCache {
             head_sha: "old".to_string(),
-            crates: vec!["maestro-api".to_string()],
+            crates: vec!["my-api".to_string()],
         };
         let sha = "new".to_string();
         let would_skip = !sha.is_empty()
             && cached
                 == (PrePushCache {
                     head_sha: sha,
-                    crates: vec!["maestro-api".to_string()],
+                    crates: vec!["my-api".to_string()],
                 });
         assert!(!would_skip);
     }
@@ -374,13 +377,13 @@ mod tests {
         let sha = "abc".to_string();
         let cached = PrePushCache {
             head_sha: sha.clone(),
-            crates: vec!["maestro-api".to_string()],
+            crates: vec!["my-api".to_string()],
         };
         let would_skip = !sha.is_empty()
             && cached
                 == (PrePushCache {
                     head_sha: sha,
-                    crates: vec!["maestro-cli".to_string()],
+                    crates: vec!["my-cli".to_string()],
                 });
         assert!(!would_skip);
     }
@@ -428,8 +431,8 @@ mod tests {
 
     #[test]
     fn rs_paths_handles_nested_paths() {
-        let paths = rs_paths_from_staged("maestro-api/src/graphql/schema.rs");
-        assert_eq!(paths, vec!["maestro-api/src/graphql/schema.rs"]);
+        let paths = rs_paths_from_staged("my-api/src/graphql/schema.rs");
+        assert_eq!(paths, vec!["my-api/src/graphql/schema.rs"]);
     }
 
     // --- any_rust_file ---
@@ -462,7 +465,7 @@ mod tests {
 
     #[test]
     fn any_rust_file_matches_nested_path() {
-        assert!(any_rust_file("maestro-api/src/graphql/schema.rs"));
+        assert!(any_rust_file("my-api/src/graphql/schema.rs"));
     }
 
     // --- hook content conformance ---
@@ -573,7 +576,7 @@ mod tests {
         let cache_file = cache_dir.join("pre-push.json");
         let c = PrePushCache {
             head_sha: "deadbeef".to_string(),
-            crates: vec!["maestro-api".to_string()],
+            crates: vec!["my-api".to_string()],
         };
         fs::write(&cache_file, serde_json::to_string_pretty(&c).unwrap()).unwrap();
         crate::cache::update_dirs(&cache_dir, &master).unwrap();
@@ -591,14 +594,14 @@ mod tests {
         let cache_file = cache_dir.join("pre-push.json");
         let c = PrePushCache {
             head_sha: "abc".to_string(),
-            crates: vec!["maestro-cli".to_string()],
+            crates: vec!["my-cli".to_string()],
         };
         fs::write(&cache_file, serde_json::to_string_pretty(&c).unwrap()).unwrap();
         crate::cache::update_dirs(&cache_dir, &master).unwrap();
 
         let tampered = PrePushCache {
             head_sha: "TAMPERED".to_string(),
-            crates: vec!["maestro-cli".to_string()],
+            crates: vec!["my-cli".to_string()],
         };
         fs::write(
             &cache_file,
@@ -626,7 +629,7 @@ mod tests {
         .unwrap();
         let pp = PrePushCache {
             head_sha: "sha".to_string(),
-            crates: vec!["maestro-api".to_string()],
+            crates: vec!["my-api".to_string()],
         };
         fs::write(
             cache_dir.join("pre-push.json"),

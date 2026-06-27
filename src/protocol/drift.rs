@@ -284,8 +284,7 @@ mod tests {
 
     // --- calculate_lockfile ---
 
-    // Previously ignored because it required maestro workspace files.
-    // Now self-contained: writes temp files and passes them as surfaces.
+    // Self-contained: writes temp files and passes them as surfaces.
     #[test]
     fn calculate_lockfile_hashes_all_surfaces() {
         let dir = TempDir::new().expect("tempdir");

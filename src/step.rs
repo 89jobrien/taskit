@@ -24,11 +24,13 @@ impl fmt::Display for StepStatus {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StepResult {
     pub name: String,
     pub status: StepStatus,
     pub duration: Duration,
+    pub error: Option<String>,
+    pub gate: bool,
 }
 
 struct PipelineStep<'a> {
@@ -70,11 +72,12 @@ impl<'a> Pipeline<'a> {
         self
     }
 
-    /// Execute the pipeline. Prints summary table. Returns Err if any step failed.
-    pub fn run(self) -> anyhow::Result<()> {
+    /// Execute the pipeline. Returns structured outcome.
+    pub fn run(self) -> PipelineOutcome {
         let mut results: Vec<StepResult> = Vec::new();
         let mut gate_failed = false;
         let mut any_failed = false;
+        let pipeline_start = Instant::now();
 
         for ps in self.steps {
             let should_skip = gate_failed || (self.fail_fast && any_failed);
@@ -84,6 +87,8 @@ impl<'a> Pipeline<'a> {
                     name: ps.name,
                     status: StepStatus::Skipped,
                     duration: Duration::ZERO,
+                    error: None,
+                    gate: ps.is_gate,
                 });
                 continue;
             }
@@ -92,57 +97,64 @@ impl<'a> Pipeline<'a> {
             let start = Instant::now();
             let outcome = (ps.f)();
             let duration = start.elapsed();
-            let status = match &outcome {
+            let (status, error) = match &outcome {
                 Ok(_) => {
                     sp.finish_ok();
-                    StepStatus::Pass
+                    (StepStatus::Pass, None)
                 }
                 Err(e) => {
                     sp.finish_err();
-                    eprintln!("  error: {e}");
+                    let msg = e.to_string();
+                    eprintln!("  error: {msg}");
                     any_failed = true;
                     if ps.is_gate {
                         gate_failed = true;
                     }
-                    StepStatus::Fail
+                    (StepStatus::Fail, Some(msg))
                 }
             };
             results.push(StepResult {
                 name: ps.name,
                 status,
                 duration,
+                error,
+                gate: ps.is_gate,
             });
         }
 
-        print_summary(&results);
-
-        if any_failed {
-            anyhow::bail!("CI checks failed");
+        PipelineOutcome {
+            total: pipeline_start.elapsed(),
+            passed: !any_failed,
+            results,
         }
-        Ok(())
     }
 }
 
-pub fn print_summary(steps: &[StepResult]) {
+#[derive(Debug)]
+pub struct PipelineOutcome {
+    pub results: Vec<StepResult>,
+    pub total: Duration,
+    pub passed: bool,
+}
+
+pub fn print_summary(outcome: &PipelineOutcome) {
     eprintln!();
     eprintln!("{:<COL_NAME$} {:<COL_STATUS$} Duration", "Step", "Status");
     eprintln!("{}", "-".repeat(SEPARATOR_WIDTH));
-    let mut total = Duration::ZERO;
-    for s in steps {
+    for s in &outcome.results {
         eprintln!(
             "{:<COL_NAME$} {:<COL_STATUS$} {:.1}s",
             s.name,
             s.status,
             s.duration.as_secs_f64()
         );
-        total += s.duration;
     }
     eprintln!("{}", "-".repeat(SEPARATOR_WIDTH));
     eprintln!(
         "{:<COL_NAME$} {:<COL_STATUS$} {:.1}s",
         "Total",
         "",
-        total.as_secs_f64()
+        outcome.total.as_secs_f64()
     );
 }
 
@@ -159,11 +171,12 @@ mod tests {
 
     #[test]
     fn pipeline_all_pass() {
-        let result = Pipeline::new(false)
+        let outcome = Pipeline::new(false)
             .step("a", || Ok(()))
             .step("b", || Ok(()))
             .run();
-        assert!(result.is_ok());
+        assert!(outcome.passed);
+        assert_eq!(outcome.results.len(), 2);
     }
 
     #[test]
@@ -172,7 +185,7 @@ mod tests {
         use std::rc::Rc;
         let ran_c = Rc::new(Cell::new(false));
         let ran_c2 = ran_c.clone();
-        let result = Pipeline::new(true)
+        let outcome = Pipeline::new(true)
             .step("a", || Ok(()))
             .step("b", || anyhow::bail!("b failed"))
             .step("c", move || {
@@ -180,7 +193,7 @@ mod tests {
                 Ok(())
             })
             .run();
-        assert!(result.is_err());
+        assert!(!outcome.passed);
         assert!(!ran_c.get(), "c should have been skipped");
     }
 
@@ -190,14 +203,14 @@ mod tests {
         use std::rc::Rc;
         let ran_b = Rc::new(Cell::new(false));
         let ran_b2 = ran_b.clone();
-        let result = Pipeline::new(false)
+        let outcome = Pipeline::new(false)
             .gate("preflight", || anyhow::bail!("tools missing"))
             .step("b", move || {
                 ran_b2.set(true);
                 Ok(())
             })
             .run();
-        assert!(result.is_err());
+        assert!(!outcome.passed);
         assert!(!ran_b.get(), "b should be skipped after gate failure");
     }
 
@@ -207,14 +220,14 @@ mod tests {
         use std::rc::Rc;
         let ran_b = Rc::new(Cell::new(false));
         let ran_b2 = ran_b.clone();
-        let result = Pipeline::new(false)
+        let outcome = Pipeline::new(false)
             .gate("preflight", || Ok(()))
             .step("b", move || {
                 ran_b2.set(true);
                 Ok(())
             })
             .run();
-        assert!(result.is_ok());
+        assert!(outcome.passed);
         assert!(ran_b.get());
     }
 
@@ -224,7 +237,7 @@ mod tests {
         use std::rc::Rc;
         let ran_c = Rc::new(Cell::new(false));
         let ran_c2 = ran_c.clone();
-        let result = Pipeline::new(false)
+        let outcome = Pipeline::new(false)
             .step("a", || Ok(()))
             .step("b", || anyhow::bail!("b failed"))
             .step("c", move || {
@@ -232,51 +245,54 @@ mod tests {
                 Ok(())
             })
             .run();
-        assert!(result.is_err());
+        assert!(!outcome.passed);
         assert!(ran_c.get(), "c should have run when fail_fast=false");
     }
 
     #[test]
     fn pipeline_with_no_steps_passes() {
-        assert!(Pipeline::new(false).run().is_ok());
-        assert!(Pipeline::new(true).run().is_ok());
+        assert!(Pipeline::new(false).run().passed);
+        assert!(Pipeline::new(true).run().passed);
     }
 
     #[test]
     fn pipeline_non_gate_failure_does_not_block_non_fail_fast() {
-        // A failed non-gate step should NOT prevent subsequent steps when fail_fast=false.
         use std::cell::Cell;
         use std::rc::Rc;
         let ran_b = Rc::new(Cell::new(false));
         let ran_b2 = ran_b.clone();
-        let result = Pipeline::new(false)
+        let outcome = Pipeline::new(false)
             .step("a", || anyhow::bail!("a failed"))
             .step("b", move || {
                 ran_b2.set(true);
                 Ok(())
             })
             .run();
-        assert!(result.is_err());
+        assert!(!outcome.passed);
         assert!(ran_b.get());
     }
 
     #[test]
     fn pipeline_multiple_failures_all_recorded_fail_fast_false() {
-        // All steps run; pipeline returns Err because some failed.
-        let result = Pipeline::new(false)
+        let outcome = Pipeline::new(false)
             .step("a", || anyhow::bail!("a"))
             .step("b", || anyhow::bail!("b"))
             .step("c", || Ok(()))
             .run();
-        assert!(result.is_err());
+        assert!(!outcome.passed);
+        assert_eq!(outcome.results.len(), 3);
     }
 
     #[test]
-    fn pipeline_error_message_indicates_ci_checks_failed() {
-        let result = Pipeline::new(false)
-            .step("a", || anyhow::bail!("something broke"))
+    fn pipeline_run_returns_outcome_with_error_and_gate() {
+        let outcome = Pipeline::new(false)
+            .gate("g", || anyhow::bail!("gate failed"))
+            .step("s", || Ok(()))
             .run();
-        assert!(result.unwrap_err().to_string().contains("CI checks failed"));
+        assert!(!outcome.passed);
+        assert!(outcome.results[0].gate);
+        assert!(outcome.results[0].error.is_some());
+        assert_eq!(outcome.results[1].status, StepStatus::Skipped);
     }
 
     #[test]

@@ -14,14 +14,20 @@ use crate::{config::WorkspaceConfig, fmt, lint, runner::with_silent, step::Pipel
 /// the error message.
 pub fn run(sh: &Shell, ws: &WorkspaceConfig) -> Result<()> {
     with_silent(|| {
-        Pipeline::new(false)
+        let outcome = Pipeline::new(false)
             .step("fmt --check (affected)", || fmt::run(sh, ws, true, true))
             .step("lint (affected)", || lint::run(sh, ws, None, true, false))
             .step("compile-tests", || testing::compile::run(sh))
             .step("test (affected, offline)", || {
                 testing::run::run(sh, ws, None, true, false, true)
             })
-            .run()
+            .run();
+        crate::step::print_summary(&outcome);
+        if outcome.passed {
+            Ok(())
+        } else {
+            anyhow::bail!("quick checks failed")
+        }
     })
 }
 
