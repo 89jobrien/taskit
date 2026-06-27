@@ -690,6 +690,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "taskit-engine"
+version = "0.4.0"
+dependencies = [
+ "anyhow",
+ "cargo_metadata",
+ "clap",
+ "hex",
+ "indicatif",
+ "miette",
+ "serde",
+ "serde_json",
+ "sha2",
+ "taskit-core",
+ "tempfile",
+ "toml",
+ "xshell",
+]
+
+[[package]]
 name = "tempfile"
 version = "3.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
