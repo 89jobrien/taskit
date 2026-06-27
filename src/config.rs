@@ -28,6 +28,16 @@ pub struct WorkspaceConfig {
     pub crates: Vec<CrateEntry>,
     #[serde(default)]
     pub propagation: Vec<PropagationEntry>,
+    /// Nextest `-E` filter expression applied when `--offline` is set.
+    /// Tests matching this expression are skipped. Empty = skip nothing.
+    pub offline_skip: Option<String>,
+}
+
+impl WorkspaceConfig {
+    /// Returns the nextest `-E` expression to use for offline runs, if any.
+    pub fn offline_skip_expr(&self) -> Option<String> {
+        self.offline_skip.clone()
+    }
 }
 
 #[derive(Debug, Deserialize)]

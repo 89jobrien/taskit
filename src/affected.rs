@@ -84,6 +84,7 @@ mod tests {
                     dependents: deps.iter().map(|s| s.to_string()).collect(),
                 })
                 .collect(),
+            offline_skip: None,
         }
     }
 

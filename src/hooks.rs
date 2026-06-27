@@ -229,6 +229,19 @@ pub fn install_hooks() -> Result<()> {
     Ok(())
 }
 
+#[cfg(unix)]
+fn make_executable(path: &str) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    let perms = fs::Permissions::from_mode(0o755);
+    fs::set_permissions(path, perms)?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn make_executable(_path: &str) -> Result<()> {
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -624,17 +637,4 @@ mod tests {
 
         assert!(crate::cache::verify_dirs(&cache_dir, &master).unwrap());
     }
-}
-
-#[cfg(unix)]
-fn make_executable(path: &str) -> Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    let perms = fs::Permissions::from_mode(0o755);
-    fs::set_permissions(path, perms)?;
-    Ok(())
-}
-
-#[cfg(not(unix))]
-fn make_executable(_path: &str) -> Result<()> {
-    Ok(())
 }
