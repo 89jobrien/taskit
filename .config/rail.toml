@@ -1,0 +1,78 @@
+targets = []
+
+[unify]
+include_paths = true
+include_renamed = false
+pin_transitives = false
+transitive_host = "root"
+exclude = []
+include = []
+max_backups = 3
+msrv = true
+enforce_msrv_inheritance = false
+msrv_source = "max"
+prune_dead_features = true
+preserve_features = []
+strict_version_compat = true
+exact_pin_handling = "warn"
+major_version_conflict = "warn"
+detect_unused = true
+compiler_diag_cache = true
+remove_unused = true
+detect_undeclared_features = true
+fix_undeclared_features = true
+skip_undeclared_patterns = [
+    "default",
+    "std",
+    "alloc",
+    "*_backend",
+    "*_impl",
+]
+sort_dependencies = true
+
+[release]
+tag_prefix = "v"
+tag_format = "{prefix}{version}"
+require_clean = true
+publish_delay = 5
+create_github_release = true
+sign_tags = false
+changelog_path = "CHANGELOG.md"
+changelog_relative_to = "crate"
+skip_changelog_for = []
+require_changelog_entries = false
+require_release_notes = true
+
+[change-detection]
+infrastructure = [
+    ".github/**",
+    "scripts/**",
+    "justfile",
+    "Justfile",
+    "Makefile",
+    "makefile",
+    "GNUmakefile",
+    "*.sh",
+    "Taskfile.yml",
+    "Taskfile.yaml",
+    ".pre-commit-config.yaml",
+    "deny.toml",
+    "cliff.toml",
+    "release.toml",
+    "release-plz.toml",
+]
+conservative_unclassified_owner_fallback = true
+confidence_profile = "balanced"
+bot_pr_confidence_profile = "strict"
+
+[change-detection.custom]
+
+[run]
+default_profile = "local"
+
+[run.profile]
+
+[run.workflow]
+
+[crates.taskit.release]
+publish = true

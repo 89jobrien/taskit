@@ -1,0 +1,95 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  publish:
+    name: publish to crates.io
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish
+
+  build:
+    name: build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+            use_cross: true
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-latest
+            use_cross: true
+          - target: x86_64-apple-darwin
+            runner: macos-latest
+            use_cross: false
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+            use_cross: false
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.target }}-release-
+      - uses: taiki-e/install-action@v2
+        if: matrix.use_cross
+        with:
+          tool: cross
+      - name: build
+        run: |
+          if [[ "${{ matrix.use_cross }}" == "true" ]]; then
+            cross build --release --target ${{ matrix.target }}
+          else
+            cargo build --release --target ${{ matrix.target }}
+          fi
+      - name: package
+        run: |
+          VERSION=${GITHUB_REF_NAME}
+          TARGET=${{ matrix.target }}
+          ARCHIVE="taskit-${VERSION}-${TARGET}.tar.gz"
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/taskit dist/
+          tar -czf "${ARCHIVE}" -C dist taskit
+      - uses: actions/upload-artifact@v4
+        with:
+          name: taskit-${{ matrix.target }}
+          path: "*.tar.gz"
+          retention-days: 1
+
+  release:
+    name: create GitHub release
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.tar.gz
+          generate_release_notes: true
+          draft: false
