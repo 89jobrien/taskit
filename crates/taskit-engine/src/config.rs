@@ -1,196 +1,85 @@
+// Engine-specific config loading and discovery.
+// Type definitions live in taskit_core::config; re-exported here for sibling modules.
+
+pub use taskit_core::config::{
+    CiConfig, CiStep, Config, CoverageConfig, CrateEntry, PropagationEntry, ProtocolConfig,
+    SurfaceEntry, WorkspaceConfig,
+};
+
 use anyhow::{Context, Result};
-use serde::Deserialize;
 use std::{
     env, fs,
     path::{Path, PathBuf},
 };
 
+use crate::Workspace;
+
 const CONFIG_FILE: &str = "taskit.toml";
 
-// ---------------------------------------------------------------------------
-// Public config types (mirrors DESIGN.md §Config Model)
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Default, Deserialize)]
-pub struct Config {
-    #[serde(default)]
-    pub workspace: WorkspaceConfig,
-    pub protocol: Option<ProtocolConfig>,
-    pub ci: Option<CiConfig>,
-    pub coverage: Option<CoverageConfig>,
+/// Build a Config entirely from cargo metadata + conventions.
+pub fn discover(workspace_root: &Path) -> Result<Config> {
+    use crate::discovery::CargoMetadataSource;
+    let source = CargoMetadataSource {
+        workspace_root: workspace_root.to_path_buf(),
+    };
+    discover_with(workspace_root, &source)
 }
 
-#[derive(Debug, Default, Deserialize)]
-pub struct WorkspaceConfig {
-    /// Override workspace root (default: discovered automatically).
-    pub root: Option<PathBuf>,
-    #[serde(default)]
-    pub crates: Vec<CrateEntry>,
-    #[serde(default)]
-    pub propagation: Vec<PropagationEntry>,
-    /// Nextest `-E` filter expression applied when `--offline` is set.
-    /// Tests matching this expression are skipped. Empty = skip nothing.
-    pub offline_skip: Option<String>,
-}
+/// Build a Config from a given metadata source + conventions.
+pub fn discover_with(
+    workspace_root: &Path,
+    source: &dyn crate::discovery::MetadataSource,
+) -> Result<Config> {
+    use crate::discovery;
 
-impl WorkspaceConfig {
-    /// Returns the nextest `-E` expression to use for offline runs, if any.
-    pub fn offline_skip_expr(&self) -> Option<String> {
-        self.offline_skip.clone()
-    }
-}
+    let members = source.workspace_members()?;
+    let deps = source.intra_workspace_deps()?;
 
-#[derive(Debug, Deserialize)]
-pub struct CrateEntry {
-    pub dir: String,
-    /// Cargo package name. Defaults to `dir` when absent.
-    pub pkg: Option<String>,
-}
-
-impl CrateEntry {
-    pub fn pkg_name(&self) -> &str {
-        self.pkg.as_deref().unwrap_or(&self.dir)
-    }
-}
-
-#[derive(Debug, Deserialize)]
-pub struct PropagationEntry {
-    pub source: String,
-    pub dependents: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ProtocolConfig {
-    #[serde(default)]
-    pub surfaces: Vec<SurfaceEntry>,
-    /// Path to the lockfile, relative to workspace root. Default: `taskit-protocol.lock`.
-    pub lockfile: Option<String>,
-}
-
-impl ProtocolConfig {
-    pub fn lockfile_path(&self) -> &str {
-        self.lockfile.as_deref().unwrap_or("taskit-protocol.lock")
-    }
-}
-
-#[derive(Debug, Deserialize)]
-pub struct SurfaceEntry {
-    pub name: String,
-    pub path: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CiConfig {
-    #[serde(default)]
-    pub steps: Vec<CiStep>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CiStep {
-    pub name: String,
-    pub cmd: String,
-    #[serde(default)]
-    pub gate: bool,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CoverageConfig {
-    /// Package to measure coverage for. Required.
-    pub crate_name: String,
-    /// Minimum coverage percentage. Default: 80.0.
-    pub threshold: Option<f64>,
-}
-
-impl CoverageConfig {
-    pub fn threshold(&self) -> f64 {
-        self.threshold.unwrap_or(crate::DEFAULT_COVERAGE_THRESHOLD)
-    }
-}
-
-impl Config {
-    /// Build a Config entirely from cargo metadata + conventions.
-    pub fn discover(workspace_root: &Path) -> Result<Config> {
-        use crate::discovery::CargoMetadataSource;
-        let source = CargoMetadataSource {
-            workspace_root: workspace_root.to_path_buf(),
-        };
-        Self::discover_with(workspace_root, &source)
-    }
-
-    /// Build a Config from a given metadata source + conventions.
-    /// Primarily exists for testability.
-    pub fn discover_with(
-        workspace_root: &Path,
-        source: &dyn crate::discovery::MetadataSource,
-    ) -> Result<Config> {
-        use crate::discovery;
-
-        let members = source.workspace_members()?;
-        let deps = source.intra_workspace_deps()?;
-
-        let crates: Vec<CrateEntry> = members
-            .iter()
-            .map(|m| CrateEntry {
-                dir: m.dir.clone(),
-                pkg: if m.pkg == m.dir {
-                    None
-                } else {
-                    Some(m.pkg.clone())
-                },
-            })
-            .collect();
-
-        let known_names: Vec<String> = members.iter().map(|m| m.pkg.clone()).collect();
-        let propagation = discovery::derive_propagation(&deps, &known_names);
-
-        let surfaces = discovery::scan_surfaces(workspace_root)?;
-        let protocol = if surfaces.is_empty() {
-            None
-        } else {
-            Some(ProtocolConfig {
-                surfaces: surfaces
-                    .into_iter()
-                    .map(|s| SurfaceEntry {
-                        name: s.name,
-                        path: s.path,
-                    })
-                    .collect(),
-                lockfile: None,
-            })
-        };
-
-        Ok(Config {
-            workspace: WorkspaceConfig {
-                root: None,
-                crates,
-                propagation,
-                offline_skip: None,
+    let crates: Vec<CrateEntry> = members
+        .iter()
+        .map(|m| CrateEntry {
+            dir: m.dir.clone(),
+            pkg: if m.pkg == m.dir {
+                None
+            } else {
+                Some(m.pkg.clone())
             },
-            protocol,
-            ci: None,
-            coverage: None,
         })
-    }
-}
+        .collect();
 
-// ---------------------------------------------------------------------------
-// Discovery
-// ---------------------------------------------------------------------------
+    let known_names: Vec<String> = members.iter().map(|m| m.pkg.clone()).collect();
+    let propagation = discovery::derive_propagation(&deps, &known_names);
 
-/// Resolved workspace root and parsed config (or zero-config defaults).
-#[derive(Debug)]
-pub struct Workspace {
-    /// Absolute path to the workspace root directory.
-    pub root: PathBuf,
-    pub config: Config,
+    let surfaces = discovery::scan_surfaces(workspace_root)?;
+    let protocol = if surfaces.is_empty() {
+        None
+    } else {
+        Some(ProtocolConfig {
+            surfaces: surfaces
+                .into_iter()
+                .map(|s| SurfaceEntry {
+                    name: s.name,
+                    path: s.path,
+                })
+                .collect(),
+            lockfile: None,
+        })
+    };
+
+    Ok(Config {
+        workspace: WorkspaceConfig {
+            root: None,
+            crates,
+            propagation,
+            offline_skip: None,
+        },
+        protocol,
+        ci: None,
+        coverage: None,
+    })
 }
 
 /// Find the workspace root and load `taskit.toml` if present.
-///
-/// Resolution order:
-/// 1. Walk up from `$PWD` looking for `taskit.toml`. Its directory is the root.
-/// 2. Fall back to `cargo metadata --no-deps` to locate the Cargo workspace root
-///    and return a zero-config `Config`.
 pub fn load() -> Result<Workspace> {
     let cwd = env::current_dir().context("failed to read current directory")?;
 
@@ -200,7 +89,6 @@ pub fn load() -> Result<Workspace> {
             .expect("config file always has a parent directory")
             .to_path_buf();
         let mut config = parse_config(&config_path)?;
-        // If [workspace].root is set, resolve it relative to the config file's directory.
         let root = match &config.workspace.root {
             Some(override_root) => {
                 let resolved = root.join(override_root);
@@ -210,24 +98,20 @@ pub fn load() -> Result<Workspace> {
             }
             None => root,
         };
-        // Fill empty sections from discovery
-        if let Ok(discovered) = Config::discover(&root) {
+        if let Ok(discovered) = discover(&root) {
             merge_discovered(&mut config, discovered);
         }
         return Ok(Workspace { root, config });
     }
 
-    // No taskit.toml found — full discovery via cargo metadata.
     let root = cargo_workspace_root().context(
         "no taskit.toml found and `cargo metadata` failed; \
          run taskit from inside a Cargo workspace",
     )?;
-    let config = Config::discover(&root).unwrap_or_default();
+    let config = discover(&root).unwrap_or_default();
     Ok(Workspace { root, config })
 }
 
-/// Walk up the directory tree from `start`, returning the path to the first
-/// `taskit.toml` found, or `None` if the filesystem root is reached.
 fn find_config_file(start: &Path) -> Option<PathBuf> {
     let mut dir = start.to_path_buf();
     loop {
@@ -241,11 +125,6 @@ fn find_config_file(start: &Path) -> Option<PathBuf> {
     }
 }
 
-/// Merge discovered config into an explicit config.
-///
-/// Per-section rule: if the explicit config has any entries in a
-/// section, the entire section comes from config. If empty, the
-/// section is filled from discovery.
 fn merge_discovered(config: &mut Config, discovered: Config) {
     if config.workspace.crates.is_empty() {
         config.workspace.crates = discovered.workspace.crates;
@@ -256,7 +135,6 @@ fn merge_discovered(config: &mut Config, discovered: Config) {
     if config.protocol.is_none() {
         config.protocol = discovered.protocol;
     }
-    // ci and coverage are never discovered — config only
 }
 
 fn parse_config(path: &Path) -> Result<Config> {
@@ -265,7 +143,6 @@ fn parse_config(path: &Path) -> Result<Config> {
     toml::from_str(&content).with_context(|| format!("failed to parse {}", path.display()))
 }
 
-/// Ask Cargo for the workspace root via `cargo metadata`.
 fn cargo_workspace_root() -> Result<PathBuf> {
     let metadata = cargo_metadata::MetadataCommand::new()
         .no_deps()
@@ -273,10 +150,6 @@ fn cargo_workspace_root() -> Result<PathBuf> {
         .context("failed to run `cargo metadata`")?;
     Ok(metadata.workspace_root.into())
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -289,8 +162,6 @@ mod tests {
         fs::write(&path, content).unwrap();
         (dir, path)
     }
-
-    // --- find_config_file ---
 
     #[test]
     fn find_config_file_returns_none_when_absent() {
@@ -319,8 +190,6 @@ mod tests {
         fs::create_dir_all(&grandchild).unwrap();
         assert_eq!(find_config_file(&grandchild), Some(config_path));
     }
-
-    // --- parse_config ---
 
     #[test]
     fn parse_config_empty_file_returns_defaults() {
@@ -432,8 +301,6 @@ cmd = "lint"
         assert!(parse_config(&path).is_err());
     }
 
-    // --- cargo_workspace_root ---
-
     #[test]
     fn cargo_workspace_root_returns_a_directory() {
         let root = cargo_workspace_root().expect("cargo metadata should succeed in a workspace");
@@ -442,8 +309,6 @@ cmd = "lint"
             "workspace root should be an existing directory"
         );
     }
-
-    // --- crate_entry helpers ---
 
     #[test]
     fn pkg_name_defaults_to_dir() {
@@ -462,8 +327,6 @@ cmd = "lint"
         };
         assert_eq!(e.pkg_name(), "bar");
     }
-
-    // --- merge_discovered ---
 
     #[test]
     fn merge_fills_empty_crates_from_discovery() {
@@ -575,7 +438,24 @@ cmd = "lint"
         assert_eq!(config.protocol.as_ref().unwrap().lockfile_path(), "my.lock");
     }
 
-    // --- Config::discover_with ---
+    #[test]
+    fn load_returns_workspace_from_config_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_content = r#"
+[[workspace.crates]]
+dir = "my-lib"
+"#;
+        fs::write(dir.path().join(CONFIG_FILE), config_content).unwrap();
+        // Create a minimal Cargo.toml so cargo metadata can find the workspace
+        fs::write(dir.path().join("Cargo.toml"), "[workspace]\nmembers = []\n").unwrap();
+
+        // parse_config + find_config_file are the core of load(); test them
+        // directly since load() uses env::current_dir() which we can't control
+        let path = find_config_file(dir.path()).unwrap();
+        let config = parse_config(&path).unwrap();
+        assert_eq!(config.workspace.crates.len(), 1);
+        assert_eq!(config.workspace.crates[0].dir, "my-lib");
+    }
 
     use crate::discovery::{DiscoveredCrate, FakeMetadataSource};
 
@@ -590,7 +470,7 @@ cmd = "lint"
             deps: vec![],
         };
         let dir = tempfile::tempdir().unwrap();
-        let config = Config::discover_with(dir.path(), &source).unwrap();
+        let config = discover_with(dir.path(), &source).unwrap();
         assert_eq!(config.workspace.crates.len(), 1);
         assert_eq!(config.workspace.crates[0].dir, "my-lib");
     }
@@ -613,7 +493,7 @@ cmd = "lint"
             deps: vec![("common".into(), "api".into())],
         };
         let dir = tempfile::tempdir().unwrap();
-        let config = Config::discover_with(dir.path(), &source).unwrap();
+        let config = discover_with(dir.path(), &source).unwrap();
         assert_eq!(config.workspace.propagation.len(), 1);
         assert_eq!(config.workspace.propagation[0].source, "common");
     }
@@ -625,7 +505,7 @@ cmd = "lint"
             deps: vec![],
         };
         let dir = tempfile::tempdir().unwrap();
-        let config = Config::discover_with(dir.path(), &source).unwrap();
+        let config = discover_with(dir.path(), &source).unwrap();
         assert!(config.workspace.crates.is_empty());
         assert!(config.workspace.propagation.is_empty());
     }
@@ -641,7 +521,7 @@ cmd = "lint"
             deps: vec![],
         };
         let dir = tempfile::tempdir().unwrap();
-        let config = Config::discover_with(dir.path(), &source).unwrap();
+        let config = discover_with(dir.path(), &source).unwrap();
         assert_eq!(config.workspace.crates[0].pkg_name(), "my-binary");
     }
 }

@@ -1,13 +1,13 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::{env, path::Path};
-use taskit::{
-    audit, check_deps, check_freshness, ci, clean, config, dev_setup, fmt, hooks, lint,
-    output::OutputFormat, protocol, quick, runner, testing, update_claude, version,
+use taskit_core::config::DEFAULT_COVERAGE_THRESHOLD;
+use taskit_core::output_format::OutputFormat;
+use taskit_engine::{
+    audit, check_deps, check_freshness, ci, clean, dev_setup, fmt, hooks, lint, protocol, quick,
+    runner, testing, update_claude, version,
 };
 use xshell::Shell;
-
-use taskit::DEFAULT_COVERAGE_THRESHOLD;
 
 #[derive(Parser)]
 #[command(name = "taskit", about = "Config-driven cargo xtask runner")]
@@ -156,17 +156,32 @@ enum Cmd {
     TestReport,
     /// Review pending insta snapshots
     SnapshotReview,
+    /// Generate taskit.toml and Cruxfile for the current workspace
+    Init {
+        /// Overwrite existing taskit.toml
+        #[arg(long)]
+        force: bool,
+        /// Interactive mode with prompts
+        #[arg(long)]
+        interactive: bool,
+    },
 }
 
 fn main() -> Result<()> {
-    let workspace = config::load()?;
+    let cli = Cli::parse();
+
+    // Init runs before config loading (taskit.toml may not exist yet)
+    if let Cmd::Init { force, interactive } = cli.cmd {
+        return taskit_init::run(force, interactive);
+    }
+
+    let workspace = taskit_engine::config::load()?;
     env::set_current_dir(&workspace.root)?;
     let config = workspace.config;
     let ws = &config.workspace;
     let proto = config.protocol.as_ref();
     let sh = Shell::new()?;
 
-    let cli = Cli::parse();
     runner::set_dry_run(cli.dry_run);
     match cli.cmd {
         Cmd::Fmt { check, affected } => fmt::run(&sh, ws, check, affected),
@@ -251,5 +266,6 @@ fn main() -> Result<()> {
         } => testing::bench::run(&sh, crate_name.as_deref(), save_baseline),
         Cmd::TestReport => testing::report::run(&sh),
         Cmd::SnapshotReview => testing::snapshot::run(&sh),
+        Cmd::Init { .. } => unreachable!("handled above"),
     }
 }

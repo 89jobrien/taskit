@@ -9,3 +9,6 @@ description = "Core types and traits for taskit"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+toml = "0.8"

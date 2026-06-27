@@ -223,7 +223,7 @@ mod tests {
     #[test]
     fn integration_discover_taskit_workspace() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let config = crate::config::Config::discover(&root).unwrap();
+        let config = crate::config::discover(&root).unwrap();
         assert!(
             !config.workspace.crates.is_empty(),
             "should discover at least one crate"

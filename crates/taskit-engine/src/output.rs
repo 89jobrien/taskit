@@ -2,31 +2,21 @@ use serde::Serialize;
 
 use crate::step::{PipelineOutcome, StepStatus};
 
-/// Output format for pipeline results.
-#[derive(Debug, Clone, Copy, Default, clap::ValueEnum)]
-pub enum OutputFormat {
-    #[default]
-    Human,
-    Json,
-    Github,
-    Junit,
-    Diagnostic,
-}
+// Re-export from core.
+pub use taskit_core::output_format::OutputFormat;
 
 /// Port: formats pipeline results for different output targets.
 pub trait OutputFormatter {
     fn render(&self, outcome: &PipelineOutcome) -> String;
 }
 
-impl OutputFormat {
-    pub fn formatter(self) -> Box<dyn OutputFormatter> {
-        match self {
-            OutputFormat::Human => Box::new(HumanFormatter),
-            OutputFormat::Json => Box::new(JsonFormatter),
-            OutputFormat::Github => Box::new(GithubFormatter),
-            OutputFormat::Junit => Box::new(JunitFormatter),
-            OutputFormat::Diagnostic => Box::new(DiagnosticFormatter),
-        }
+pub fn formatter_for(format: OutputFormat) -> Box<dyn OutputFormatter> {
+    match format {
+        OutputFormat::Human => Box::new(HumanFormatter),
+        OutputFormat::Json => Box::new(JsonFormatter),
+        OutputFormat::Github => Box::new(GithubFormatter),
+        OutputFormat::Junit => Box::new(JunitFormatter),
+        OutputFormat::Diagnostic => Box::new(DiagnosticFormatter),
     }
 }
 
@@ -350,7 +340,7 @@ fn render_summary_text(outcome: &PipelineOutcome) -> String {
 /// Write formatted output to the appropriate destination and return
 /// a miette error if the pipeline failed.
 pub fn write_output(format: OutputFormat, outcome: &PipelineOutcome) -> Result<(), PipelineError> {
-    let formatter = format.formatter();
+    let formatter = formatter_for(format);
     let rendered = formatter.render(outcome);
     match format {
         OutputFormat::Json => print!("{rendered}"),
@@ -557,7 +547,7 @@ mod tests {
     #[test]
     fn diagnostic_formatter_success_contains_oneliner() {
         let outcome = passing_outcome();
-        let fmt = OutputFormat::Diagnostic.formatter();
+        let fmt = formatter_for(OutputFormat::Diagnostic);
         let output = fmt.render(&outcome);
         assert!(output.contains("pipeline passed"));
         assert!(output.contains("1 step"));
@@ -566,7 +556,7 @@ mod tests {
     #[test]
     fn diagnostic_formatter_success_contains_table() {
         let outcome = passing_outcome();
-        let fmt = OutputFormat::Diagnostic.formatter();
+        let fmt = formatter_for(OutputFormat::Diagnostic);
         let output = fmt.render(&outcome);
         assert!(output.contains("fmt"));
         assert!(output.contains("PASS"));
@@ -575,7 +565,7 @@ mod tests {
     #[test]
     fn diagnostic_formatter_failure_contains_diagnostic() {
         let outcome = sample_outcome();
-        let fmt = OutputFormat::Diagnostic.formatter();
+        let fmt = formatter_for(OutputFormat::Diagnostic);
         let output = fmt.render(&outcome);
         assert!(output.contains("pipeline failed"));
         assert!(output.contains("test"));

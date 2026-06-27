@@ -1,37 +1,13 @@
-use std::fmt;
 use std::time::{Duration, Instant};
 
 use crate::progress::Spinner;
 
+// Re-export core types for convenience.
+pub use taskit_core::step::{PipelineOutcome, StepResult, StepStatus};
+
 const COL_NAME: usize = 30;
 const COL_STATUS: usize = 10;
 const SEPARATOR_WIDTH: usize = 55;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StepStatus {
-    Pass,
-    Fail,
-    Skipped,
-}
-
-impl fmt::Display for StepStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            StepStatus::Pass => write!(f, "PASS"),
-            StepStatus::Fail => write!(f, "FAIL"),
-            StepStatus::Skipped => write!(f, "SKIP"),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct StepResult {
-    pub name: String,
-    pub status: StepStatus,
-    pub duration: Duration,
-    pub error: Option<String>,
-    pub gate: bool,
-}
 
 struct PipelineStep<'a> {
     name: String,
@@ -128,13 +104,6 @@ impl<'a> Pipeline<'a> {
             results,
         }
     }
-}
-
-#[derive(Debug)]
-pub struct PipelineOutcome {
-    pub results: Vec<StepResult>,
-    pub total: Duration,
-    pub passed: bool,
 }
 
 pub fn print_summary(outcome: &PipelineOutcome) {
