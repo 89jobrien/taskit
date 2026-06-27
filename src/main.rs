@@ -1,13 +1,13 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::{env, path::Path};
-use taskit::{
-    audit, check_deps, check_freshness, ci, clean, config, dev_setup, fmt, hooks, lint,
-    output::OutputFormat, protocol, quick, runner, testing, update_claude, version,
+use taskit_core::config::DEFAULT_COVERAGE_THRESHOLD;
+use taskit_core::output_format::OutputFormat;
+use taskit_engine::{
+    audit, check_deps, check_freshness, ci, clean, dev_setup, fmt, hooks, lint, protocol, quick,
+    runner, testing, update_claude, version,
 };
 use xshell::Shell;
-
-use taskit::DEFAULT_COVERAGE_THRESHOLD;
 
 #[derive(Parser)]
 #[command(name = "taskit", about = "Config-driven cargo xtask runner")]
@@ -159,7 +159,7 @@ enum Cmd {
 }
 
 fn main() -> Result<()> {
-    let workspace = config::load()?;
+    let workspace = taskit_engine::config::load()?;
     env::set_current_dir(&workspace.root)?;
     let config = workspace.config;
     let ws = &config.workspace;

@@ -663,19 +663,12 @@ dependencies = [
 
 [[package]]
 name = "taskit"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
- "cargo_metadata",
  "clap",
- "hex",
- "indicatif",
- "miette",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "toml",
+ "taskit-core",
+ "taskit-engine",
  "xshell",
 ]
 
