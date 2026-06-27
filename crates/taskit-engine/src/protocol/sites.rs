@@ -49,7 +49,8 @@ mod tests {
 
     fn tmp_file(content: &str) -> std::path::PathBuf {
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let path = std::env::temp_dir().join(format!("xtask_psites_{n}.rs"));
+        let pid = std::process::id();
+        let path = std::env::temp_dir().join(format!("xtask_psites_{pid}_{n}.rs"));
         std::fs::write(&path, content).expect("write tmp file");
         path
     }
