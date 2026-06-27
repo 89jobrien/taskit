@@ -21,7 +21,6 @@ mod progress;
 mod protocol;
 mod quick;
 mod runner;
-mod schema;
 mod step;
 mod testing;
 mod update_claude;
@@ -80,11 +79,6 @@ enum Cmd {
         crate_name: Option<String>,
         #[arg(long, default_value_t = DEFAULT_COVERAGE_THRESHOLD)]
         threshold: f64,
-    },
-    /// Dump or check GraphQL schema
-    Schema {
-        #[arg(long)]
-        check: bool,
     },
     /// Check protocol drift of core contract surfaces
     CheckProtocolDrift {
@@ -147,34 +141,10 @@ enum Cmd {
     SelfCheck,
     /// Run xtask's own test suite (hash-cached: skipped when source is unchanged)
     SelfTest,
-    /// Run smoke tests against staging or production
-    SmokeTest {
-        /// Environment: staging or production
-        env: String,
-    },
     /// Update pinned Claude Code version
     UpdateClaudeVersion {
         /// Version string (e.g., "2.1.50")
         version: String,
-    },
-    /// Run conformance/contract tests
-    TestConformance,
-    /// Run Docker integration tests
-    TestDocker {
-        #[arg(long)]
-        filter: Option<String>,
-    },
-    /// Run K8s integration tests
-    TestK8s {
-        #[arg(long)]
-        setup: bool,
-        #[arg(long)]
-        clean: bool,
-    },
-    /// SmolVM test runner
-    TestSmolvm {
-        #[command(subcommand)]
-        sub: SmolVmCmd,
     },
     /// Run property-based tests
     Proptest {
@@ -200,42 +170,6 @@ enum Cmd {
     TestReport,
     /// Review pending insta snapshots
     SnapshotReview,
-    /// Force-delete e2e-* namespaces stuck in Terminating state
-    CleanupE2eNamespaces {
-        /// Kubernetes context (default: auto-detect)
-        #[arg(long)]
-        context: Option<String>,
-    },
-    /// Run e2e test suite against a live cluster
-    TestE2e {
-        /// Run cleanup-e2e-namespaces before tests
-        #[arg(long)]
-        cleanup_first: bool,
-        /// Test filter expression (nextest -E)
-        #[arg(long)]
-        filter: Option<String>,
-        /// Parallel jobs (default: 2)
-        #[arg(long, default_value = "2")]
-        jobs: u32,
-        /// Kubernetes context (default: auto-detect)
-        #[arg(long)]
-        context: Option<String>,
-    },
-}
-
-#[derive(Subcommand)]
-enum SmolVmCmd {
-    /// Run SmolVM conformance tests
-    Conformance,
-    /// Run Linux-gated tests inside SmolVM (Phase 2)
-    Linux {
-        #[arg(long)]
-        crate_name: Option<String>,
-        #[arg(trailing_var_arg = true)]
-        args: Vec<String>,
-    },
-    /// Remove stale test-smolvm-* machines
-    Cleanup,
 }
 
 fn main() -> Result<()> {
@@ -276,7 +210,6 @@ fn main() -> Result<()> {
             crate_name.as_deref().unwrap_or("maestro-api"),
             threshold,
         ),
-        Cmd::Schema { check } => schema::run(&sh, check),
         Cmd::CheckProtocolDrift {
             update,
             warn_only,
@@ -315,18 +248,7 @@ fn main() -> Result<()> {
         Cmd::DevSetup => dev_setup::setup(&sh),
         Cmd::SelfCheck => dev_setup::self_check(),
         Cmd::SelfTest => testing::self_test::run(&sh),
-        Cmd::SmokeTest { env } => testing::smoke::run(&sh, &env),
         Cmd::UpdateClaudeVersion { version: ver } => update_claude::run(&sh, &ver),
-        Cmd::TestConformance => testing::conformance::run(&sh),
-        Cmd::TestDocker { filter } => testing::docker::run(&sh, filter.as_deref()),
-        Cmd::TestK8s { setup, clean } => testing::k8s::run(&sh, setup, clean),
-        Cmd::TestSmolvm { sub } => match sub {
-            SmolVmCmd::Conformance => testing::smolvm::conformance(&sh),
-            SmolVmCmd::Linux { crate_name, args } => {
-                testing::smolvm::linux(crate_name.as_deref(), &args)
-            }
-            SmolVmCmd::Cleanup => testing::smolvm::cleanup(&sh),
-        },
         Cmd::Proptest { crate_name } => testing::proptest::run(&sh, crate_name.as_deref()),
         Cmd::Fuzz { target, duration } => testing::fuzz::run(&sh, &target, duration),
         Cmd::Bench {
@@ -335,20 +257,5 @@ fn main() -> Result<()> {
         } => testing::bench::run(&sh, crate_name.as_deref(), save_baseline),
         Cmd::TestReport => testing::report::run(&sh),
         Cmd::SnapshotReview => testing::snapshot::run(&sh),
-        Cmd::CleanupE2eNamespaces { context } => {
-            testing::k8s::cleanup_stale_namespaces(&sh, context.as_deref())
-        }
-        Cmd::TestE2e {
-            cleanup_first,
-            filter,
-            jobs,
-            context,
-        } => testing::k8s::run_e2e(
-            &sh,
-            cleanup_first,
-            filter.as_deref(),
-            jobs,
-            context.as_deref(),
-        ),
     }
 }

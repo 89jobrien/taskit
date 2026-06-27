@@ -4,7 +4,7 @@ use xshell::Shell;
 use crate::{
     DEFAULT_COVERAGE_THRESHOLD, check_deps,
     config::{CiConfig, ProtocolConfig, WorkspaceConfig},
-    dev_setup, fmt, lint, protocol, schema,
+    dev_setup, fmt, lint, protocol,
     step::Pipeline,
     testing,
 };
@@ -77,10 +77,6 @@ fn dispatch_cmd<'a>(
         "coverage" => {
             Box::new(move || testing::coverage::run(sh, "maestro-api", DEFAULT_COVERAGE_THRESHOLD))
         }
-        "schema" => {
-            let check = parts.contains(&"--check");
-            Box::new(move || schema::run(sh, check))
-        }
         "check-deps" => Box::new(move || check_deps::run(sh)),
         "check-protocol-drift" => Box::new(move || {
             let root = std::env::current_dir()?;
@@ -111,7 +107,6 @@ fn run_default(
         .step("coverage (maestro-api)", || {
             testing::coverage::run(sh, "maestro-api", DEFAULT_COVERAGE_THRESHOLD)
         })
-        .step("schema --check", || schema::run(sh, true))
         .step("check-deps", || check_deps::run(sh))
         .step("check-protocol-drift", || {
             let root = std::env::current_dir()?;
@@ -169,8 +164,6 @@ mod tests {
             "compile-tests",
             "test",
             "coverage",
-            "schema",
-            "schema --check",
             "check-deps",
             "check-protocol-drift",
             "self-check",

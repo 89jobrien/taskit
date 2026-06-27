@@ -1,0 +1,6 @@
+# handoff-begin
+.ctx/*
+.ctx/HANDOFF.godmode.*.yaml
+.ctx/HANDOFF.*.state.json
+!.ctx/handoff.*.config.toml.example
+# handoff-end
