@@ -30,15 +30,15 @@ pub fn run(
     let offline = !include_network;
     let outcome = match ci {
         Some(cfg) if !cfg.steps.is_empty() => {
-            run_from_config(sh, ws, proto, cov, cfg, fail_fast, offline)
+            run_from_config_internal(sh, ws, proto, cov, cfg, fail_fast, offline)
         }
-        _ => run_default(sh, ws, proto, cov, fail_fast, offline),
+        _ => run_default_internal(sh, ws, proto, cov, fail_fast, offline),
     };
     crate::output::write_output(output_format, &outcome).map_err(|e| anyhow::anyhow!("{e}"))
 }
 
 /// Build and run a pipeline from `[[ci.steps]]` in `taskit.toml`.
-fn run_from_config(
+pub fn run_from_config_internal(
     sh: &Shell,
     ws: &WorkspaceConfig,
     proto: Option<&ProtocolConfig>,
@@ -117,7 +117,7 @@ fn dispatch_cmd<'a>(
 }
 
 /// The built-in default pipeline, used when no `[[ci.steps]]` are configured.
-fn run_default(
+pub fn run_default_internal(
     sh: &Shell,
     ws: &WorkspaceConfig,
     proto: Option<&ProtocolConfig>,
@@ -221,7 +221,7 @@ mod tests {
             steps: vec![],
             cruxfile: None,
         };
-        let outcome = run_from_config(&sh, &ws, None, None, &cfg, false, false);
+        let outcome = run_from_config_internal(&sh, &ws, None, None, &cfg, false, false);
         assert!(outcome.passed);
     }
 }
