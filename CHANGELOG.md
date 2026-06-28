@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [unreleased]
+## [0.4.0] - 2026-06-28
 
 ### Features
 
@@ -37,6 +37,8 @@ All notable changes to this project will be documented in this file.
 - Add health baseline (341 tests, 0 clippy warnings, 8 TODOs)
 - Add cargo-rail release commands for Claude Code
 - Configure cargo-rail release for all workspace crates
+- Add git-cliff changelog config and /changelog command
+- Add GitHub templates, release notes, and command templates
 
 ## [0.1.1] - 2026-06-27
 
