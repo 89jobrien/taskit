@@ -6,5 +6,5 @@ license.workspace = true
 description = "Embedded Cruxfile runner for taskit (behind feature flag)"
 
 [dependencies]
-taskit-core = { path = "../taskit-core" }
-anyhow = "1"
+taskit-core.workspace = true
+anyhow.workspace = true
