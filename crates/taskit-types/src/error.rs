@@ -11,6 +11,10 @@ pub enum TaskitError {
     #[diagnostic(transparent)]
     Pipeline(#[from] PipelineError),
 
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    Protocol(#[from] ProtocolError),
+
     #[error("io error: {0}")]
     #[diagnostic(code(taskit::io))]
     Io(#[from] std::io::Error),
@@ -68,6 +72,34 @@ pub enum PipelineError {
         #[source]
         reason: Option<Box<dyn std::error::Error + Send + Sync>>,
     },
+}
+
+#[derive(Debug, Error, Diagnostic)]
+pub enum ProtocolError {
+    #[error("protocol drift detected in surface '{name}'")]
+    #[diagnostic(
+        code(taskit::protocol::drift),
+        help("run `taskit check-protocol-drift --update` to accept")
+    )]
+    Drift {
+        name: String,
+        expected: String,
+        actual: String,
+    },
+
+    #[error("lockfile not found: {path}")]
+    #[diagnostic(
+        code(taskit::protocol::lockfile_missing),
+        help("run `taskit check-protocol-drift --update` to generate")
+    )]
+    LockfileMissing { path: String },
+
+    #[error("lockfile is stale")]
+    #[diagnostic(
+        code(taskit::protocol::stale),
+        help("re-run `taskit check-protocol-drift --update`")
+    )]
+    Stale,
 }
 
 #[derive(Debug, Error, Diagnostic)]
@@ -151,6 +183,38 @@ mod tests {
             reason: None,
         };
         assert!(err.to_string().contains("gate 'preflight' failed"));
+    }
+
+    #[test]
+    fn protocol_drift_display() {
+        let err = TaskitError::Protocol(ProtocolError::Drift {
+            name: "core-api".into(),
+            expected: "abc123".into(),
+            actual: "def456".into(),
+        });
+        assert!(
+            err.to_string().contains("protocol drift detected"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn protocol_drift_diagnostic_code() {
+        let err = ProtocolError::Drift {
+            name: "core-api".into(),
+            expected: "abc".into(),
+            actual: "def".into(),
+        };
+        let code = err.code().expect("should have diagnostic code");
+        assert_eq!(code.to_string(), "taskit::protocol::drift");
+    }
+
+    #[test]
+    fn protocol_lockfile_missing_display() {
+        let err = ProtocolError::LockfileMissing {
+            path: "taskit-protocol.lock".into(),
+        };
+        assert!(err.to_string().contains("lockfile not found"));
     }
 
     #[test]
