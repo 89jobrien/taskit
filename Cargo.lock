@@ -686,6 +686,7 @@ version = "0.6.0"
 dependencies = [
  "anyhow",
  "clap",
+ "miette",
  "taskit-core",
  "taskit-crux",
  "taskit-engine",

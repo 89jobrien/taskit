@@ -45,6 +45,7 @@ taskit-init.workspace = true
 taskit-crux = { workspace = true, optional = true }
 anyhow.workspace = true
 clap.workspace = true
+miette = { version = "7", features = ["fancy"] }
 xshell.workspace = true
 
 [features]
