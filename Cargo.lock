@@ -682,7 +682,7 @@ dependencies = [
 
 [[package]]
 name = "taskit"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -695,7 +695,7 @@ dependencies = [
 
 [[package]]
 name = "taskit-core"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -705,7 +705,7 @@ dependencies = [
 
 [[package]]
 name = "taskit-crux"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "taskit-core",
@@ -713,7 +713,7 @@ dependencies = [
 
 [[package]]
 name = "taskit-engine"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -732,7 +732,7 @@ dependencies = [
 
 [[package]]
 name = "taskit-init"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",
