@@ -4,8 +4,8 @@ use std::{env, path::Path};
 use taskit_core::config::DEFAULT_COVERAGE_THRESHOLD;
 use taskit_core::output_format::OutputFormat;
 use taskit_engine::{
-    audit, check_deps, check_freshness, ci, clean, dev_setup, fmt, health, hooks, lint, protocol,
-    quick, runner, testing, update_claude, version,
+    audit, check_deps, check_freshness, ci, clean, dev_setup, fmt, health, hooks, inspect, lint,
+    protocol, quick, runner, testing, update_claude, version,
 };
 use xshell::Shell;
 
@@ -162,6 +162,15 @@ enum Cmd {
         #[arg(long)]
         update: bool,
     },
+    /// Check workspace metrics against thresholds (pass/fail)
+    Inspect {
+        /// Maximum allowed clippy warnings (default: 0)
+        #[arg(long, default_value_t = 0)]
+        max_warnings: usize,
+        /// Maximum allowed TODO/FIXME comments (unchecked if omitted)
+        #[arg(long)]
+        max_todo: Option<usize>,
+    },
     /// Generate taskit.toml and Cruxfile for the current workspace
     Init {
         /// Overwrite existing taskit.toml
@@ -274,6 +283,10 @@ fn main() -> Result<()> {
         Cmd::TestReport => testing::report::run(&sh),
         Cmd::SnapshotReview => testing::snapshot::run(&sh),
         Cmd::Health { update } => health::run(&sh, &workspace_root, update),
+        Cmd::Inspect {
+            max_warnings,
+            max_todo,
+        } => inspect::run(&sh, max_warnings, max_todo),
         Cmd::Init { .. } => unreachable!("handled above"),
     }
 }
