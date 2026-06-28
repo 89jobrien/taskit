@@ -4,6 +4,7 @@ use std::time::Instant;
 use taskit_core::config::{CiConfig, CoverageConfig, ProtocolConfig, WorkspaceConfig};
 use taskit_core::pipeline_runner::PipelineRunner;
 use taskit_core::step::{PipelineOutcome, StepResult, StepStatus};
+use taskit_types::error::TaskitError;
 use xshell::Shell;
 
 /// Adapter: runs the built-in pipeline using taskit's native step engine.
@@ -41,7 +42,7 @@ impl PipelineRunner for BuiltinRunner<'_> {
         &self,
         _config_path: &Path,
         fail_fast: bool,
-    ) -> anyhow::Result<PipelineOutcome> {
+    ) -> Result<PipelineOutcome, TaskitError> {
         let outcome = match self.ci {
             Some(cfg) if !cfg.steps.is_empty() => crate::ci::run_from_config_internal(
                 self.sh,
@@ -85,9 +86,12 @@ impl PipelineRunner for SubprocessCruxRunner {
         &self,
         _config_path: &Path,
         _fail_fast: bool,
-    ) -> anyhow::Result<PipelineOutcome> {
+    ) -> Result<PipelineOutcome, TaskitError> {
         if !self.cruxfile_path.exists() {
-            anyhow::bail!("cruxfile not found: {}", self.cruxfile_path.display());
+            return Err(TaskitError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("cruxfile not found: {}", self.cruxfile_path.display()),
+            )));
         }
 
         let start = Instant::now();
@@ -95,7 +99,12 @@ impl PipelineRunner for SubprocessCruxRunner {
             .arg("run")
             .arg(&self.cruxfile_path)
             .output()
-            .map_err(|e| anyhow::anyhow!("failed to run crux: {e}"))?;
+            .map_err(|e| {
+                TaskitError::Io(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("failed to run crux: {e}"),
+                ))
+            })?;
 
         let duration = start.elapsed();
         let passed = output.status.success();
@@ -194,7 +203,6 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // TODO: duplicate of subprocess_runner_missing_cruxfile_returns_err — remove one
     #[test]
     fn subprocess_runner_implements_trait() {
         let runner = SubprocessCruxRunner::new(PathBuf::from("/nonexistent/ci.crux"));

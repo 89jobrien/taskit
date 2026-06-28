@@ -7,4 +7,5 @@ description = "Embedded Cruxfile runner for taskit (behind feature flag)"
 
 [dependencies]
 taskit-core.workspace = true
+taskit-types.workspace = true
 anyhow.workspace = true

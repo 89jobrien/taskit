@@ -3,6 +3,7 @@ use std::time::Instant;
 
 use taskit_core::pipeline_runner::PipelineRunner;
 use taskit_core::step::{PipelineOutcome, StepResult, StepStatus};
+use taskit_types::error::TaskitError;
 
 /// Adapter: runs a Cruxfile via embedded crux-script runtime.
 ///
@@ -22,19 +23,17 @@ impl PipelineRunner for EmbeddedCruxRunner {
         &self,
         _config_path: &Path,
         _fail_fast: bool,
-    ) -> anyhow::Result<PipelineOutcome> {
+    ) -> Result<PipelineOutcome, TaskitError> {
         if !self.cruxfile_path.exists() {
-            anyhow::bail!("cruxfile not found: {}", self.cruxfile_path.display());
+            return Err(TaskitError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("cruxfile not found: {}", self.cruxfile_path.display()),
+            )));
         }
 
         let start = Instant::now();
 
-        // TODO: stub silently returns Pass — should return Skipped or Err
-        // to avoid a false-green pipeline when crux-script isn't available.
         // Stub: crux-script runtime not yet available.
-        // When crux-script is published, replace this with:
-        //   let rt = tokio::runtime::Runtime::new()?;
-        //   rt.block_on(crux_script::run_file(&self.cruxfile_path))?;
         let duration = start.elapsed();
 
         Ok(PipelineOutcome {

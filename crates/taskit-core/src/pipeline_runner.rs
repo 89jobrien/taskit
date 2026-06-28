@@ -1,21 +1,25 @@
 use std::path::Path;
 
-use crate::step::PipelineOutcome;
+use taskit_types::error::TaskitError;
+use taskit_types::step::PipelineOutcome;
 
 /// Port: executes a CI pipeline and returns its outcome.
 ///
 /// Adapters: `BuiltinRunner` (taskit-engine), `SubprocessCruxRunner`
 /// (taskit-engine), `EmbeddedCruxRunner` (taskit-crux).
-// TODO: config_path param is unused by all 3 adapters — remove or document intended use
 pub trait PipelineRunner {
-    fn run_pipeline(&self, config_path: &Path, fail_fast: bool) -> anyhow::Result<PipelineOutcome>;
+    fn run_pipeline(
+        &self,
+        config_path: &Path,
+        fail_fast: bool,
+    ) -> Result<PipelineOutcome, TaskitError>;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::step::{StepResult, StepStatus};
     use std::time::Duration;
+    use taskit_types::step::{StepResult, StepStatus};
 
     struct FakeRunner {
         passed: bool,
@@ -26,7 +30,7 @@ mod tests {
             &self,
             _config_path: &Path,
             _fail_fast: bool,
-        ) -> anyhow::Result<PipelineOutcome> {
+        ) -> Result<PipelineOutcome, TaskitError> {
             Ok(PipelineOutcome {
                 results: vec![StepResult {
                     name: "fake".into(),
