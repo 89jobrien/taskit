@@ -39,10 +39,11 @@ taskit --dry-run <subcommand>   # print without executing
 | `check-freshness`                                        | Verify drift lockfile freshness        |
 | `pre-commit` / `pre-push`                                | Git hook delegates                     |
 | `audit`                                                  | Run cargo-deny                         |
+| `clean [--older-than Nd]`                                | Clean target/ + prune taskit artifacts |
 | `health [--update]`                                      | Measure health, compare to baseline    |
 | `inspect [--max-warnings N] [--max-todo N]`              | Check metrics against thresholds       |
 | `publish [--skip-docs] [--allow-dirty]`                  | Generate docs and publish to crates.io |
-| `init [--force] [--interactive]`                         | Generate taskit.toml + Cruxfile        |
+| `init [--force] [--interactive]`                         | Generate taskit.toml, Cruxfile, xtask/ |
 
 ## Architecture
 
