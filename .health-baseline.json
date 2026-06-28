@@ -1,0 +1,9 @@
+{
+  "date": "2026-06-28",
+  "tests": { "total": 341, "passed": 341, "failed": 0, "skipped": 0 },
+  "clippy": { "warnings": 0, "errors": 0 },
+  "todo_fixme": 8,
+  "crates": 5,
+  "versions_consistent": true,
+  "version": "0.4.0"
+}
