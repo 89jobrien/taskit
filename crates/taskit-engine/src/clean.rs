@@ -17,6 +17,25 @@ pub fn run(sh: &Shell, older_than: Option<&str>) -> Result<()> {
         eprintln!("Cleaning target directory...");
         xrun(cmd!(sh, "cargo clean"))?;
     }
+
+    prune_artifacts()?;
+
+    Ok(())
+}
+
+/// Remove taskit-generated artifacts outside of target/.
+fn prune_artifacts() -> Result<()> {
+    let artifacts = [".xtask-cache", "target/taskit-results.xml"];
+    for path in artifacts {
+        let p = std::path::Path::new(path);
+        if p.is_dir() {
+            std::fs::remove_dir_all(p)?;
+            eprintln!("removed {path}/");
+        } else if p.is_file() {
+            std::fs::remove_file(p)?;
+            eprintln!("removed {path}");
+        }
+    }
     Ok(())
 }
 
