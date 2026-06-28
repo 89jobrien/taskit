@@ -2,8 +2,8 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use taskit_core::pipeline_runner::PipelineRunner;
-use taskit_core::step::{PipelineOutcome, StepResult, StepStatus};
 use taskit_types::error::TaskitError;
+use taskit_types::step::{PipelineOutcome, StepResult, StepStatus};
 
 /// Adapter: runs a Cruxfile via embedded crux-script runtime.
 ///

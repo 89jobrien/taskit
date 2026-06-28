@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use crate::progress::Spinner;
 
 // Re-export core types for convenience.
-pub use taskit_core::step::{PipelineOutcome, StepResult, StepStatus};
+pub use taskit_types::step::{PipelineOutcome, StepResult, StepStatus};
 
 const COL_NAME: usize = 30;
 const COL_STATUS: usize = 10;

@@ -39,6 +39,7 @@ path = "src/main.rs"
 
 [dependencies]
 taskit-core.workspace = true
+taskit-types.workspace = true
 taskit-engine.workspace = true
 taskit-init.workspace = true
 taskit-crux = { workspace = true, optional = true }

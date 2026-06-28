@@ -30,7 +30,7 @@ pub mod version;
 #[derive(Debug)]
 pub struct Workspace {
     pub root: std::path::PathBuf,
-    pub config: taskit_core::config::Config,
+    pub config: taskit_types::config::Config,
 }
 
 #[cfg(test)]
@@ -40,7 +40,7 @@ mod tests {
         // Verify the crate's public surface is accessible
         let _ws = super::Workspace {
             root: std::path::PathBuf::from("."),
-            config: taskit_core::config::Config::default(),
+            config: taskit_types::config::Config::default(),
         };
     }
 }

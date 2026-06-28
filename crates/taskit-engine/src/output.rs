@@ -3,7 +3,7 @@ use serde::Serialize;
 use crate::step::{PipelineOutcome, StepStatus};
 
 // Re-export from core.
-pub use taskit_core::output_format::OutputFormat;
+pub use taskit_types::output_format::OutputFormat;
 
 /// Port: formats pipeline results for different output targets.
 pub trait OutputFormatter {

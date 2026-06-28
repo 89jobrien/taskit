@@ -690,6 +690,7 @@ dependencies = [
  "taskit-crux",
  "taskit-engine",
  "taskit-init",
+ "taskit-types",
  "xshell",
 ]
 
@@ -697,11 +698,7 @@ dependencies = [
 name = "taskit-core"
 version = "0.6.0"
 dependencies = [
- "anyhow",
- "clap",
- "serde",
  "taskit-types",
- "toml",
 ]
 
 [[package]]
@@ -741,6 +738,7 @@ dependencies = [
  "cargo_metadata",
  "dialoguer",
  "taskit-core",
+ "taskit-types",
  "tempfile",
 ]
 

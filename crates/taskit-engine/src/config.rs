@@ -1,7 +1,7 @@
 // Engine-specific config loading and discovery.
-// Type definitions live in taskit_core::config; re-exported here for sibling modules.
+// Type definitions live in taskit_types::config; re-exported here for sibling modules.
 
-pub use taskit_core::config::{
+pub use taskit_types::config::{
     CiConfig, CiStep, Config, CoverageConfig, CrateEntry, PropagationEntry, ProtocolConfig,
     SurfaceEntry, WorkspaceConfig,
 };

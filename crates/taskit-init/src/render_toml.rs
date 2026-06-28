@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn render_with_propagation() {
-        use taskit_core::config::PropagationEntry;
+        use taskit_types::config::PropagationEntry;
         let plan = InitPlan {
             crates: vec![],
             propagation: vec![PropagationEntry {

@@ -1,10 +1,10 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use taskit_core::config::{CiConfig, CoverageConfig, ProtocolConfig, WorkspaceConfig};
 use taskit_core::pipeline_runner::PipelineRunner;
-use taskit_core::step::{PipelineOutcome, StepResult, StepStatus};
+use taskit_types::config::{CiConfig, CoverageConfig, ProtocolConfig, WorkspaceConfig};
 use taskit_types::error::TaskitError;
+use taskit_types::step::{PipelineOutcome, StepResult, StepStatus};
 use xshell::Shell;
 
 /// Adapter: runs the built-in pipeline using taskit's native step engine.
@@ -153,7 +153,7 @@ mod tests {
 
     #[test]
     fn builtin_runner_implements_trait() {
-        use taskit_core::config::CiStep;
+        use taskit_types::config::CiStep;
         let sh = Shell::new().unwrap();
         let ws = WorkspaceConfig::default();
         // Use self-check step (fast) to avoid running the full default pipeline
@@ -174,7 +174,7 @@ mod tests {
 
     #[test]
     fn builtin_runner_with_config_steps_returns_outcome() {
-        use taskit_core::config::CiStep;
+        use taskit_types::config::CiStep;
         let sh = Shell::new().unwrap();
         let ws = WorkspaceConfig::default();
         let ci = CiConfig {

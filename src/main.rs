@@ -1,12 +1,12 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::{env, path::Path};
-use taskit_core::config::DEFAULT_COVERAGE_THRESHOLD;
-use taskit_core::output_format::OutputFormat;
 use taskit_engine::{
     audit, check_deps, check_freshness, ci, clean, dev_setup, fmt, health, hooks, inspect, lint,
     protocol, publish, quick, runner, testing, update_claude, version,
 };
+use taskit_types::config::DEFAULT_COVERAGE_THRESHOLD;
+use taskit_types::output_format::OutputFormat;
 use xshell::Shell;
 
 #[derive(Parser)]

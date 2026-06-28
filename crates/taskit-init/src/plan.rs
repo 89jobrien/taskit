@@ -1,5 +1,5 @@
 use anyhow::Result;
-use taskit_core::config::PropagationEntry;
+use taskit_types::config::PropagationEntry;
 
 /// Intermediate representation of what taskit init will generate.
 #[derive(Debug, Clone)]
