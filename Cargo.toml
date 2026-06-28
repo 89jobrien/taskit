@@ -11,7 +11,7 @@ repository = "https://github.com/89jobrien/taskit"
 taskit-core = { version = "0.5.0", path = "crates/taskit-core" }
 taskit-engine = { version = "0.6.0", path = "crates/taskit-engine" }
 taskit-init = { version = "0.5.0", path = "crates/taskit-init" }
-taskit-crux = { version = "0.5.0", path = "crates/taskit-crux" }
+taskit-crux = { version = "0.6.0", path = "crates/taskit-crux" }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 xshell = "0.2"
