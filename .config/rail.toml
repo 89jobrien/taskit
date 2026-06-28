@@ -76,15 +76,20 @@ default_profile = "local"
 
 [crates.taskit.release]
 publish = true
+tag_prefix = "taskit-v"
 
 [crates.taskit-core.release]
 publish = true
+tag_prefix = "taskit-core-v"
 
 [crates.taskit-init.release]
 publish = true
+tag_prefix = "taskit-init-v"
 
 [crates.taskit-crux.release]
 publish = true
+tag_prefix = "taskit-crux-v"
 
 [crates.taskit-engine.release]
 publish = true
+tag_prefix = "taskit-engine-v"
