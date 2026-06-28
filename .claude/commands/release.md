@@ -24,7 +24,21 @@ Show the user:
 
 Ask for explicit confirmation before proceeding.
 
-### 3. Execute
+### 3. Changelog
+
+Generate changelog for the release:
+
+```bash
+git-cliff --unreleased --prepend CHANGELOG.md
+```
+
+Show the generated changelog section to the user. Stage the file:
+
+```bash
+git add CHANGELOG.md
+```
+
+### 4. Execute
 
 Parse bump level from `$ARGUMENTS` (default: `patch`).
 
@@ -41,7 +55,7 @@ If `cargo rail` is not configured, fall back to manual lockstep bump:
 # git tag v<new_version>
 ```
 
-### 4. Push
+### 5. Push
 
 After successful release commit and tag:
 
@@ -57,7 +71,7 @@ This triggers `.github/workflows/release.yml` which builds binaries for:
 - x86_64-apple-darwin
 - aarch64-apple-darwin
 
-### 5. Verify
+### 6. Verify
 
 ```bash
 gh run list --workflow=release.yml --limit 1
@@ -65,7 +79,7 @@ gh run list --workflow=release.yml --limit 1
 
 Report the workflow run URL so the user can monitor it.
 
-### 6. Post-release
+### 7. Post-release
 
 - Do NOT skip `--tags` on push
 - Do NOT use `--no-verify` on any git operation
