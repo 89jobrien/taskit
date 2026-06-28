@@ -14,6 +14,7 @@ pub fn render_cruxfile(plan: &InitPlan, project_name: &str) -> String {
         out.push_str("    run: taskit ci\n");
     } else {
         for step in &plan.ci_steps {
+            // TODO: quote YAML values containing spaces (e.g. "fmt --check")
             out.push_str(&format!("  - name: {}\n", step.name));
             out.push_str(&format!("    run: taskit {}\n", step.cmd));
             if step.gate {

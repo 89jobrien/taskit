@@ -88,6 +88,8 @@ pub fn plan_from_discovery() -> Result<InitPlan> {
         .iter()
         .map(|m| CratePlan {
             dir: m.dir.clone(),
+            // TODO: for root crates (dir="."), pkg never equals dir so pkg is
+            // always Some — consider special-casing root crates
             pkg: if m.pkg == m.dir {
                 None
             } else {

@@ -6,6 +6,7 @@ use crate::step::PipelineOutcome;
 ///
 /// Adapters: `BuiltinRunner` (taskit-engine), `SubprocessCruxRunner`
 /// (taskit-engine), `EmbeddedCruxRunner` (taskit-crux).
+// TODO: config_path param is unused by all 3 adapters — remove or document intended use
 pub trait PipelineRunner {
     fn run_pipeline(&self, config_path: &Path, fail_fast: bool) -> anyhow::Result<PipelineOutcome>;
 }

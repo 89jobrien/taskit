@@ -1,6 +1,7 @@
 use crate::plan::InitPlan;
 
 /// Render an InitPlan into taskit.toml content (hand-built, no serde).
+// TODO: add a round-trip test that parses output via toml::from_str::<Config>()
 pub fn render_toml(plan: &InitPlan) -> String {
     let mut out = String::new();
 

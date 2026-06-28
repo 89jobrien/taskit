@@ -7,6 +7,7 @@ pub mod step;
 mod tests {
     #[test]
     fn core_crate_compiles() {
-        assert!(true);
+        let cfg = crate::config::Config::default();
+        assert!(cfg.ci.is_none());
     }
 }

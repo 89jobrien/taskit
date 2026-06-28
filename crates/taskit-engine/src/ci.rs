@@ -16,6 +16,7 @@ use crate::{
 /// When `ci` contains steps they are dispatched dynamically from the config,
 /// allowing workspaces to define their own pipeline in `taskit.toml`.
 /// When `ci` is `None` or empty the built-in default pipeline is used.
+// TODO: 8 params — bundle fail_fast, include_network, output_format into a CiRunConfig struct
 #[allow(clippy::too_many_arguments)]
 pub fn run(
     sh: &Shell,
@@ -32,7 +33,11 @@ pub fn run(
         Some(cfg) if !cfg.steps.is_empty() => {
             run_from_config_internal(sh, ws, proto, cov, cfg, fail_fast, offline)
         }
-        _ => run_default_internal(sh, ws, proto, cov, fail_fast, offline),
+        Some(_) => {
+            // Explicit [ci] with empty steps = run nothing
+            Pipeline::new(fail_fast).run()
+        }
+        None => run_default_internal(sh, ws, proto, cov, fail_fast, offline),
     };
     crate::output::write_output(output_format, &outcome).map_err(|e| anyhow::anyhow!("{e}"))
 }
@@ -214,14 +219,16 @@ mod tests {
     // --- run_from_config with empty steps ---
 
     #[test]
-    fn run_from_config_empty_steps_passes() {
+    fn empty_steps_runs_nothing() {
         let sh = make_sh();
         let ws = WorkspaceConfig::default();
         let cfg = CiConfig {
             steps: vec![],
             cruxfile: None,
         };
+        // Empty steps = run nothing (not the default pipeline)
         let outcome = run_from_config_internal(&sh, &ws, None, None, &cfg, false, false);
         assert!(outcome.passed);
+        assert!(outcome.results.is_empty());
     }
 }

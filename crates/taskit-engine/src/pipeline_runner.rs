@@ -52,7 +52,11 @@ impl PipelineRunner for BuiltinRunner<'_> {
                 fail_fast,
                 self.offline,
             ),
-            _ => crate::ci::run_default_internal(
+            Some(_) => {
+                // Explicit [ci] with empty steps = run nothing
+                crate::step::Pipeline::new(fail_fast).run()
+            }
+            None => crate::ci::run_default_internal(
                 self.sh,
                 self.ws,
                 self.proto,
@@ -190,6 +194,7 @@ mod tests {
         assert!(result.is_err());
     }
 
+    // TODO: duplicate of subprocess_runner_missing_cruxfile_returns_err — remove one
     #[test]
     fn subprocess_runner_implements_trait() {
         let runner = SubprocessCruxRunner::new(PathBuf::from("/nonexistent/ci.crux"));

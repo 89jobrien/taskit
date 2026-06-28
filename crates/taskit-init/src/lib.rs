@@ -44,6 +44,9 @@ fn detect_project_name() -> String {
 mod tests {
     use super::*;
 
+    // TODO: this test doesn't call run() — it only checks the guard condition
+    // as a tautology. Needs a serial test with set_current_dir to exercise the
+    // real bail, or rename to guard_condition_is_correct.
     #[test]
     fn init_refuses_overwrite_without_force() {
         let dir = tempfile::tempdir().unwrap();

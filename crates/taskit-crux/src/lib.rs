@@ -29,6 +29,8 @@ impl PipelineRunner for EmbeddedCruxRunner {
 
         let start = Instant::now();
 
+        // TODO: stub silently returns Pass — should return Skipped or Err
+        // to avoid a false-green pipeline when crux-script isn't available.
         // Stub: crux-script runtime not yet available.
         // When crux-script is published, replace this with:
         //   let rt = tokio::runtime::Runtime::new()?;
