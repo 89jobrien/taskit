@@ -17,6 +17,7 @@ pub mod output;
 pub mod pipeline_runner;
 pub mod progress;
 pub mod protocol;
+pub mod publish;
 pub mod quick;
 pub mod runner;
 pub mod step;

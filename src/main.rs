@@ -5,7 +5,7 @@ use taskit_core::config::DEFAULT_COVERAGE_THRESHOLD;
 use taskit_core::output_format::OutputFormat;
 use taskit_engine::{
     audit, check_deps, check_freshness, ci, clean, dev_setup, fmt, health, hooks, inspect, lint,
-    protocol, quick, runner, testing, update_claude, version,
+    protocol, publish, quick, runner, testing, update_claude, version,
 };
 use xshell::Shell;
 
@@ -171,6 +171,15 @@ enum Cmd {
         #[arg(long)]
         max_todo: Option<usize>,
     },
+    /// Generate docs and publish workspace crates to crates.io
+    Publish {
+        /// Skip documentation generation
+        #[arg(long)]
+        skip_docs: bool,
+        /// Allow publishing with uncommitted changes
+        #[arg(long)]
+        allow_dirty: bool,
+    },
     /// Generate taskit.toml and Cruxfile for the current workspace
     Init {
         /// Overwrite existing taskit.toml
@@ -287,6 +296,10 @@ fn main() -> Result<()> {
             max_warnings,
             max_todo,
         } => inspect::run(&sh, max_warnings, max_todo),
+        Cmd::Publish {
+            skip_docs,
+            allow_dirty,
+        } => publish::run(&sh, skip_docs, allow_dirty),
         Cmd::Init { .. } => unreachable!("handled above"),
     }
 }
