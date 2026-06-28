@@ -56,24 +56,50 @@ fn write_xtask_crate(force: bool) -> anyhow::Result<()> {
     let cargo_content = r#"[package]
 name = "xtask"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 publish = false
 
 [dependencies]
 "#;
     std::fs::write(&cargo_toml, cargo_content)?;
 
-    let main_content = r#"//! Thin xtask shim that delegates to the `taskit` binary.
+    let main_content = r#"//! Self-updating xtask shim that delegates to the `taskit` binary.
 //!
 //! Usage: `cargo xtask <subcommand> [args...]`
+//!
+//! If `taskit` is not installed, this shim installs it automatically
+//! via `cargo install taskit`.
+
+use std::process::{Command, exit};
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let status = std::process::Command::new("taskit")
-        .args(&args)
-        .status()
-        .expect("failed to run taskit — is it installed? (`cargo install taskit`)");
-    std::process::exit(status.code().unwrap_or(1));
+
+    // Try running taskit directly first
+    match Command::new("taskit").args(&args).status() {
+        Ok(status) => exit(status.code().unwrap_or(1)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            eprintln!("taskit not found, installing via cargo install...");
+            let install = Command::new("cargo")
+                .args(["install", "taskit"])
+                .status()
+                .expect("failed to run cargo install");
+            if !install.success() {
+                eprintln!("failed to install taskit");
+                exit(1);
+            }
+            // Retry after install
+            let status = Command::new("taskit")
+                .args(&args)
+                .status()
+                .expect("failed to run taskit after install");
+            exit(status.code().unwrap_or(1));
+        }
+        Err(e) => {
+            eprintln!("failed to run taskit: {e}");
+            exit(1);
+        }
+    }
 }
 "#;
     std::fs::write(&main_rs, main_content)?;
@@ -102,14 +128,14 @@ fn write_cargo_alias(force: bool) -> anyhow::Result<()> {
         if !content.ends_with('\n') {
             content.push('\n');
         }
-        content.push_str("\n[alias]\nxtask = [\"!taskit\"]\n");
+        content.push_str("\n[alias]\nxtask = \"run --package xtask --\"\n");
         std::fs::write(&path, content)?;
         eprintln!("appended xtask alias to .cargo/config.toml");
         return Ok(());
     }
 
     std::fs::create_dir_all(dir)?;
-    std::fs::write(&path, "[alias]\nxtask = [\"!taskit\"]\n")?;
+    std::fs::write(&path, "[alias]\nxtask = \"run --package xtask --\"\n")?;
     eprintln!("wrote .cargo/config.toml (cargo xtask alias)");
     Ok(())
 }
@@ -186,11 +212,11 @@ mod tests {
         let cargo_dir = dir.path().join(".cargo");
         std::fs::create_dir_all(&cargo_dir).unwrap();
         let config_path = cargo_dir.join("config.toml");
-        let content = "[alias]\nxtask = [\"!taskit\"]\n";
+        let content = "[alias]\nxtask = \"run --package xtask --\"\n";
         std::fs::write(&config_path, content).unwrap();
         let written = std::fs::read_to_string(&config_path).unwrap();
         assert!(written.contains("xtask"));
-        assert!(written.contains("!taskit"));
+        assert!(written.contains("run --package xtask"));
         let _ = prev; // suppress unused warning
     }
 
@@ -207,11 +233,11 @@ mod tests {
         if !content.ends_with('\n') {
             content.push('\n');
         }
-        content.push_str("\n[alias]\nxtask = [\"!taskit\"]\n");
+        content.push_str("\n[alias]\nxtask = \"run --package xtask --\"\n");
         std::fs::write(&config_path, &content).unwrap();
         let written = std::fs::read_to_string(&config_path).unwrap();
         assert!(written.contains("[build]"));
         assert!(written.contains("[alias]"));
-        assert!(written.contains("!taskit"));
+        assert!(written.contains("run --package xtask"));
     }
 }
