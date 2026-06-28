@@ -250,72 +250,28 @@ impl OutputFormatter for DiagnosticFormatter {
 
 // -- Miette error reporting --------------------------------------------------
 
-use miette::{Diagnostic, NamedSource, SourceSpan};
-use std::fmt;
-
-/// A rich diagnostic error emitted when pipeline steps fail.
-///
-/// Integrates with miette to produce colorized, annotated error output
-/// showing which steps failed and their error messages.
-#[derive(Debug, Diagnostic)]
-#[diagnostic(
-    code(taskit::pipeline_failed),
-    help("fix the failing steps above, then re-run")
-)]
-pub struct PipelineError {
-    #[source_code]
-    src: NamedSource<String>,
-    #[label("pipeline result")]
-    span: SourceSpan,
-    #[related]
-    failures: Vec<StepError>,
-}
-
-#[derive(Debug, Diagnostic)]
-#[diagnostic(severity(error))]
-pub struct StepError {
-    step_name: String,
-    #[help]
-    detail: Option<String>,
-}
-
-impl fmt::Display for StepError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "step \"{}\" failed", self.step_name)
-    }
-}
-
-impl std::error::Error for StepError {}
-
-impl fmt::Display for PipelineError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "pipeline failed: {} step(s) failed", self.failures.len())
-    }
-}
-
-impl std::error::Error for PipelineError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
-}
+use miette::NamedSource;
+use taskit_types::error::{PipelineError, StepError};
 
 /// Build a miette-compatible PipelineError from a failed outcome.
 pub fn pipeline_error(outcome: &PipelineOutcome) -> PipelineError {
     let summary = render_summary_text(outcome);
     let len = summary.len();
-    let failures: Vec<StepError> = outcome
+    let step_errors: Vec<StepError> = outcome
         .results
         .iter()
         .filter(|s| s.status == StepStatus::Fail)
         .map(|s| StepError {
-            step_name: s.name.clone(),
+            name: s.name.clone(),
             detail: s.error.clone(),
         })
         .collect();
-    PipelineError {
+    let failed_count = step_errors.len();
+    PipelineError::Failed {
+        failed_count,
         src: NamedSource::new("pipeline-summary", summary),
         span: (0, len).into(),
-        failures,
+        step_errors,
     }
 }
 
@@ -523,8 +479,13 @@ mod tests {
     #[test]
     fn pipeline_error_has_correct_failure_count() {
         let err = pipeline_error(&sample_outcome());
-        assert_eq!(err.failures.len(), 1);
-        assert_eq!(err.failures[0].step_name, "test");
+        match &err {
+            PipelineError::Failed { step_errors, .. } => {
+                assert_eq!(step_errors.len(), 1);
+                assert_eq!(step_errors[0].name, "test");
+            }
+            _ => panic!("expected PipelineError::Failed"),
+        }
     }
 
     #[test]
@@ -536,7 +497,7 @@ mod tests {
     #[test]
     fn step_error_display() {
         let err = StepError {
-            step_name: "lint".into(),
+            name: "lint".into(),
             detail: Some("clippy warnings".into()),
         };
         assert!(err.to_string().contains("lint"));
