@@ -76,3 +76,15 @@ default_profile = "local"
 
 [crates.taskit.release]
 publish = true
+
+[crates.taskit-core.release]
+publish = true
+
+[crates.taskit-init.release]
+publish = true
+
+[crates.taskit-crux.release]
+publish = true
+
+[crates.taskit-engine.release]
+publish = true
