@@ -35,13 +35,13 @@ tag_prefix = "v"
 tag_format = "{prefix}{version}"
 require_clean = true
 publish_delay = 5
-create_github_release = true
+create_github_release = false
 sign_tags = false
 changelog_path = "CHANGELOG.md"
 changelog_relative_to = "crate"
 skip_changelog_for = []
 require_changelog_entries = false
-require_release_notes = true
+require_release_notes = false
 
 [change-detection]
 infrastructure = [
