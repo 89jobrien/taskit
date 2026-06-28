@@ -39,6 +39,7 @@ taskit --dry-run <subcommand>   # print without executing
 | `check-freshness`                                        | Verify drift lockfile freshness       |
 | `pre-commit` / `pre-push`                                | Git hook delegates                    |
 | `audit`                                                  | Run cargo-deny                        |
+| `health [--update]`                                      | Measure health, compare to baseline   |
 | `init [--force] [--interactive]`                         | Generate taskit.toml + Cruxfile       |
 
 ## Architecture

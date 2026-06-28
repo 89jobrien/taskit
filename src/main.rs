@@ -4,8 +4,8 @@ use std::{env, path::Path};
 use taskit_core::config::DEFAULT_COVERAGE_THRESHOLD;
 use taskit_core::output_format::OutputFormat;
 use taskit_engine::{
-    audit, check_deps, check_freshness, ci, clean, dev_setup, fmt, hooks, lint, protocol, quick,
-    runner, testing, update_claude, version,
+    audit, check_deps, check_freshness, ci, clean, dev_setup, fmt, health, hooks, lint, protocol,
+    quick, runner, testing, update_claude, version,
 };
 use xshell::Shell;
 
@@ -156,6 +156,12 @@ enum Cmd {
     TestReport,
     /// Review pending insta snapshots
     SnapshotReview,
+    /// Measure codebase health and compare against baseline
+    Health {
+        /// Write current metrics to .health-baseline.json
+        #[arg(long)]
+        update: bool,
+    },
     /// Generate taskit.toml and Cruxfile for the current workspace
     Init {
         /// Overwrite existing taskit.toml
@@ -176,7 +182,8 @@ fn main() -> Result<()> {
     }
 
     let workspace = taskit_engine::config::load()?;
-    env::set_current_dir(&workspace.root)?;
+    let workspace_root = workspace.root.clone();
+    env::set_current_dir(&workspace_root)?;
     let config = workspace.config;
     let ws = &config.workspace;
     let proto = config.protocol.as_ref();
@@ -266,6 +273,7 @@ fn main() -> Result<()> {
         } => testing::bench::run(&sh, crate_name.as_deref(), save_baseline),
         Cmd::TestReport => testing::report::run(&sh),
         Cmd::SnapshotReview => testing::snapshot::run(&sh),
+        Cmd::Health { update } => health::run(&sh, &workspace_root, update),
         Cmd::Init { .. } => unreachable!("handled above"),
     }
 }

@@ -9,6 +9,7 @@ pub mod config;
 pub mod dev_setup;
 pub mod discovery;
 pub mod fmt;
+pub mod health;
 pub mod hooks;
 pub mod lint;
 pub mod output;

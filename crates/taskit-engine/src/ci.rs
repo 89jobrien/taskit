@@ -116,6 +116,10 @@ fn dispatch_cmd<'a>(
             protocol::drift::run(&root, proto, false, false, false)
         }),
         "self-check" => Box::new(dev_setup::self_check),
+        "health" => {
+            let root = std::env::current_dir()?;
+            Box::new(move || crate::health::run(sh, &root, false))
+        }
         other => bail!("unknown ci step command: {other:?}"),
     };
     Ok(f)
@@ -199,6 +203,7 @@ mod tests {
             "check-deps",
             "check-protocol-drift",
             "self-check",
+            "health",
         ];
         for cmd in known {
             assert!(
