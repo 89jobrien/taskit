@@ -73,6 +73,15 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: git-cliff
+      - name: generate release notes
+        id: notes
+        run: |
+          git-cliff --latest --strip header > RELEASE_NOTES.md
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -80,5 +89,5 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*.tar.gz
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
           draft: false

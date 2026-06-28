@@ -1,0 +1,63 @@
+name: Bug Report
+description: Report a bug in taskit
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please fill out the sections below.
+
+  - type: input
+    id: version
+    attributes:
+      label: taskit version
+      description: Output of `taskit --version`
+      placeholder: "taskit 0.4.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened? What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps to reproduce the issue.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: taskit.toml (if relevant)
+      description: Paste your `taskit.toml` config, or note if using zero-config mode.
+      render: toml
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Output / error
+      description: Paste the relevant output or error message.
+      render: text
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - Other
+    validations:
+      required: true

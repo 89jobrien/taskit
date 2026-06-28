@@ -1,0 +1,40 @@
+name: Refactor
+description: Propose a code quality or architecture improvement
+labels: ["refactor"]
+body:
+  - type: textarea
+    id: current
+    attributes:
+      label: Current state
+      description: What exists today and why it needs improvement.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed change
+      description: What the code should look like after the refactor.
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: Which crates and modules are affected?
+      placeholder: |
+        Crates: taskit-engine
+        Files: crates/taskit-engine/src/output.rs
+
+  - type: dropdown
+    id: breaking
+    attributes:
+      label: Breaking change?
+      options:
+        - "No"
+        - "Yes - public API"
+        - "Yes - config format"
+        - "Yes - CLI interface"
+    validations:
+      required: true
