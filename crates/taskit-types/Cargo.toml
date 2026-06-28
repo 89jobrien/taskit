@@ -10,3 +10,6 @@ clap.workspace = true
 miette = { version = "7", features = ["derive"] }
 serde.workspace = true
 thiserror = "2"
+
+[dev-dependencies]
+toml = "0.8"

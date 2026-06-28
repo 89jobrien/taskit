@@ -700,6 +700,7 @@ dependencies = [
  "anyhow",
  "clap",
  "serde",
+ "taskit-types",
  "toml",
 ]
 
@@ -739,6 +740,17 @@ dependencies = [
  "dialoguer",
  "taskit-core",
  "tempfile",
+]
+
+[[package]]
+name = "taskit-types"
+version = "0.6.0"
+dependencies = [
+ "clap",
+ "miette",
+ "serde",
+ "thiserror 2.0.18",
+ "toml",
 ]
 
 [[package]]

@@ -9,6 +9,7 @@ description = "Core types and traits for taskit"
 anyhow.workspace = true
 clap.workspace = true
 serde.workspace = true
+taskit-types.workspace = true
 
 [dev-dependencies]
 toml = "0.8"
