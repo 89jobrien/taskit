@@ -100,10 +100,7 @@ impl PipelineRunner for SubprocessCruxRunner {
             .arg(&self.cruxfile_path)
             .output()
             .map_err(|e| {
-                TaskitError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("failed to run crux: {e}"),
-                ))
+                TaskitError::Io(std::io::Error::other(format!("failed to run crux: {e}")))
             })?;
 
         let duration = start.elapsed();
