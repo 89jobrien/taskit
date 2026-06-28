@@ -9,7 +9,7 @@ repository = "https://github.com/89jobrien/taskit"
 
 [workspace.dependencies]
 taskit-core = { version = "0.5.0", path = "crates/taskit-core" }
-taskit-engine = { version = "0.5.0", path = "crates/taskit-engine" }
+taskit-engine = { version = "0.6.0", path = "crates/taskit-engine" }
 taskit-init = { version = "0.5.0", path = "crates/taskit-init" }
 taskit-crux = { version = "0.5.0", path = "crates/taskit-crux" }
 anyhow = "1"
