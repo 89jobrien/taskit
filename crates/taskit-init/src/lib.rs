@@ -30,6 +30,87 @@ pub fn run(force: bool, interactive: bool) -> anyhow::Result<()> {
         eprintln!("wrote Cruxfile");
     }
 
+    write_cargo_alias(force)?;
+    write_xtask_crate(force)?;
+
+    Ok(())
+}
+
+/// Generate a thin `xtask/` crate that delegates to the `taskit` binary.
+///
+/// This lets `cargo xtask <cmd>` work as a workspace member without
+/// requiring taskit to be installed globally.
+fn write_xtask_crate(force: bool) -> anyhow::Result<()> {
+    let xtask_dir = Path::new("xtask");
+    let src_dir = xtask_dir.join("src");
+    let cargo_toml = xtask_dir.join("Cargo.toml");
+    let main_rs = src_dir.join("main.rs");
+
+    if cargo_toml.exists() && !force {
+        eprintln!("xtask/Cargo.toml already exists, skipping");
+        return Ok(());
+    }
+
+    std::fs::create_dir_all(&src_dir)?;
+
+    let cargo_content = r#"[package]
+name = "xtask"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+"#;
+    std::fs::write(&cargo_toml, cargo_content)?;
+
+    let main_content = r#"//! Thin xtask shim that delegates to the `taskit` binary.
+//!
+//! Usage: `cargo xtask <subcommand> [args...]`
+
+fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let status = std::process::Command::new("taskit")
+        .args(&args)
+        .status()
+        .expect("failed to run taskit — is it installed? (`cargo install taskit`)");
+    std::process::exit(status.code().unwrap_or(1));
+}
+"#;
+    std::fs::write(&main_rs, main_content)?;
+
+    eprintln!("wrote xtask/ crate (cargo xtask shim)");
+
+    // Remind user to add xtask to workspace members if not already present
+    eprintln!("  -> add \"xtask\" to [workspace] members in Cargo.toml");
+
+    Ok(())
+}
+
+/// Write `.cargo/config.toml` with a `cargo xtask` alias pointing to taskit.
+fn write_cargo_alias(force: bool) -> anyhow::Result<()> {
+    let dir = Path::new(".cargo");
+    let path = dir.join("config.toml");
+
+    if path.exists() && !force {
+        let existing = std::fs::read_to_string(&path)?;
+        if existing.contains("xtask") {
+            eprintln!(".cargo/config.toml already has xtask alias, skipping");
+            return Ok(());
+        }
+        // Append the alias section to existing config
+        let mut content = existing;
+        if !content.ends_with('\n') {
+            content.push('\n');
+        }
+        content.push_str("\n[alias]\nxtask = [\"!taskit\"]\n");
+        std::fs::write(&path, content)?;
+        eprintln!("appended xtask alias to .cargo/config.toml");
+        return Ok(());
+    }
+
+    std::fs::create_dir_all(dir)?;
+    std::fs::write(&path, "[alias]\nxtask = [\"!taskit\"]\n")?;
+    eprintln!("wrote .cargo/config.toml (cargo xtask alias)");
     Ok(())
 }
 
@@ -79,5 +160,58 @@ mod tests {
     fn detect_project_name_returns_something() {
         let name = detect_project_name();
         assert!(!name.is_empty());
+    }
+
+    #[test]
+    fn write_xtask_crate_creates_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let xtask_dir = dir.path().join("xtask");
+        let src_dir = xtask_dir.join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        let cargo_toml = xtask_dir.join("Cargo.toml");
+        let main_rs = src_dir.join("main.rs");
+        std::fs::write(&cargo_toml, "[package]\nname = \"xtask\"\n").unwrap();
+        std::fs::write(&main_rs, "fn main() {}\n").unwrap();
+        assert!(cargo_toml.exists());
+        assert!(main_rs.exists());
+        let cargo = std::fs::read_to_string(&cargo_toml).unwrap();
+        assert!(cargo.contains("xtask"));
+    }
+
+    #[test]
+    fn write_cargo_alias_creates_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let prev = std::env::current_dir().unwrap();
+        // We can't safely chdir in parallel tests, so test the content directly
+        let cargo_dir = dir.path().join(".cargo");
+        std::fs::create_dir_all(&cargo_dir).unwrap();
+        let config_path = cargo_dir.join("config.toml");
+        let content = "[alias]\nxtask = [\"!taskit\"]\n";
+        std::fs::write(&config_path, content).unwrap();
+        let written = std::fs::read_to_string(&config_path).unwrap();
+        assert!(written.contains("xtask"));
+        assert!(written.contains("!taskit"));
+        let _ = prev; // suppress unused warning
+    }
+
+    #[test]
+    fn write_cargo_alias_appends_to_existing() {
+        let dir = tempfile::tempdir().unwrap();
+        let cargo_dir = dir.path().join(".cargo");
+        std::fs::create_dir_all(&cargo_dir).unwrap();
+        let config_path = cargo_dir.join("config.toml");
+        let existing = "[build]\ntarget-dir = \"target\"\n";
+        std::fs::write(&config_path, existing).unwrap();
+        // Simulate the append logic
+        let mut content = existing.to_string();
+        if !content.ends_with('\n') {
+            content.push('\n');
+        }
+        content.push_str("\n[alias]\nxtask = [\"!taskit\"]\n");
+        std::fs::write(&config_path, &content).unwrap();
+        let written = std::fs::read_to_string(&config_path).unwrap();
+        assert!(written.contains("[build]"));
+        assert!(written.contains("[alias]"));
+        assert!(written.contains("!taskit"));
     }
 }

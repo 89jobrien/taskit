@@ -1,7 +1,9 @@
 use anyhow::{Context, Result};
 use xshell::{Shell, cmd};
 
+use crate::output::OutputFormat;
 use crate::runner;
+use crate::step::Pipeline;
 
 /// Crates in publish order: dependencies before dependents.
 const PUBLISH_ORDER: &[&str] = &[
@@ -12,47 +14,35 @@ const PUBLISH_ORDER: &[&str] = &[
     "taskit",
 ];
 
-pub fn run(sh: &Shell, skip_docs: bool, allow_dirty: bool) -> Result<()> {
-    if !skip_docs {
-        generate_docs(sh)?;
-    }
-
-    publish_crates(sh, allow_dirty)?;
-
-    eprintln!("publish complete");
-    Ok(())
-}
-
-fn generate_docs(sh: &Shell) -> Result<()> {
-    eprintln!("Generating documentation...");
-    let doc_cmd = cmd!(sh, "cargo doc --workspace --no-deps");
-    runner::xrun(doc_cmd).context("cargo doc failed")?;
-    eprintln!("Documentation generated");
-    Ok(())
-}
-
-fn publish_crates(sh: &Shell, allow_dirty: bool) -> Result<()> {
+pub fn run(sh: &Shell, skip_docs: bool, allow_dirty: bool, fmt: OutputFormat) -> Result<()> {
     let dry_run = runner::is_dry_run();
+    let mut pipeline = Pipeline::new(true);
+
+    if !skip_docs {
+        pipeline = pipeline.gate("cargo doc", || {
+            let doc_cmd = cmd!(sh, "cargo doc --workspace --no-deps");
+            runner::xrun(doc_cmd).context("cargo doc failed")
+        });
+    }
 
     for krate in PUBLISH_ORDER {
-        eprintln!("Publishing {krate}...");
-
-        let mut args = vec!["publish", "-p", krate];
-        if dry_run {
-            args.push("--dry-run");
-        }
-        if allow_dirty {
-            args.push("--allow-dirty");
-        }
-
-        // Use cmd! with explicit cargo + args to pass --dry-run to cargo
-        // publish itself (separate from taskit's own dry-run which skips
-        // execution entirely via xrun).
-        let publish_cmd = cmd!(sh, "cargo {args...}");
-        runner::xrun(publish_cmd).with_context(|| format!("failed to publish {krate}"))?;
+        let krate = *krate;
+        let step_name = format!("publish {krate}");
+        pipeline = pipeline.step(&step_name, move || {
+            let mut args = vec!["publish", "-p", krate];
+            if dry_run {
+                args.push("--dry-run");
+            }
+            if allow_dirty {
+                args.push("--allow-dirty");
+            }
+            let publish_cmd = cmd!(sh, "cargo {args...}");
+            runner::xrun(publish_cmd).with_context(|| format!("failed to publish {krate}"))
+        });
     }
 
-    Ok(())
+    let outcome = pipeline.run();
+    crate::output::write_output(fmt, &outcome).map_err(|e| anyhow::anyhow!("{e}"))
 }
 
 #[cfg(test)]

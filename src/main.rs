@@ -295,11 +295,11 @@ fn main() -> Result<()> {
         Cmd::Inspect {
             max_warnings,
             max_todo,
-        } => inspect::run(&sh, max_warnings, max_todo),
+        } => inspect::run(&sh, max_warnings, max_todo, cli.output),
         Cmd::Publish {
             skip_docs,
             allow_dirty,
-        } => publish::run(&sh, skip_docs, allow_dirty),
+        } => publish::run(&sh, skip_docs, allow_dirty, cli.output),
         Cmd::Init { .. } => unreachable!("handled above"),
     }
 }

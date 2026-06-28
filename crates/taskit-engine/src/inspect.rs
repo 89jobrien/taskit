@@ -2,8 +2,10 @@ use anyhow::Result;
 use xshell::Shell;
 
 use crate::health::{self, HealthBaseline};
+use crate::output::OutputFormat;
+use crate::step::{Pipeline, PipelineOutcome};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Thresholds {
     pub max_clippy_warnings: usize,
     pub max_clippy_errors: usize,
@@ -11,137 +13,84 @@ pub struct Thresholds {
     pub max_todo_fixme: Option<usize>,
 }
 
-impl Default for Thresholds {
-    fn default() -> Self {
-        Self {
-            max_clippy_warnings: 0,
-            max_clippy_errors: 0,
-            max_test_failures: 0,
-            max_todo_fixme: None,
-        }
-    }
+/// Build and run the inspect pipeline, returning a structured outcome.
+pub fn run_pipeline(sh: &Shell, thresholds: &Thresholds) -> Result<PipelineOutcome> {
+    let baseline = health::collect(sh)?;
+    Ok(build_pipeline(&baseline, thresholds))
 }
 
-struct Check {
-    name: &'static str,
-    value: usize,
-    limit: usize,
-    passed: bool,
-}
+/// Build a pipeline from the collected baseline and thresholds.
+///
+/// Each threshold check becomes a pipeline step so the output formatters
+/// can render it consistently with `taskit ci`.
+fn build_pipeline(baseline: &HealthBaseline, thresholds: &Thresholds) -> PipelineOutcome {
+    let max_failures = thresholds.max_test_failures;
+    let failed = baseline.tests.failed;
 
-fn evaluate(baseline: &HealthBaseline, thresholds: &Thresholds) -> Vec<Check> {
-    let mut checks = vec![
-        {
-            let v = baseline.tests.failed;
-            let l = thresholds.max_test_failures;
-            Check {
-                name: "Test failures",
-                value: v,
-                limit: l,
-                passed: v <= l,
+    let max_errors = thresholds.max_clippy_errors;
+    let errors = baseline.clippy.errors;
+
+    let max_warnings = thresholds.max_clippy_warnings;
+    let warnings = baseline.clippy.warnings;
+
+    let consistent = baseline.versions_consistent;
+
+    let mut pipeline = Pipeline::new(false)
+        .step(&format!("test failures <= {max_failures}"), move || {
+            threshold_check("test failures", failed, max_failures)
+        })
+        .step(&format!("clippy errors <= {max_errors}"), move || {
+            threshold_check("clippy errors", errors, max_errors)
+        })
+        .step(&format!("clippy warnings <= {max_warnings}"), move || {
+            threshold_check("clippy warnings", warnings, max_warnings)
+        })
+        .step("version consistency", move || {
+            if consistent {
+                Ok(())
+            } else {
+                anyhow::bail!("workspace versions are inconsistent")
             }
-        },
-        {
-            let v = baseline.clippy.errors;
-            let l = thresholds.max_clippy_errors;
-            Check {
-                name: "Clippy errors",
-                value: v,
-                limit: l,
-                passed: v <= l,
-            }
-        },
-        {
-            let v = baseline.clippy.warnings;
-            let l = thresholds.max_clippy_warnings;
-            Check {
-                name: "Clippy warnings",
-                value: v,
-                limit: l,
-                passed: v <= l,
-            }
-        },
-        Check {
-            name: "Version consistency",
-            value: if baseline.versions_consistent { 0 } else { 1 },
-            limit: 0,
-            passed: baseline.versions_consistent,
-        },
-    ];
+        });
 
     if let Some(max_todo) = thresholds.max_todo_fixme {
-        checks.push({
-            let v = baseline.todo_fixme;
-            Check {
-                name: "TODO/FIXME count",
-                value: v,
-                limit: max_todo,
-                passed: v <= max_todo,
-            }
+        let todo_count = baseline.todo_fixme;
+        pipeline = pipeline.step(&format!("TODO/FIXME <= {max_todo}"), move || {
+            threshold_check("TODO/FIXME", todo_count, max_todo)
         });
     }
 
-    checks
+    pipeline.run()
 }
 
-fn print_report(baseline: &HealthBaseline, checks: &[Check]) -> bool {
-    eprintln!("taskit inspect");
-    eprintln!("{}", "-".repeat(55));
-    eprintln!(
-        "  Tests:  {} total, {} passed, {} failed, {} skipped",
-        baseline.tests.total, baseline.tests.passed, baseline.tests.failed, baseline.tests.skipped,
-    );
-    eprintln!(
-        "  Clippy: {} warnings, {} errors",
-        baseline.clippy.warnings, baseline.clippy.errors,
-    );
-    eprintln!("  TODO/FIXME: {}", baseline.todo_fixme);
-    eprintln!(
-        "  Crates: {} (version: {}, consistent: {})",
-        baseline.crates, baseline.version, baseline.versions_consistent,
-    );
-    eprintln!("{}", "-".repeat(55));
-
-    let mut all_passed = true;
-    for c in checks {
-        let status = if c.passed { "PASS" } else { "FAIL" };
-        if !c.passed {
-            all_passed = false;
-        }
-        eprintln!(
-            "  [{status}] {:<22} {} (limit: {})",
-            c.name, c.value, c.limit,
-        );
-    }
-
-    eprintln!("{}", "-".repeat(55));
-    if all_passed {
-        eprintln!("Result: PASS");
+fn threshold_check(name: &str, value: usize, limit: usize) -> Result<()> {
+    if value <= limit {
+        Ok(())
     } else {
-        eprintln!("Result: FAIL");
+        anyhow::bail!("{name}: {value} exceeds limit {limit}")
     }
-    all_passed
 }
 
-pub fn run(sh: &Shell, max_warnings: usize, max_todo: Option<usize>) -> Result<()> {
-    let baseline = health::collect(sh)?;
+pub fn run(
+    sh: &Shell,
+    max_warnings: usize,
+    max_todo: Option<usize>,
+    fmt: OutputFormat,
+) -> Result<()> {
     let thresholds = Thresholds {
         max_clippy_warnings: max_warnings,
         max_todo_fixme: max_todo,
         ..Default::default()
     };
-    let checks = evaluate(&baseline, &thresholds);
-    if print_report(&baseline, &checks) {
-        Ok(())
-    } else {
-        anyhow::bail!("inspect failed: one or more checks did not pass")
-    }
+    let outcome = run_pipeline(sh, &thresholds)?;
+    crate::output::write_output(fmt, &outcome).map_err(|e| anyhow::anyhow!("{e}"))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::health::{ClippyCounts, HealthBaseline, TestCounts};
+    use crate::step::StepStatus;
 
     fn baseline(
         failed: usize,
@@ -169,24 +118,27 @@ mod tests {
     #[test]
     fn all_clean_passes() {
         let b = baseline(0, 0, 0, 3, true);
-        let checks = evaluate(&b, &Thresholds::default());
-        assert!(checks.iter().all(|c| c.passed));
+        let outcome = build_pipeline(&b, &Thresholds::default());
+        assert!(outcome.passed);
+        assert_eq!(outcome.results.len(), 4);
     }
 
     #[test]
     fn test_failures_fail() {
         let b = baseline(1, 0, 0, 0, true);
-        let checks = evaluate(&b, &Thresholds::default());
-        let fail_check = checks.iter().find(|c| c.name == "Test failures").unwrap();
-        assert!(!fail_check.passed);
+        let outcome = build_pipeline(&b, &Thresholds::default());
+        assert!(!outcome.passed);
+        let step = &outcome.results[0];
+        assert_eq!(step.status, StepStatus::Fail);
     }
 
     #[test]
     fn clippy_errors_fail() {
         let b = baseline(0, 0, 1, 0, true);
-        let checks = evaluate(&b, &Thresholds::default());
-        let check = checks.iter().find(|c| c.name == "Clippy errors").unwrap();
-        assert!(!check.passed);
+        let outcome = build_pipeline(&b, &Thresholds::default());
+        assert!(!outcome.passed);
+        let step = &outcome.results[1];
+        assert_eq!(step.status, StepStatus::Fail);
     }
 
     #[test]
@@ -196,9 +148,8 @@ mod tests {
             max_clippy_warnings: 5,
             ..Default::default()
         };
-        let checks = evaluate(&b, &t);
-        let check = checks.iter().find(|c| c.name == "Clippy warnings").unwrap();
-        assert!(check.passed);
+        let outcome = build_pipeline(&b, &t);
+        assert!(outcome.passed);
     }
 
     #[test]
@@ -208,28 +159,27 @@ mod tests {
             max_clippy_warnings: 5,
             ..Default::default()
         };
-        let checks = evaluate(&b, &t);
-        let check = checks.iter().find(|c| c.name == "Clippy warnings").unwrap();
-        assert!(!check.passed);
+        let outcome = build_pipeline(&b, &t);
+        assert!(!outcome.passed);
+        let step = &outcome.results[2];
+        assert_eq!(step.status, StepStatus::Fail);
     }
 
     #[test]
     fn version_inconsistency_fails() {
         let b = baseline(0, 0, 0, 0, false);
-        let checks = evaluate(&b, &Thresholds::default());
-        let check = checks
-            .iter()
-            .find(|c| c.name == "Version consistency")
-            .unwrap();
-        assert!(!check.passed);
+        let outcome = build_pipeline(&b, &Thresholds::default());
+        assert!(!outcome.passed);
+        let step = &outcome.results[3];
+        assert_eq!(step.status, StepStatus::Fail);
     }
 
     #[test]
     fn todo_not_checked_without_threshold() {
         let b = baseline(0, 0, 0, 100, true);
-        let checks = evaluate(&b, &Thresholds::default());
-        assert!(checks.iter().all(|c| c.passed));
-        assert!(!checks.iter().any(|c| c.name == "TODO/FIXME count"));
+        let outcome = build_pipeline(&b, &Thresholds::default());
+        assert!(outcome.passed);
+        assert_eq!(outcome.results.len(), 4);
     }
 
     #[test]
@@ -239,25 +189,38 @@ mod tests {
             max_todo_fixme: Some(5),
             ..Default::default()
         };
-        let checks = evaluate(&b, &t);
-        let check = checks
-            .iter()
-            .find(|c| c.name == "TODO/FIXME count")
-            .unwrap();
-        assert!(!check.passed);
+        let outcome = build_pipeline(&b, &t);
+        assert!(!outcome.passed);
+        assert_eq!(outcome.results.len(), 5);
+        let step = &outcome.results[4];
+        assert_eq!(step.status, StepStatus::Fail);
     }
 
     #[test]
-    fn print_report_returns_true_on_all_pass() {
-        let b = baseline(0, 0, 0, 0, true);
-        let checks = evaluate(&b, &Thresholds::default());
-        assert!(print_report(&b, &checks));
+    fn todo_within_threshold_passes() {
+        let b = baseline(0, 0, 0, 3, true);
+        let t = Thresholds {
+            max_todo_fixme: Some(5),
+            ..Default::default()
+        };
+        let outcome = build_pipeline(&b, &t);
+        assert!(outcome.passed);
     }
 
     #[test]
-    fn print_report_returns_false_on_failure() {
+    fn outcome_renders_with_all_formatters() {
         let b = baseline(1, 0, 0, 0, true);
-        let checks = evaluate(&b, &Thresholds::default());
-        assert!(!print_report(&b, &checks));
+        let outcome = build_pipeline(&b, &Thresholds::default());
+        for fmt in [
+            OutputFormat::Human,
+            OutputFormat::Json,
+            OutputFormat::Github,
+            OutputFormat::Junit,
+            OutputFormat::Diagnostic,
+        ] {
+            let formatter = crate::output::formatter_for(fmt);
+            let rendered = formatter.render(&outcome);
+            assert!(!rendered.is_empty(), "empty output for {fmt:?}");
+        }
     }
 }
