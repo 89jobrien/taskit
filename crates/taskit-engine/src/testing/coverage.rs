@@ -1,21 +1,24 @@
-use anyhow::{Context, Result, bail};
+use anyhow::Context;
+use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};
 
 use crate::runner::is_dry_run;
 
-pub fn run(sh: &Shell, pkg: &str, threshold: f64) -> Result<()> {
+pub fn run(sh: &Shell, pkg: &str, threshold: f64) -> Result<(), TaskitError> {
     eprintln!("Running coverage for {pkg} (threshold: {threshold}%)...");
     if is_dry_run() {
         eprintln!("dry-run: cargo llvm-cov --locked -p {pkg} --lib --json");
         return Ok(());
     }
-    let json = cmd!(sh, "cargo llvm-cov --locked -p {pkg} --lib --json").read()?;
+    let json = cmd!(sh, "cargo llvm-cov --locked -p {pkg} --lib --json")
+        .read()
+        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
 
     let pct = parse_line_coverage(&json).context("failed to parse cargo llvm-cov --json output")?;
 
     eprintln!("Coverage: {pct:.1}%");
     if pct < threshold {
-        bail!("Coverage {pct:.1}% is below threshold {threshold}%");
+        return Err(anyhow::anyhow!("Coverage {pct:.1}% is below threshold {threshold}%").into());
     }
     eprintln!("Coverage {pct:.1}% >= {threshold}% threshold — OK");
     Ok(())

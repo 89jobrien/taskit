@@ -9,10 +9,11 @@
 //! The master hash is stored separately from the cache directory it covers
 //! (`xtask/master-hash`) so it is never included in its own digest.
 
-use anyhow::Result;
+use anyhow;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, fs, path::Path};
+use taskit_types::error::TaskitError;
 
 const CACHE_DIR: &str = ".xtask-cache";
 pub const MASTER_FILE: &str = "xtask/master-hash";
@@ -28,20 +29,20 @@ pub struct MasterHash {
 /// Recompute the master hash from `cache_dir` and write it to `master_file`.
 ///
 /// Call this immediately after writing any individual cache file.
-pub fn update() -> Result<()> {
+pub fn update() -> Result<(), TaskitError> {
     update_dirs(Path::new(CACHE_DIR), Path::new(MASTER_FILE))
 }
 
 /// Return `true` if the stored master hash matches the current cache directory.
 ///
 /// Returns `true` vacuously when no cache files or master file exist yet.
-pub fn verify() -> Result<bool> {
+pub fn verify() -> Result<bool, TaskitError> {
     verify_dirs(Path::new(CACHE_DIR), Path::new(MASTER_FILE))
 }
 
 // ── parameterised core (testable) ─────────────────────────────────────────────
 
-pub fn update_dirs(cache_dir: &Path, master_file: &Path) -> Result<()> {
+pub fn update_dirs(cache_dir: &Path, master_file: &Path) -> Result<(), TaskitError> {
     if !cache_dir.exists() {
         return Ok(());
     }
@@ -50,11 +51,12 @@ pub fn update_dirs(cache_dir: &Path, master_file: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn verify_dirs(cache_dir: &Path, master_file: &Path) -> Result<bool> {
+pub fn verify_dirs(cache_dir: &Path, master_file: &Path) -> Result<bool, TaskitError> {
     if !master_file.exists() {
         return Ok(true);
     }
-    let stored: MasterHash = serde_json::from_str(&fs::read_to_string(master_file)?)?;
+    let stored: MasterHash = serde_json::from_str(&fs::read_to_string(master_file)?)
+        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
     if stored.hash.is_empty() {
         return Ok(true);
     }
@@ -66,7 +68,7 @@ pub fn verify_dirs(cache_dir: &Path, master_file: &Path) -> Result<bool> {
 
 /// Walk `cache_dir`, hash every `.json` file (sorted by path), and combine
 /// into a single deterministic SHA-256 digest.
-pub fn compute(cache_dir: &Path) -> Result<String> {
+pub fn compute(cache_dir: &Path) -> Result<String, TaskitError> {
     let mut entries: BTreeMap<String, String> = BTreeMap::new();
 
     let Ok(rd) = fs::read_dir(cache_dir) else {
@@ -98,11 +100,15 @@ pub fn file_hash(path: &Path) -> Option<String> {
     Some(hex::encode(h.finalize()))
 }
 
-fn save(master_file: &Path, cache: &MasterHash) -> Result<()> {
+fn save(master_file: &Path, cache: &MasterHash) -> Result<(), TaskitError> {
     if let Some(parent) = master_file.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(master_file, serde_json::to_string_pretty(cache)?)?;
+    fs::write(
+        master_file,
+        serde_json::to_string_pretty(cache)
+            .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?,
+    )?;
     Ok(())
 }
 

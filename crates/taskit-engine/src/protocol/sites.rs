@@ -1,5 +1,5 @@
-use anyhow::{Result, bail};
 use std::{fs, path::Path};
+use taskit_types::error::TaskitError;
 
 /// Count lines in `content` containing `pattern`, returning `(line_number, line)` pairs.
 fn match_lines<'a>(content: &'a str, pattern: &str) -> Vec<(usize, &'a str)> {
@@ -10,9 +10,15 @@ fn match_lines<'a>(content: &'a str, pattern: &str) -> Vec<(usize, &'a str)> {
         .collect()
 }
 
-pub fn run(file: &Path, pattern: &str, expected: usize, warn_only: bool) -> Result<()> {
-    let content = fs::read_to_string(file)
-        .map_err(|e| anyhow::anyhow!("failed to read {}: {e}", file.display()))?;
+pub fn run(
+    file: &Path,
+    pattern: &str,
+    expected: usize,
+    warn_only: bool,
+) -> Result<(), TaskitError> {
+    let content = fs::read_to_string(file).map_err(|e| {
+        TaskitError::from(anyhow::anyhow!("failed to read {}: {e}", file.display()))
+    })?;
 
     let matches = match_lines(&content, pattern);
     let count = matches.len();
@@ -30,7 +36,9 @@ pub fn run(file: &Path, pattern: &str, expected: usize, warn_only: bool) -> Resu
         if warn_only {
             return Ok(());
         }
-        bail!("construction site count mismatch ({count} != {expected})");
+        return Err(
+            anyhow::anyhow!("construction site count mismatch ({count} != {expected})").into(),
+        );
     }
 
     eprintln!("OK: construction site count matches.");

@@ -3,9 +3,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};
 
 use crate::runner::{is_dry_run, xrun};
@@ -37,7 +37,7 @@ struct CrateEntry {
 
 /// Compile all test binaries, skipping crates whose sources are unchanged.
 /// Recompiles only the crates where the module-level hash tree drifted.
-pub fn run(sh: &Shell) -> Result<()> {
+pub fn run(sh: &Shell) -> Result<(), TaskitError> {
     let current = snapshot(Path::new("."))?;
     let cached = load_cache();
     let changed = stale_crates(&current, &cached);
@@ -106,7 +106,7 @@ fn stale_crates(current: &CompileCache, cached: &CompileCache) -> Vec<String> {
 
 // ── snapshot ─────────────────────────────────────────────────────────────────
 
-fn snapshot(root: &Path) -> Result<CompileCache> {
+fn snapshot(root: &Path) -> Result<CompileCache, TaskitError> {
     let lock_hash = file_hash(&root.join("Cargo.lock")).unwrap_or_default();
 
     let mut crate_roots: Vec<(String, PathBuf)> = Vec::new();
@@ -125,7 +125,7 @@ fn snapshot(root: &Path) -> Result<CompileCache> {
 }
 
 /// Build a `CrateEntry` for the crate rooted at `dir`.
-fn crate_entry(dir: &Path) -> Result<CrateEntry> {
+fn crate_entry(dir: &Path) -> Result<CrateEntry, TaskitError> {
     let mut modules: BTreeMap<String, String> = BTreeMap::new();
 
     // Include the crate's own Cargo.toml
@@ -154,7 +154,7 @@ fn crate_entry(dir: &Path) -> Result<CrateEntry> {
 
 /// Find all crate roots (directories with `Cargo.toml` containing `[package]`),
 /// excluding ignored directories. Does not recurse into a found crate root.
-fn collect_crate_roots(dir: &Path, out: &mut Vec<(String, PathBuf)>) -> Result<()> {
+fn collect_crate_roots(dir: &Path, out: &mut Vec<(String, PathBuf)>) -> Result<(), TaskitError> {
     for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
@@ -184,7 +184,11 @@ fn collect_crate_roots(dir: &Path, out: &mut Vec<(String, PathBuf)>) -> Result<(
 
 /// Recursively collect `.rs` files under `dir`, stopping at subdirectories
 /// that are themselves crate roots (have their own `Cargo.toml`).
-fn collect_rs_files(root: &Path, dir: &Path, out: &mut BTreeMap<String, String>) -> Result<()> {
+fn collect_rs_files(
+    root: &Path,
+    dir: &Path,
+    out: &mut BTreeMap<String, String>,
+) -> Result<(), TaskitError> {
     for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
@@ -247,9 +251,10 @@ fn load_cache() -> CompileCache {
         .unwrap_or_default()
 }
 
-fn write_cache(cache: &CompileCache) -> Result<()> {
+fn write_cache(cache: &CompileCache) -> Result<(), TaskitError> {
     std::fs::create_dir_all(CACHE_DIR)?;
-    let json = serde_json::to_string_pretty(cache)?;
+    let json = serde_json::to_string_pretty(cache)
+        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
     std::fs::write(CACHE_FILE, json)?;
     Ok(())
 }

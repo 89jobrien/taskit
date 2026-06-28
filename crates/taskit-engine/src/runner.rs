@@ -1,6 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use anyhow::{Context, Result};
+use anyhow::Context;
+use taskit_types::error::TaskitError;
 
 static DRY_RUN: AtomicBool = AtomicBool::new(false);
 static SILENT: AtomicBool = AtomicBool::new(false);
@@ -34,7 +35,7 @@ where
 ///
 /// When [`with_silent`] is active, stdout and stderr are captured and
 /// discarded on success.  On failure they are attached to the error.
-pub fn xrun(cmd: xshell::Cmd<'_>) -> Result<()> {
+pub fn xrun(cmd: xshell::Cmd<'_>) -> Result<(), TaskitError> {
     if is_dry_run() {
         eprintln!("dry-run: {cmd}");
         return Ok(());
@@ -45,14 +46,17 @@ pub fn xrun(cmd: xshell::Cmd<'_>) -> Result<()> {
         if !out.status.success() {
             let stdout = String::from_utf8_lossy(&out.stdout);
             let stderr = String::from_utf8_lossy(&out.stderr);
-            anyhow::bail!(
+            return Err(anyhow::anyhow!(
                 "{label} failed (exit {})\n{stdout}{stderr}",
                 out.status.code().unwrap_or(-1)
-            );
+            )
+            .into());
         }
         return Ok(());
     }
-    cmd.quiet().run()?;
+    cmd.quiet()
+        .run()
+        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
     Ok(())
 }
 

@@ -1,7 +1,7 @@
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, fs, path::Path};
+use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};
 
 use crate::runner::xrun;
@@ -16,7 +16,7 @@ struct SelfTestCache {
     source_hash: String,
 }
 
-pub fn run(sh: &Shell) -> Result<()> {
+pub fn run(sh: &Shell) -> Result<(), TaskitError> {
     let current_hash = compute_source_hash()?;
     let cached = load_cache();
 
@@ -43,16 +43,20 @@ fn load_cache() -> SelfTestCache {
         .unwrap_or_default()
 }
 
-fn save_cache(cache: &SelfTestCache) -> Result<()> {
+fn save_cache(cache: &SelfTestCache) -> Result<(), TaskitError> {
     if let Some(parent) = Path::new(CACHE_FILE).parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(CACHE_FILE, serde_json::to_string_pretty(cache)?)?;
+    fs::write(
+        CACHE_FILE,
+        serde_json::to_string_pretty(cache)
+            .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?,
+    )?;
     Ok(())
 }
 
 /// Hash all `.rs` files under `xtask/src/` plus `xtask/Cargo.toml` and `Cargo.lock`.
-fn compute_source_hash() -> Result<String> {
+fn compute_source_hash() -> Result<String, TaskitError> {
     let mut entries: BTreeMap<String, String> = BTreeMap::new();
 
     collect_rs_files(Path::new(XTASK_SRC), &mut entries);

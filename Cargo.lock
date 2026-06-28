@@ -747,6 +747,7 @@ dependencies = [
 name = "taskit-types"
 version = "0.6.0"
 dependencies = [
+ "anyhow",
  "clap",
  "miette",
  "serde",

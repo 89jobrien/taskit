@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use taskit_types::error::TaskitError;
 use xshell::Shell;
 
 use crate::{
@@ -27,7 +27,7 @@ pub fn run(
     fail_fast: bool,
     include_network: bool,
     output_format: OutputFormat,
-) -> Result<()> {
+) -> Result<(), TaskitError> {
     let offline = !include_network;
     let outcome = match ci {
         Some(cfg) if !cfg.steps.is_empty() => {
@@ -39,7 +39,7 @@ pub fn run(
         }
         None => run_default_internal(sh, ws, proto, cov, fail_fast, offline),
     };
-    crate::output::write_output(output_format, &outcome).map_err(|e| anyhow::anyhow!("{e}"))
+    Ok(crate::output::write_output(output_format, &outcome)?)
 }
 
 /// Build and run a pipeline from `[[ci.steps]]` in `taskit.toml`.
@@ -71,10 +71,11 @@ pub(crate) fn run_from_config_internal(
                 };
             }
         };
+        let f_anyhow = move || f().map_err(anyhow::Error::from);
         if step.gate {
-            pipeline = pipeline.gate(&step.name, f);
+            pipeline = pipeline.gate(&step.name, f_anyhow);
         } else {
-            pipeline = pipeline.step(&step.name, f);
+            pipeline = pipeline.step(&step.name, f_anyhow);
         }
     }
     pipeline.run()
@@ -92,10 +93,10 @@ fn dispatch_cmd<'a>(
     proto: Option<&'a ProtocolConfig>,
     cov: Option<&'a CoverageConfig>,
     offline: bool,
-) -> Result<Box<dyn FnOnce() -> Result<()> + 'a>> {
+) -> Result<Box<dyn FnOnce() -> Result<(), TaskitError> + 'a>, TaskitError> {
     let parts: Vec<&str> = cmd.split_whitespace().collect();
     let sub = *parts.first().unwrap_or(&"");
-    let f: Box<dyn FnOnce() -> Result<()> + 'a> = match sub {
+    let f: Box<dyn FnOnce() -> Result<(), TaskitError> + 'a> = match sub {
         "fmt" => {
             let check = parts.contains(&"--check");
             Box::new(move || fmt::run(sh, ws, check, false))
@@ -120,7 +121,7 @@ fn dispatch_cmd<'a>(
             let root = std::env::current_dir()?;
             Box::new(move || crate::health::run(sh, &root, false))
         }
-        other => bail!("unknown ci step command: {other:?}"),
+        other => return Err(anyhow::anyhow!("unknown ci step command: {other:?}").into()),
     };
     Ok(f)
 }
@@ -135,24 +136,34 @@ pub(crate) fn run_default_internal(
     offline: bool,
 ) -> PipelineOutcome {
     let mut pipeline = Pipeline::new(fail_fast)
-        .gate("self-check", dev_setup::self_check)
-        .step("fmt --check", || fmt::run(sh, ws, true, false))
-        .step("lint", || lint::run(sh, ws, None, false, false))
-        .step("compile-tests", || testing::compile::run(sh))
-        .step("test", || {
-            testing::run::run(sh, ws, None, false, false, offline)
+        .gate("self-check", || {
+            dev_setup::self_check().map_err(anyhow::Error::from)
         })
-        .step("check-deps", || check_deps::run(sh))
+        .step("fmt --check", || {
+            fmt::run(sh, ws, true, false).map_err(anyhow::Error::from)
+        })
+        .step("lint", || {
+            lint::run(sh, ws, None, false, false).map_err(anyhow::Error::from)
+        })
+        .step("compile-tests", || {
+            testing::compile::run(sh).map_err(anyhow::Error::from)
+        })
+        .step("test", || {
+            testing::run::run(sh, ws, None, false, false, offline).map_err(anyhow::Error::from)
+        })
+        .step("check-deps", || {
+            check_deps::run(sh).map_err(anyhow::Error::from)
+        })
         .step("check-protocol-drift", || {
-            let root = std::env::current_dir()?;
-            protocol::drift::run(&root, proto, false, false, false)
+            let root = std::env::current_dir().map_err(anyhow::Error::from)?;
+            protocol::drift::run(&root, proto, false, false, false).map_err(anyhow::Error::from)
         });
 
     if let Some(c) = cov {
         let crate_name = c.crate_name.clone();
         let threshold = c.threshold();
         pipeline = pipeline.step(&format!("coverage ({crate_name})"), move || {
-            testing::coverage::run(sh, &crate_name, threshold)
+            testing::coverage::run(sh, &crate_name, threshold).map_err(anyhow::Error::from)
         });
     }
 

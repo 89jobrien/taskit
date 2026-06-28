@@ -1,9 +1,9 @@
-use anyhow::Result;
+use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};
 
 use crate::runner::xrun;
 
-pub fn run(sh: &Shell, crate_name: &str) -> Result<()> {
+pub fn run(sh: &Shell, crate_name: &str) -> Result<(), TaskitError> {
     eprintln!("Running proptests for {crate_name}...");
     xrun(cmd!(
         sh,

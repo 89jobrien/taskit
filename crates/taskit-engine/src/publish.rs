@@ -1,4 +1,5 @@
-use anyhow::{Context, Result};
+use anyhow::Context;
+use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};
 
 use crate::output::OutputFormat;
@@ -14,7 +15,12 @@ const PUBLISH_ORDER: &[&str] = &[
     "taskit",
 ];
 
-pub fn run(sh: &Shell, skip_docs: bool, allow_dirty: bool, fmt: OutputFormat) -> Result<()> {
+pub fn run(
+    sh: &Shell,
+    skip_docs: bool,
+    allow_dirty: bool,
+    fmt: OutputFormat,
+) -> Result<(), TaskitError> {
     let dry_run = runner::is_dry_run();
     let mut pipeline = Pipeline::new(true);
 
@@ -42,7 +48,7 @@ pub fn run(sh: &Shell, skip_docs: bool, allow_dirty: bool, fmt: OutputFormat) ->
     }
 
     let outcome = pipeline.run();
-    crate::output::write_output(fmt, &outcome).map_err(|e| anyhow::anyhow!("{e}"))
+    Ok(crate::output::write_output(fmt, &outcome)?)
 }
 
 #[cfg(test)]

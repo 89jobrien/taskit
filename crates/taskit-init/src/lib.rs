@@ -4,29 +4,41 @@ pub mod render_toml;
 
 use std::path::Path;
 
+use taskit_types::error::{InitError, TaskitError};
+
 /// Run the init command: discover workspace, generate taskit.toml + Cruxfile.
-pub fn run(force: bool, interactive: bool) -> anyhow::Result<()> {
+pub fn run(force: bool, interactive: bool) -> Result<(), TaskitError> {
     let target = Path::new("taskit.toml");
     if target.exists() && !force {
-        anyhow::bail!("taskit.toml already exists. Use --force to overwrite.");
+        return Err(InitError::AlreadyExists.into());
     }
 
     let init_plan = if interactive {
-        plan::plan_interactive()?
+        plan::plan_interactive().map_err(|e| InitError::CargoMetadata {
+            reason: e.to_string(),
+        })?
     } else {
-        plan::plan_from_discovery()?
+        plan::plan_from_discovery().map_err(|e| InitError::CargoMetadata {
+            reason: e.to_string(),
+        })?
     };
 
     let project_name = detect_project_name();
 
     let toml_content = render_toml::render_toml(&init_plan);
-    std::fs::write(target, &toml_content)?;
+    std::fs::write(target, &toml_content).map_err(|e| InitError::WriteFile {
+        file: "taskit.toml".into(),
+        reason: e.to_string(),
+    })?;
     eprintln!("wrote taskit.toml");
 
     let crux_content = render_cruxfile::render_cruxfile(&init_plan, &project_name);
     let crux_path = Path::new("Cruxfile");
     if !crux_path.exists() || force {
-        std::fs::write(crux_path, &crux_content)?;
+        std::fs::write(crux_path, &crux_content).map_err(|e| InitError::WriteFile {
+            file: "Cruxfile".into(),
+            reason: e.to_string(),
+        })?;
         eprintln!("wrote Cruxfile");
     }
 
@@ -37,10 +49,7 @@ pub fn run(force: bool, interactive: bool) -> anyhow::Result<()> {
 }
 
 /// Generate a thin `xtask/` crate that delegates to the `taskit` binary.
-///
-/// This lets `cargo xtask <cmd>` work as a workspace member without
-/// requiring taskit to be installed globally.
-fn write_xtask_crate(force: bool) -> anyhow::Result<()> {
+fn write_xtask_crate(force: bool) -> Result<(), TaskitError> {
     let xtask_dir = Path::new("xtask");
     let src_dir = xtask_dir.join("src");
     let cargo_toml = xtask_dir.join("Cargo.toml");
@@ -105,15 +114,13 @@ fn main() {
     std::fs::write(&main_rs, main_content)?;
 
     eprintln!("wrote xtask/ crate (cargo xtask shim)");
-
-    // Remind user to add xtask to workspace members if not already present
     eprintln!("  -> add \"xtask\" to [workspace] members in Cargo.toml");
 
     Ok(())
 }
 
 /// Write `.cargo/config.toml` with a `cargo xtask` alias pointing to taskit.
-fn write_cargo_alias(force: bool) -> anyhow::Result<()> {
+fn write_cargo_alias(force: bool) -> Result<(), TaskitError> {
     let dir = Path::new(".cargo");
     let path = dir.join("config.toml");
 
@@ -123,7 +130,6 @@ fn write_cargo_alias(force: bool) -> anyhow::Result<()> {
             eprintln!(".cargo/config.toml already has xtask alias, skipping");
             return Ok(());
         }
-        // Append the alias section to existing config
         let mut content = existing;
         if !content.ends_with('\n') {
             content.push('\n');
@@ -151,18 +157,12 @@ fn detect_project_name() -> String {
 mod tests {
     use super::*;
 
-    // TODO: this test doesn't call run() — it only checks the guard condition
-    // as a tautology. Needs a serial test with set_current_dir to exercise the
-    // real bail, or rename to guard_condition_is_correct.
     #[test]
     fn init_refuses_overwrite_without_force() {
         let dir = tempfile::tempdir().unwrap();
-        // run() checks cwd for taskit.toml, so we need to test the guard
-        // directly since we can't safely chdir in tests
         let target = dir.path().join("taskit.toml");
         std::fs::write(&target, "existing").unwrap();
         assert!(target.exists());
-        // The guard: bail if exists && !force
         let exists = target.exists();
         let force = false;
         assert!(
@@ -173,8 +173,6 @@ mod tests {
 
     #[test]
     fn run_creates_files_in_workspace() {
-        // run() operates on cwd which we can't change in parallel tests,
-        // so verify the components compose correctly
         let plan = plan::plan_from_discovery().unwrap();
         let toml = render_toml::render_toml(&plan);
         assert!(toml.contains("[workspace]"));
@@ -208,7 +206,6 @@ mod tests {
     fn write_cargo_alias_creates_config() {
         let dir = tempfile::tempdir().unwrap();
         let prev = std::env::current_dir().unwrap();
-        // We can't safely chdir in parallel tests, so test the content directly
         let cargo_dir = dir.path().join(".cargo");
         std::fs::create_dir_all(&cargo_dir).unwrap();
         let config_path = cargo_dir.join("config.toml");
@@ -217,7 +214,7 @@ mod tests {
         let written = std::fs::read_to_string(&config_path).unwrap();
         assert!(written.contains("xtask"));
         assert!(written.contains("run --package xtask"));
-        let _ = prev; // suppress unused warning
+        let _ = prev;
     }
 
     #[test]
@@ -228,7 +225,6 @@ mod tests {
         let config_path = cargo_dir.join("config.toml");
         let existing = "[build]\ntarget-dir = \"target\"\n";
         std::fs::write(&config_path, existing).unwrap();
-        // Simulate the append logic
         let mut content = existing.to_string();
         if !content.ends_with('\n') {
             content.push('\n');

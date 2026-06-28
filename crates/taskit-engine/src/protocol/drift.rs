@@ -1,9 +1,10 @@
-use anyhow::{Context, Result, bail};
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
     path::{Path, PathBuf},
 };
+use taskit_types::error::TaskitError;
 
 use crate::config::{ProtocolConfig, SurfaceEntry};
 
@@ -54,7 +55,7 @@ pub fn run(
     update: bool,
     warn_only: bool,
     hook: bool,
-) -> Result<()> {
+) -> Result<(), TaskitError> {
     let surfaces: &[SurfaceEntry] = config.map(|c| c.surfaces.as_slice()).unwrap_or(&[]);
     let lock_rel = config
         .map(|c| c.lockfile_path())
@@ -123,10 +124,10 @@ pub fn run(
         return Ok(());
     }
 
-    bail!("core contract drift detected");
+    Err(anyhow::anyhow!("core contract drift detected").into())
 }
 
-fn calculate_lockfile(root: &Path, surfaces: &[SurfaceEntry]) -> Result<Lockfile> {
+fn calculate_lockfile(root: &Path, surfaces: &[SurfaceEntry]) -> Result<Lockfile, TaskitError> {
     let mut hashes = Vec::with_capacity(surfaces.len());
     for surface in surfaces {
         let path = root.join(&surface.path);
@@ -146,7 +147,7 @@ fn calculate_lockfile(root: &Path, surfaces: &[SurfaceEntry]) -> Result<Lockfile
     })
 }
 
-fn read_lockfile(path: &Path) -> Result<Lockfile> {
+fn read_lockfile(path: &Path) -> Result<Lockfile, TaskitError> {
     let content = fs::read_to_string(path).with_context(|| {
         format!(
             "failed to read {}; run `cargo xtask check-protocol-drift --update` to create it",
@@ -156,26 +157,29 @@ fn read_lockfile(path: &Path) -> Result<Lockfile> {
     let lockfile: Lockfile = serde_json::from_str(&content)
         .with_context(|| format!("failed to parse {}", path.display()))?;
     if lockfile.version != 1 {
-        bail!(
+        return Err(anyhow::anyhow!(
             "unsupported protocol drift lockfile version {} in {}",
             lockfile.version,
             path.display()
-        );
+        )
+        .into());
     }
     if lockfile.algorithm != ALGORITHM {
-        bail!(
+        return Err(anyhow::anyhow!(
             "unsupported protocol drift algorithm {} in {} (expected {ALGORITHM})",
             lockfile.algorithm,
             path.display()
-        );
+        )
+        .into());
     }
     Ok(lockfile)
 }
 
-fn write_lockfile(path: &Path, lockfile: &Lockfile) -> Result<()> {
-    let mut content = serde_json::to_string_pretty(lockfile)?;
+fn write_lockfile(path: &Path, lockfile: &Lockfile) -> Result<(), TaskitError> {
+    let mut content = serde_json::to_string_pretty(lockfile)
+        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
     content.push('\n');
-    fs::write(path, content).with_context(|| format!("failed to write {}", path.display()))
+    Ok(fs::write(path, content).with_context(|| format!("failed to write {}", path.display()))?)
 }
 
 fn compare_lockfiles(expected: &Lockfile, actual: &Lockfile) -> Vec<Drift> {
@@ -242,12 +246,13 @@ fn display_relative(root: &Path, path: &Path) -> PathBuf {
 
 /// Parses Claude Code hook stdin JSON to extract the edited file path.
 mod hook_input {
-    use anyhow::{Context, Result};
+    use anyhow::Context;
     use serde::Deserialize;
     use std::{
         io::{self, IsTerminal as _, Read},
         path::PathBuf,
     };
+    use taskit_types::error::TaskitError;
 
     #[derive(Debug, Deserialize)]
     struct HookInput {
@@ -259,7 +264,7 @@ mod hook_input {
         file_path: Option<PathBuf>,
     }
 
-    pub(super) fn read_file_path() -> Result<Option<PathBuf>> {
+    pub(super) fn read_file_path() -> Result<Option<PathBuf>, TaskitError> {
         if io::stdin().is_terminal() {
             return Ok(None);
         }

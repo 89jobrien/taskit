@@ -1,6 +1,7 @@
-use anyhow::{Context, Result};
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};
 
 const BASELINE_FILE: &str = ".health-baseline.json";
@@ -31,7 +32,7 @@ pub struct ClippyCounts {
 }
 
 /// Collect a fresh health baseline from the workspace.
-pub fn collect(sh: &Shell) -> Result<HealthBaseline> {
+pub fn collect(sh: &Shell) -> Result<HealthBaseline, TaskitError> {
     let tests = collect_tests(sh)?;
     let clippy = collect_clippy(sh)?;
     let todo_fixme = count_todo_fixme(sh)?;
@@ -51,18 +52,19 @@ pub fn collect(sh: &Shell) -> Result<HealthBaseline> {
 }
 
 /// Load an existing baseline from `.health-baseline.json`.
-pub fn load_baseline(workspace_root: &Path) -> Result<HealthBaseline> {
+pub fn load_baseline(workspace_root: &Path) -> Result<HealthBaseline, TaskitError> {
     let path = workspace_root.join(BASELINE_FILE);
     let content = std::fs::read_to_string(&path)
         .with_context(|| format!("no baseline found at {}", path.display()))?;
-    serde_json::from_str(&content).context("failed to parse health baseline")
+    Ok(serde_json::from_str(&content).context("failed to parse health baseline")?)
 }
 
 /// Write a baseline to `.health-baseline.json`.
-pub fn write_baseline(workspace_root: &Path, baseline: &HealthBaseline) -> Result<()> {
+pub fn write_baseline(workspace_root: &Path, baseline: &HealthBaseline) -> Result<(), TaskitError> {
     let path = workspace_root.join(BASELINE_FILE);
-    let json = serde_json::to_string_pretty(baseline)?;
-    std::fs::write(&path, format!("{json}\n")).context("failed to write health baseline")
+    let json = serde_json::to_string_pretty(baseline)
+        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+    Ok(std::fs::write(&path, format!("{json}\n")).context("failed to write health baseline")?)
 }
 
 /// Compare current against a previous baseline and print a report.
@@ -131,7 +133,7 @@ pub fn check(current: &HealthBaseline, previous: &HealthBaseline) -> bool {
 }
 
 /// Run the health subcommand.
-pub fn run(sh: &Shell, workspace_root: &Path, update: bool) -> Result<()> {
+pub fn run(sh: &Shell, workspace_root: &Path, update: bool) -> Result<(), TaskitError> {
     let current = collect(sh)?;
 
     if update {
@@ -146,7 +148,7 @@ pub fn run(sh: &Shell, workspace_root: &Path, update: bool) -> Result<()> {
             if check(&current, &previous) {
                 Ok(())
             } else {
-                anyhow::bail!("health regression detected")
+                Err(anyhow::anyhow!("health regression detected").into())
             }
         }
         Err(_) => {
@@ -177,31 +179,34 @@ fn print_summary(b: &HealthBaseline) {
 
 // -- Collectors ---------------------------------------------------------------
 
-fn collect_tests(sh: &Shell) -> Result<TestCounts> {
+fn collect_tests(sh: &Shell) -> Result<TestCounts, TaskitError> {
     // Run nextest and parse its output. Nextest exits non-zero on failures,
     // so we capture the output regardless of exit code.
     let output = cmd!(sh, "cargo nextest run --workspace --no-fail-fast")
         .ignore_status()
-        .read_stderr()?;
+        .read_stderr()
+        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
     parse_nextest_summary(&output)
 }
 
-fn collect_clippy(sh: &Shell) -> Result<ClippyCounts> {
+fn collect_clippy(sh: &Shell) -> Result<ClippyCounts, TaskitError> {
     let output = cmd!(sh, "cargo clippy --workspace --message-format=json")
         .ignore_status()
-        .read()?;
+        .read()
+        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
     Ok(parse_clippy_json(&output))
 }
 
-fn count_todo_fixme(sh: &Shell) -> Result<usize> {
+fn count_todo_fixme(sh: &Shell) -> Result<usize, TaskitError> {
     // Search .rs files under crates/ and src/ for TODO or FIXME
     let output = cmd!(sh, "grep -r -c -E TODO|FIXME --include=*.rs crates/ src/")
         .ignore_status()
-        .read()?;
+        .read()
+        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
     Ok(parse_grep_counts(&output))
 }
 
-fn collect_versions() -> Result<(usize, bool, String)> {
+fn collect_versions() -> Result<(usize, bool, String), TaskitError> {
     let metadata = cargo_metadata::MetadataCommand::new()
         .no_deps()
         .exec()
@@ -238,7 +243,7 @@ fn today() -> String {
 /// Parse nextest's summary line like:
 /// `341 tests run: 341 passed, 0 skipped`
 /// or on failure: `341 tests run: 338 passed, 3 failed, 0 skipped`
-fn parse_nextest_summary(output: &str) -> Result<TestCounts> {
+fn parse_nextest_summary(output: &str) -> Result<TestCounts, TaskitError> {
     // Look for the summary line from nextest
     for line in output.lines().rev() {
         let line = line.trim();

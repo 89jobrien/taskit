@@ -1,6 +1,7 @@
-use anyhow::{Context, Result};
+use anyhow::Context;
 use cargo_metadata::MetadataCommand;
 use std::path::{Path, PathBuf};
+use taskit_types::error::TaskitError;
 
 use crate::config::PropagationEntry;
 
@@ -21,8 +22,8 @@ pub struct DiscoveredSurface {
 
 /// Port: abstracts cargo metadata retrieval for testability.
 pub trait MetadataSource {
-    fn workspace_members(&self) -> Result<Vec<DiscoveredCrate>>;
-    fn intra_workspace_deps(&self) -> Result<Vec<(String, String)>>;
+    fn workspace_members(&self) -> Result<Vec<DiscoveredCrate>, TaskitError>;
+    fn intra_workspace_deps(&self) -> Result<Vec<(String, String)>, TaskitError>;
 }
 
 /// Build propagation rules from intra-workspace dependency edges.
@@ -68,14 +69,18 @@ const SURFACE_PATTERNS: &[(&str, &str)] = &[
 ///
 /// Walks the directory tree, skipping `target/` and hidden directories.
 /// Files matching known patterns or `*.proto` are returned as surfaces.
-pub fn scan_surfaces(workspace_root: &Path) -> Result<Vec<DiscoveredSurface>> {
+pub fn scan_surfaces(workspace_root: &Path) -> Result<Vec<DiscoveredSurface>, TaskitError> {
     let mut surfaces = Vec::new();
     walk_for_surfaces(workspace_root, workspace_root, &mut surfaces)?;
     surfaces.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(surfaces)
 }
 
-fn walk_for_surfaces(root: &Path, dir: &Path, surfaces: &mut Vec<DiscoveredSurface>) -> Result<()> {
+fn walk_for_surfaces(
+    root: &Path,
+    dir: &Path,
+    surfaces: &mut Vec<DiscoveredSurface>,
+) -> Result<(), TaskitError> {
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
         Err(_) => return Ok(()),
@@ -137,7 +142,7 @@ pub struct CargoMetadataSource {
 }
 
 impl MetadataSource for CargoMetadataSource {
-    fn workspace_members(&self) -> Result<Vec<DiscoveredCrate>> {
+    fn workspace_members(&self) -> Result<Vec<DiscoveredCrate>, TaskitError> {
         let metadata = MetadataCommand::new()
             .current_dir(&self.workspace_root)
             .no_deps()
@@ -174,7 +179,7 @@ impl MetadataSource for CargoMetadataSource {
         Ok(crates)
     }
 
-    fn intra_workspace_deps(&self) -> Result<Vec<(String, String)>> {
+    fn intra_workspace_deps(&self) -> Result<Vec<(String, String)>, TaskitError> {
         let metadata = MetadataCommand::new()
             .current_dir(&self.workspace_root)
             .exec()
@@ -208,10 +213,10 @@ pub(crate) struct FakeMetadataSource {
 
 #[cfg(test)]
 impl MetadataSource for FakeMetadataSource {
-    fn workspace_members(&self) -> Result<Vec<DiscoveredCrate>> {
+    fn workspace_members(&self) -> Result<Vec<DiscoveredCrate>, TaskitError> {
         Ok(self.members.clone())
     }
-    fn intra_workspace_deps(&self) -> Result<Vec<(String, String)>> {
+    fn intra_workspace_deps(&self) -> Result<Vec<(String, String)>, TaskitError> {
         Ok(self.deps.clone())
     }
 }

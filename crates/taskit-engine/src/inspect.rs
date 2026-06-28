@@ -1,4 +1,4 @@
-use anyhow::Result;
+use taskit_types::error::TaskitError;
 use xshell::Shell;
 
 use crate::health::{self, HealthBaseline};
@@ -14,7 +14,7 @@ pub struct Thresholds {
 }
 
 /// Build and run the inspect pipeline, returning a structured outcome.
-pub fn run_pipeline(sh: &Shell, thresholds: &Thresholds) -> Result<PipelineOutcome> {
+pub fn run_pipeline(sh: &Shell, thresholds: &Thresholds) -> Result<PipelineOutcome, TaskitError> {
     let baseline = health::collect(sh)?;
     Ok(build_pipeline(&baseline, thresholds))
 }
@@ -37,37 +37,37 @@ fn build_pipeline(baseline: &HealthBaseline, thresholds: &Thresholds) -> Pipelin
 
     let mut pipeline = Pipeline::new(false)
         .step(&format!("test failures <= {max_failures}"), move || {
-            threshold_check("test failures", failed, max_failures)
+            threshold_check("test failures", failed, max_failures).map_err(anyhow::Error::from)
         })
         .step(&format!("clippy errors <= {max_errors}"), move || {
-            threshold_check("clippy errors", errors, max_errors)
+            threshold_check("clippy errors", errors, max_errors).map_err(anyhow::Error::from)
         })
         .step(&format!("clippy warnings <= {max_warnings}"), move || {
-            threshold_check("clippy warnings", warnings, max_warnings)
+            threshold_check("clippy warnings", warnings, max_warnings).map_err(anyhow::Error::from)
         })
         .step("version consistency", move || {
             if consistent {
                 Ok(())
             } else {
-                anyhow::bail!("workspace versions are inconsistent")
+                Err(anyhow::anyhow!("workspace versions are inconsistent"))
             }
         });
 
     if let Some(max_todo) = thresholds.max_todo_fixme {
         let todo_count = baseline.todo_fixme;
         pipeline = pipeline.step(&format!("TODO/FIXME <= {max_todo}"), move || {
-            threshold_check("TODO/FIXME", todo_count, max_todo)
+            threshold_check("TODO/FIXME", todo_count, max_todo).map_err(anyhow::Error::from)
         });
     }
 
     pipeline.run()
 }
 
-fn threshold_check(name: &str, value: usize, limit: usize) -> Result<()> {
+fn threshold_check(name: &str, value: usize, limit: usize) -> Result<(), TaskitError> {
     if value <= limit {
         Ok(())
     } else {
-        anyhow::bail!("{name}: {value} exceeds limit {limit}")
+        Err(anyhow::anyhow!("{name}: {value} exceeds limit {limit}").into())
     }
 }
 
@@ -76,14 +76,14 @@ pub fn run(
     max_warnings: usize,
     max_todo: Option<usize>,
     fmt: OutputFormat,
-) -> Result<()> {
+) -> Result<(), TaskitError> {
     let thresholds = Thresholds {
         max_clippy_warnings: max_warnings,
         max_todo_fixme: max_todo,
         ..Default::default()
     };
     let outcome = run_pipeline(sh, &thresholds)?;
-    crate::output::write_output(fmt, &outcome).map_err(|e| anyhow::anyhow!("{e}"))
+    Ok(crate::output::write_output(fmt, &outcome)?)
 }
 
 #[cfg(test)]

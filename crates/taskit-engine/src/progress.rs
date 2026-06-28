@@ -50,9 +50,9 @@ impl Spinner {
 /// Run `f`, wrapping it with a spinner labeled `label`.
 ///
 /// Returns the result of `f` unchanged; the spinner finishes with ✓ or ✗.
-pub fn with_spinner<T, F>(label: impl Into<String>, f: F) -> anyhow::Result<T>
+pub fn with_spinner<T, E, F>(label: impl Into<String>, f: F) -> Result<T, E>
 where
-    F: FnOnce() -> anyhow::Result<T>,
+    F: FnOnce() -> Result<T, E>,
 {
     let sp = Spinner::new(label);
     match f() {
@@ -111,7 +111,8 @@ mod tests {
 
     #[test]
     fn with_spinner_propagates_err() {
-        let result = with_spinner("test-err", || anyhow::bail!("boom") as anyhow::Result<()>);
+        let result: Result<(), anyhow::Error> =
+            with_spinner("test-err", || Err(anyhow::anyhow!("boom")));
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().to_string(), "boom");
     }

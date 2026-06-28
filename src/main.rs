@@ -1,4 +1,3 @@
-use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::{env, path::Path};
 use taskit_engine::{
@@ -191,24 +190,28 @@ enum Cmd {
     },
 }
 
-fn main() -> Result<()> {
+fn main() -> miette::Result<()> {
     let cli = Cli::parse();
 
     // Init runs before config loading (taskit.toml may not exist yet)
     if let Cmd::Init { force, interactive } = cli.cmd {
-        return taskit_init::run(force, interactive);
+        return taskit_init::run(force, interactive).map_err(Into::into);
     }
 
     let workspace = taskit_engine::config::load()?;
     let workspace_root = workspace.root.clone();
-    env::set_current_dir(&workspace_root)?;
+    env::set_current_dir(&workspace_root)
+        .map_err(taskit_types::error::TaskitError::from)
+        .map_err(miette::Report::from)?;
     let config = workspace.config;
     let ws = &config.workspace;
     let proto = config.protocol.as_ref();
-    let sh = Shell::new()?;
+    let sh = Shell::new()
+        .map_err(|e| taskit_types::error::TaskitError::from(anyhow::anyhow!("{e}")))
+        .map_err(miette::Report::from)?;
 
     runner::set_dry_run(cli.dry_run);
-    match cli.cmd {
+    let result: Result<(), taskit_types::error::TaskitError> = match cli.cmd {
         Cmd::Fmt { check, affected } => fmt::run(&sh, ws, check, affected),
         Cmd::Lint {
             crate_name,
@@ -237,9 +240,9 @@ fn main() -> Result<()> {
                 .or(config.coverage.as_ref().map(|c| c.crate_name.as_str()));
             match pkg {
                 Some(name) => testing::coverage::run(&sh, name, threshold),
-                None => anyhow::bail!(
+                None => return Err(taskit_types::error::TaskitError::from(anyhow::anyhow!(
                     "no crate specified: use --crate-name or set [coverage].crate_name in taskit.toml"
-                ),
+                )).into()),
             }
         }
         Cmd::CheckProtocolDrift {
@@ -247,7 +250,7 @@ fn main() -> Result<()> {
             warn_only,
             hook,
         } => {
-            let root = env::current_dir()?;
+            let root = env::current_dir().map_err(taskit_types::error::TaskitError::from)?;
             protocol::drift::run(&root, proto, update, warn_only, hook)
         }
         Cmd::CheckProtocolSites {
@@ -301,5 +304,6 @@ fn main() -> Result<()> {
             allow_dirty,
         } => publish::run(&sh, skip_docs, allow_dirty, cli.output),
         Cmd::Init { .. } => unreachable!("handled above"),
-    }
+    };
+    result.map_err(Into::into)
 }

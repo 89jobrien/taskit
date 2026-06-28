@@ -1,9 +1,14 @@
-use anyhow::Result;
+use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};
 
 use crate::{config::WorkspaceConfig, runner::xrun};
 
-pub fn run(sh: &Shell, ws: &WorkspaceConfig, check: bool, affected: bool) -> Result<()> {
+pub fn run(
+    sh: &Shell,
+    ws: &WorkspaceConfig,
+    check: bool,
+    affected: bool,
+) -> Result<(), TaskitError> {
     if affected {
         let crates = crate::affected::detect(sh, ws)?;
         if crates.is_empty() {

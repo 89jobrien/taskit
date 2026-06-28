@@ -1,4 +1,4 @@
-use anyhow::Result;
+use taskit_types::error::TaskitError;
 use xshell::Shell;
 
 use crate::{affected, config::WorkspaceConfig};
@@ -37,9 +37,9 @@ pub fn run_per_crate(
     crate_name: Option<&str>,
     use_affected: bool,
     continue_on_error: bool,
-    single_cmd: impl Fn(&Shell, &str) -> Result<()>,
-    workspace_cmd: impl Fn(&Shell) -> Result<()>,
-) -> Result<()> {
+    single_cmd: impl Fn(&Shell, &str) -> Result<(), TaskitError>,
+    workspace_cmd: impl Fn(&Shell) -> Result<(), TaskitError>,
+) -> Result<(), TaskitError> {
     if let Some(name) = crate_name {
         return single_cmd(sh, name);
     }
@@ -63,7 +63,7 @@ pub fn run_per_crate(
             }
         }
         if !failed.is_empty() {
-            anyhow::bail!("failed for crate(s): {}", failed.join(", "));
+            return Err(anyhow::anyhow!("failed for crate(s): {}", failed.join(", ")).into());
         }
         return Ok(());
     }
@@ -161,7 +161,7 @@ mod tests {
             Some("my-api"),
             false,
             false,
-            |_sh, _name| anyhow::bail!("lint failed"),
+            |_sh, _name| Err(anyhow::anyhow!("lint failed").into()),
             |_sh| Ok(()),
         );
         assert!(result.is_err());

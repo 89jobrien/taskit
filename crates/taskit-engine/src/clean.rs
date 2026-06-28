@@ -1,15 +1,15 @@
-use anyhow::{Result, bail};
+use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};
 
 use crate::runner::xrun;
 
-pub fn run(sh: &Shell, older_than: Option<&str>) -> Result<()> {
+pub fn run(sh: &Shell, older_than: Option<&str>) -> Result<(), TaskitError> {
     if let Some(days) = older_than {
         let days_num = days.strip_suffix('d').unwrap_or(days);
         if days_num.parse::<u64>().is_err() {
-            bail!(
+            return Err(anyhow::anyhow!(
                 "--older-than expects a number of days, optionally suffixed with 'd' (e.g. 7 or 7d), got: {days:?}"
-            );
+            ).into());
         }
         eprintln!("Sweeping artifacts older than {days_num} days...");
         xrun(cmd!(sh, "cargo sweep --time {days_num}"))?;
@@ -24,7 +24,7 @@ pub fn run(sh: &Shell, older_than: Option<&str>) -> Result<()> {
 }
 
 /// Remove taskit-generated artifacts outside of target/.
-fn prune_artifacts() -> Result<()> {
+fn prune_artifacts() -> Result<(), TaskitError> {
     let artifacts = [".xtask-cache", "target/taskit-results.xml"];
     for path in artifacts {
         let p = std::path::Path::new(path);

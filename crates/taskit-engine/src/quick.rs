@@ -1,4 +1,4 @@
-use anyhow::Result;
+use taskit_types::error::TaskitError;
 use xshell::Shell;
 
 use crate::{config::WorkspaceConfig, fmt, lint, runner::with_silent, step::Pipeline, testing};
@@ -12,21 +12,27 @@ use crate::{config::WorkspaceConfig, fmt, lint, runner::with_silent, step::Pipel
 /// Tool stdout/stderr is suppressed; only progress spinners and the final
 /// summary table are shown.  On failure the captured output is included in
 /// the error message.
-pub fn run(sh: &Shell, ws: &WorkspaceConfig) -> Result<()> {
+pub fn run(sh: &Shell, ws: &WorkspaceConfig) -> Result<(), TaskitError> {
     with_silent(|| {
         let outcome = Pipeline::new(false)
-            .step("fmt --check (affected)", || fmt::run(sh, ws, true, true))
-            .step("lint (affected)", || lint::run(sh, ws, None, true, false))
-            .step("compile-tests", || testing::compile::run(sh))
+            .step("fmt --check (affected)", || {
+                fmt::run(sh, ws, true, true).map_err(anyhow::Error::from)
+            })
+            .step("lint (affected)", || {
+                lint::run(sh, ws, None, true, false).map_err(anyhow::Error::from)
+            })
+            .step("compile-tests", || {
+                testing::compile::run(sh).map_err(anyhow::Error::from)
+            })
             .step("test (affected, offline)", || {
-                testing::run::run(sh, ws, None, true, false, true)
+                testing::run::run(sh, ws, None, true, false, true).map_err(anyhow::Error::from)
             })
             .run();
         crate::step::print_summary(&outcome);
         if outcome.passed {
             Ok(())
         } else {
-            anyhow::bail!("quick checks failed")
+            Err(TaskitError::from(anyhow::anyhow!("quick checks failed")))
         }
     })
 }
@@ -39,7 +45,9 @@ mod tests {
     #[test]
     fn quick_run_is_exported() {
         // If this compiles, the public API is intact.
-        let _: fn(&xshell::Shell, &crate::config::WorkspaceConfig) -> anyhow::Result<()> =
-            super::run;
+        let _: fn(
+            &xshell::Shell,
+            &crate::config::WorkspaceConfig,
+        ) -> Result<(), taskit_types::error::TaskitError> = super::run;
     }
 }

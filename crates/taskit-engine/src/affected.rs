@@ -1,5 +1,6 @@
-use anyhow::{Context, Result};
+use anyhow::Context;
 use std::collections::BTreeSet;
+use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};
 
 use crate::config::WorkspaceConfig;
@@ -11,7 +12,7 @@ use crate::config::{CrateEntry, PropagationEntry};
 ///
 /// The crate list and propagation table are read from `ws` rather than
 /// hardcoded constants, making this workspace-agnostic.
-pub fn detect(sh: &Shell, ws: &WorkspaceConfig) -> Result<BTreeSet<String>> {
+pub fn detect(sh: &Shell, ws: &WorkspaceConfig) -> Result<BTreeSet<String>, TaskitError> {
     let output = cmd!(sh, "git diff --name-only origin/main...HEAD")
         .read()
         .context("failed to detect affected crates — ensure 'origin/main' is fetchable")?;

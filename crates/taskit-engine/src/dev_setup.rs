@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};
 
 use crate::{
@@ -42,7 +42,7 @@ fn confirm(prompt: &str) -> bool {
 
 /// Ensure `cargo-binstall` is available, bootstrapping via `cargo install` if
 /// the user consents. Returns an error if it is absent and the user declines.
-fn ensure_binstall(sh: &Shell) -> Result<()> {
+fn ensure_binstall(sh: &Shell) -> Result<(), TaskitError> {
     if tool_exists("cargo-binstall") {
         return Ok(());
     }
@@ -52,14 +52,15 @@ fn ensure_binstall(sh: &Shell) -> Result<()> {
         return Ok(());
     }
     if !confirm("  Install cargo-binstall now via `cargo install cargo-binstall`?") {
-        bail!(
+        return Err(anyhow::anyhow!(
             "cargo-binstall is required. Install it manually and re-run `cargo xtask dev-setup`."
-        );
+        )
+        .into());
     }
     xrun(cmd!(sh, "cargo install cargo-binstall"))
 }
 
-pub fn setup(sh: &Shell) -> Result<()> {
+pub fn setup(sh: &Shell) -> Result<(), TaskitError> {
     eprintln!("Installing development tools...");
     ensure_binstall(sh)?;
     for (name, install_name) in REQUIRED_TOOLS {
@@ -89,7 +90,7 @@ fn check_label(name: &str) -> &str {
     }
 }
 
-pub fn self_check() -> Result<()> {
+pub fn self_check() -> Result<(), TaskitError> {
     eprintln!("{:<COL_TOOL$} {:<COL_STATUS$} Notes", "Tool", "Status");
     eprintln!("{}", "-".repeat(SEPARATOR_WIDTH));
     let binstall_status = if tool_exists("cargo-binstall") {
@@ -124,7 +125,10 @@ pub fn self_check() -> Result<()> {
         eprintln!("{:<COL_TOOL$} {:<COL_STATUS$} optional", name, status);
     }
     if missing {
-        anyhow::bail!("Required tools missing. Run `cargo xtask dev-setup` to install.");
+        return Err(anyhow::anyhow!(
+            "Required tools missing. Run `cargo xtask dev-setup` to install."
+        )
+        .into());
     }
     match crate::cache::verify() {
         Ok(true) => eprintln!("{:<COL_TOOL$} OK      cache integrity", ".xtask-cache"),

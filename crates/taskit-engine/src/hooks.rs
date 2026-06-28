@@ -1,6 +1,6 @@
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path};
+use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};
 
 use crate::runner::{is_dry_run, xrun};
@@ -26,16 +26,24 @@ fn load_pre_push_cache() -> PrePushCache {
         .unwrap_or_default()
 }
 
-fn save_pre_push_cache(cache: &PrePushCache) -> Result<()> {
+fn save_pre_push_cache(cache: &PrePushCache) -> Result<(), TaskitError> {
     if let Some(parent) = Path::new(PRE_PUSH_CACHE).parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(PRE_PUSH_CACHE, serde_json::to_string_pretty(cache)?)?;
+    fs::write(
+        PRE_PUSH_CACHE,
+        serde_json::to_string_pretty(cache)
+            .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?,
+    )?;
     Ok(())
 }
 
-fn head_sha(sh: &Shell) -> Result<String> {
-    Ok(cmd!(sh, "git rev-parse HEAD").read()?.trim().to_string())
+fn head_sha(sh: &Shell) -> Result<String, TaskitError> {
+    Ok(cmd!(sh, "git rev-parse HEAD")
+        .read()
+        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?
+        .trim()
+        .to_string())
 }
 
 // ── pre-commit hash cache ─────────────────────────────────────────────────────
@@ -54,11 +62,15 @@ fn load_pre_commit_cache() -> PreCommitCache {
         .unwrap_or_default()
 }
 
-fn save_pre_commit_cache(cache: &PreCommitCache) -> Result<()> {
+fn save_pre_commit_cache(cache: &PreCommitCache) -> Result<(), TaskitError> {
     if let Some(parent) = std::path::Path::new(PRE_COMMIT_CACHE).parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(PRE_COMMIT_CACHE, serde_json::to_string_pretty(cache)?)?;
+    fs::write(
+        PRE_COMMIT_CACHE,
+        serde_json::to_string_pretty(cache)
+            .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?,
+    )?;
     Ok(())
 }
 
@@ -71,12 +83,14 @@ fn rs_paths_from_staged(staged: &str) -> Vec<&str> {
 
 /// Hash the staged blob of each `.rs` file (via `git show :<path>`) and
 /// combine them into a single deterministic digest.
-fn staged_rs_hash(sh: &Shell, staged: &str) -> Result<String> {
+fn staged_rs_hash(sh: &Shell, staged: &str) -> Result<String, TaskitError> {
     use sha2::{Digest, Sha256};
     let paths = rs_paths_from_staged(staged);
     let mut outer = Sha256::new();
     for path in paths {
-        let blob = cmd!(sh, "git show {path}").read()?;
+        let blob = cmd!(sh, "git show {path}")
+            .read()
+            .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
         let mut inner = Sha256::new();
         inner.update(blob.as_bytes());
         let file_hash = hex::encode(inner.finalize());
@@ -93,9 +107,11 @@ fn any_rust_file(staged: &str) -> bool {
     staged.lines().any(|l| l.ends_with(".rs"))
 }
 
-pub fn pre_commit(sh: &Shell) -> Result<()> {
+pub fn pre_commit(sh: &Shell) -> Result<(), TaskitError> {
     eprintln!("Running pre-commit checks (Rust only)...");
-    let staged = cmd!(sh, "git diff --cached --name-only --diff-filter=d").read()?;
+    let staged = cmd!(sh, "git diff --cached --name-only --diff-filter=d")
+        .read()
+        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
     if !any_rust_file(&staged) {
         eprintln!("No Rust files staged, skipping.");
         return Ok(());
@@ -123,7 +139,7 @@ pub fn pre_push(
     ws: &crate::config::WorkspaceConfig,
     proto: Option<&crate::config::ProtocolConfig>,
     cov: Option<&crate::config::CoverageConfig>,
-) -> Result<()> {
+) -> Result<(), TaskitError> {
     eprintln!("Running pre-push checks...");
     let affected = crate::affected::detect(sh, ws)?;
     if affected.is_empty() {
@@ -207,7 +223,7 @@ const PRE_PUSH_HOOK: &str = "#!/usr/bin/env bash\n\
                              fi\n\n\
                              exit $(( XTASK_EXIT | ORIG_EXIT ))\n";
 
-pub fn install_hooks() -> Result<()> {
+pub fn install_hooks() -> Result<(), TaskitError> {
     let hooks_dir = ".git/hooks";
 
     let pre_commit = PRE_COMMIT_HOOK;
@@ -233,7 +249,7 @@ pub fn install_hooks() -> Result<()> {
 }
 
 #[cfg(unix)]
-fn make_executable(path: &str) -> Result<()> {
+fn make_executable(path: &str) -> Result<(), TaskitError> {
     use std::os::unix::fs::PermissionsExt;
     let perms = fs::Permissions::from_mode(0o755);
     fs::set_permissions(path, perms)?;
@@ -241,7 +257,7 @@ fn make_executable(path: &str) -> Result<()> {
 }
 
 #[cfg(not(unix))]
-fn make_executable(_path: &str) -> Result<()> {
+fn make_executable(_path: &str) -> Result<(), TaskitError> {
     Ok(())
 }
 

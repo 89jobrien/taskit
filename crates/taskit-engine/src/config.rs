@@ -6,18 +6,19 @@ pub use taskit_types::config::{
     SurfaceEntry, WorkspaceConfig,
 };
 
-use anyhow::{Context, Result};
+use anyhow::Context;
 use std::{
     env, fs,
     path::{Path, PathBuf},
 };
+use taskit_types::error::TaskitError;
 
 use crate::Workspace;
 
 const CONFIG_FILE: &str = "taskit.toml";
 
 /// Build a Config entirely from cargo metadata + conventions.
-pub fn discover(workspace_root: &Path) -> Result<Config> {
+pub fn discover(workspace_root: &Path) -> Result<Config, TaskitError> {
     use crate::discovery::CargoMetadataSource;
     let source = CargoMetadataSource {
         workspace_root: workspace_root.to_path_buf(),
@@ -29,7 +30,7 @@ pub fn discover(workspace_root: &Path) -> Result<Config> {
 pub fn discover_with(
     workspace_root: &Path,
     source: &dyn crate::discovery::MetadataSource,
-) -> Result<Config> {
+) -> Result<Config, TaskitError> {
     use crate::discovery;
 
     let members = source.workspace_members()?;
@@ -80,7 +81,7 @@ pub fn discover_with(
 }
 
 /// Find the workspace root and load `taskit.toml` if present.
-pub fn load() -> Result<Workspace> {
+pub fn load() -> Result<Workspace, TaskitError> {
     let cwd = env::current_dir().context("failed to read current directory")?;
 
     if let Some(config_path) = find_config_file(&cwd) {
@@ -137,13 +138,13 @@ fn merge_discovered(config: &mut Config, discovered: Config) {
     }
 }
 
-fn parse_config(path: &Path) -> Result<Config> {
+fn parse_config(path: &Path) -> Result<Config, TaskitError> {
     let content =
         fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
-    toml::from_str(&content).with_context(|| format!("failed to parse {}", path.display()))
+    Ok(toml::from_str(&content).with_context(|| format!("failed to parse {}", path.display()))?)
 }
 
-fn cargo_workspace_root() -> Result<PathBuf> {
+fn cargo_workspace_root() -> Result<PathBuf, TaskitError> {
     let metadata = cargo_metadata::MetadataCommand::new()
         .no_deps()
         .exec()

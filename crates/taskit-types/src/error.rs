@@ -22,6 +22,16 @@ pub enum TaskitError {
     #[error("io error: {0}")]
     #[diagnostic(code(taskit::io))]
     Io(#[from] std::io::Error),
+
+    #[error("{0}")]
+    #[diagnostic(code(taskit::internal))]
+    Other(Box<dyn std::error::Error + Send + Sync>),
+}
+
+impl From<anyhow::Error> for TaskitError {
+    fn from(err: anyhow::Error) -> Self {
+        TaskitError::Other(err.into())
+    }
 }
 
 #[derive(Debug, Error, Diagnostic)]

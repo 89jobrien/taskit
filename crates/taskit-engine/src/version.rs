@@ -1,4 +1,4 @@
-use anyhow::Result;
+use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};
 
 use crate::config::WorkspaceConfig;
@@ -14,18 +14,21 @@ fn find_package_version<'a>(packages: &'a [serde_json::Value], name: &str) -> &'
         .unwrap_or("unknown")
 }
 
-pub fn run(sh: &Shell, ws: &WorkspaceConfig) -> Result<()> {
+pub fn run(sh: &Shell, ws: &WorkspaceConfig) -> Result<(), TaskitError> {
     if is_dry_run() {
         eprintln!("dry-run: cargo metadata --no-deps --format-version 1");
         eprintln!("dry-run: rustc --version");
         return Ok(());
     }
 
-    let meta_json = cmd!(sh, "cargo metadata --no-deps --format-version 1").read()?;
-    let meta: serde_json::Value = serde_json::from_str(&meta_json)?;
-    let packages = meta["packages"]
-        .as_array()
-        .ok_or_else(|| anyhow::anyhow!("no packages in cargo metadata output"))?;
+    let meta_json = cmd!(sh, "cargo metadata --no-deps --format-version 1")
+        .read()
+        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+    let meta: serde_json::Value =
+        serde_json::from_str(&meta_json).map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+    let packages = meta["packages"].as_array().ok_or_else(|| {
+        TaskitError::from(anyhow::anyhow!("no packages in cargo metadata output"))
+    })?;
 
     eprintln!("Workspace Versions:");
     if ws.crates.is_empty() {
@@ -46,7 +49,9 @@ pub fn run(sh: &Shell, ws: &WorkspaceConfig) -> Result<()> {
         }
     }
     eprintln!();
-    let rustc = cmd!(sh, "rustc --version").read()?;
+    let rustc = cmd!(sh, "rustc --version")
+        .read()
+        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
     eprintln!("  rustc: {rustc}");
     Ok(())
 }

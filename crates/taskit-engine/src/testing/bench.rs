@@ -1,4 +1,4 @@
-use anyhow::Result;
+use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};
 
 use crate::runner::xrun;
@@ -19,7 +19,7 @@ fn build_bench_args(crate_name: Option<&str>, save_baseline: bool) -> Vec<String
     args
 }
 
-pub fn run(sh: &Shell, crate_name: Option<&str>, save_baseline: bool) -> Result<()> {
+pub fn run(sh: &Shell, crate_name: Option<&str>, save_baseline: bool) -> Result<(), TaskitError> {
     let args = build_bench_args(crate_name, save_baseline);
     let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
     xrun(cmd!(sh, "cargo {args_ref...}"))?;

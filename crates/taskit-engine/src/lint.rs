@@ -1,4 +1,4 @@
-use anyhow::Result;
+use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};
 
 use crate::{config::WorkspaceConfig, progress::with_spinner, runner::xrun, util};
@@ -9,7 +9,7 @@ pub fn run(
     crate_name: Option<&str>,
     use_affected: bool,
     continue_on_error: bool,
-) -> Result<()> {
+) -> Result<(), TaskitError> {
     util::run_per_crate(
         sh,
         ws,
