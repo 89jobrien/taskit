@@ -15,6 +15,10 @@ pub enum TaskitError {
     #[diagnostic(transparent)]
     Protocol(#[from] ProtocolError),
 
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    Init(#[from] InitError),
+
     #[error("io error: {0}")]
     #[diagnostic(code(taskit::io))]
     Io(#[from] std::io::Error),
@@ -100,6 +104,21 @@ pub enum ProtocolError {
         help("re-run `taskit check-protocol-drift --update`")
     )]
     Stale,
+}
+
+#[derive(Debug, Error, Diagnostic)]
+pub enum InitError {
+    #[error("taskit.toml already exists")]
+    #[diagnostic(code(taskit::init::exists), help("use --force to overwrite"))]
+    AlreadyExists,
+
+    #[error("cargo metadata failed: {reason}")]
+    #[diagnostic(code(taskit::init::metadata))]
+    CargoMetadata { reason: String },
+
+    #[error("failed to write {file}: {reason}")]
+    #[diagnostic(code(taskit::init::write))]
+    WriteFile { file: String, reason: String },
 }
 
 #[derive(Debug, Error, Diagnostic)]
@@ -215,6 +234,27 @@ mod tests {
             path: "taskit-protocol.lock".into(),
         };
         assert!(err.to_string().contains("lockfile not found"));
+    }
+
+    #[test]
+    fn init_already_exists_display() {
+        let err = TaskitError::Init(InitError::AlreadyExists);
+        assert!(err.to_string().contains("already exists"), "got: {err}");
+    }
+
+    #[test]
+    fn init_already_exists_diagnostic_code() {
+        let err = InitError::AlreadyExists;
+        let code = err.code().expect("should have diagnostic code");
+        assert_eq!(code.to_string(), "taskit::init::exists");
+    }
+
+    #[test]
+    fn init_cargo_metadata_display() {
+        let err = InitError::CargoMetadata {
+            reason: "not a cargo workspace".into(),
+        };
+        assert!(err.to_string().contains("cargo metadata failed"));
     }
 
     #[test]
