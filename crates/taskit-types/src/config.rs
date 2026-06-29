@@ -10,6 +10,7 @@ pub struct Config {
     pub protocol: Option<ProtocolConfig>,
     pub ci: Option<CiConfig>,
     pub coverage: Option<CoverageConfig>,
+    pub flow: Option<FlowConfig>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -90,6 +91,27 @@ pub struct CoverageConfig {
 impl CoverageConfig {
     pub fn threshold(&self) -> f64 {
         self.threshold.unwrap_or(DEFAULT_COVERAGE_THRESHOLD)
+    }
+}
+
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct FlowConfig {
+    pub main: Option<String>,
+    pub staging: Option<String>,
+    pub release: Option<String>,
+}
+
+impl FlowConfig {
+    pub fn main_branch(&self) -> &str {
+        self.main.as_deref().unwrap_or("main")
+    }
+
+    pub fn staging_branch(&self) -> &str {
+        self.staging.as_deref().unwrap_or("staging")
+    }
+
+    pub fn release_branch(&self) -> &str {
+        self.release.as_deref().unwrap_or("release")
     }
 }
 
