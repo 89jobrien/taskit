@@ -8,6 +8,7 @@ pub mod clean;
 pub mod config;
 pub mod dev_setup;
 pub mod discovery;
+pub mod flow;
 pub mod fmt;
 pub mod health;
 pub mod hooks;

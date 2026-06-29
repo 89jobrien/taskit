@@ -2,8 +2,8 @@
 // Type definitions live in taskit_types::config; re-exported here for sibling modules.
 
 pub use taskit_types::config::{
-    CiConfig, CiStep, Config, CoverageConfig, CrateEntry, PropagationEntry, ProtocolConfig,
-    SurfaceEntry, WorkspaceConfig,
+    CiConfig, CiStep, Config, CoverageConfig, CrateEntry, FlowConfig, PropagationEntry,
+    ProtocolConfig, SurfaceEntry, WorkspaceConfig,
 };
 
 use anyhow::Context;
@@ -77,6 +77,7 @@ pub fn discover_with(
         protocol,
         ci: None,
         coverage: None,
+        flow: None,
     })
 }
 
