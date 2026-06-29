@@ -51,6 +51,11 @@ mod tests {
                 },
             ],
             offline_skip: None,
+            flow: None,
+            git_hooks: false,
+            github_ci: false,
+            deny_toml: false,
+            ctx_scaffold: false,
         };
         let yaml = render_cruxfile(&plan, "myproject");
         assert!(yaml.contains("name: myproject-ci"));
@@ -68,6 +73,11 @@ mod tests {
             coverage: None,
             ci_steps: vec![],
             offline_skip: None,
+            flow: None,
+            git_hooks: false,
+            github_ci: false,
+            deny_toml: false,
+            ctx_scaffold: false,
         };
         let yaml = render_cruxfile(&plan, "proj");
         assert!(yaml.contains("run: taskit ci"));
@@ -82,6 +92,11 @@ mod tests {
             coverage: None,
             ci_steps: vec![],
             offline_skip: None,
+            flow: None,
+            git_hooks: false,
+            github_ci: false,
+            deny_toml: false,
+            ctx_scaffold: false,
         };
         let yaml = render_cruxfile(&plan, "taskit");
         assert!(yaml.contains("# Cruxfile for taskit"));

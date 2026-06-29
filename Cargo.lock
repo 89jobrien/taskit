@@ -886,6 +886,7 @@ dependencies = [
  "taskit-core",
  "taskit-types",
  "tempfile",
+ "toml",
 ]
 
 [[package]]

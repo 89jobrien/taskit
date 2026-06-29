@@ -1,6 +1,7 @@
 pub mod plan;
 pub mod render_cruxfile;
 pub mod render_toml;
+pub mod scaffold;
 
 use std::path::Path;
 
@@ -25,6 +26,7 @@ pub fn run(force: bool, interactive: bool) -> Result<(), TaskitError> {
 
     let project_name = detect_project_name();
 
+    // Core config: taskit.toml
     let toml_content = render_toml::render_toml(&init_plan);
     std::fs::write(target, &toml_content).map_err(|e| InitError::WriteFile {
         file: "taskit.toml".into(),
@@ -32,6 +34,7 @@ pub fn run(force: bool, interactive: bool) -> Result<(), TaskitError> {
     })?;
     eprintln!("wrote taskit.toml");
 
+    // Cruxfile
     let crux_content = render_cruxfile::render_cruxfile(&init_plan, &project_name);
     let crux_path = Path::new("Cruxfile");
     if !crux_path.exists() || force {
@@ -42,8 +45,31 @@ pub fn run(force: bool, interactive: bool) -> Result<(), TaskitError> {
         eprintln!("wrote Cruxfile");
     }
 
+    // Cargo alias + xtask shim
     write_cargo_alias(force)?;
     write_xtask_crate(force)?;
+
+    // Scaffold files (git hooks, CI, deny.toml, .ctx/)
+    if init_plan.git_hooks {
+        scaffold::write_git_hooks(force)?;
+    }
+    if init_plan.github_ci {
+        scaffold::write_github_ci(force)?;
+    }
+    if init_plan.deny_toml {
+        scaffold::write_deny_toml(force)?;
+    }
+    if init_plan.ctx_scaffold {
+        scaffold::write_ctx_scaffold(force)?;
+    }
+
+    eprintln!();
+    eprintln!("taskit initialized for {project_name}!");
+    eprintln!();
+    eprintln!("Next steps:");
+    eprintln!("  1. Review taskit.toml — uncomment sections you want to enable");
+    eprintln!("  2. Add \"xtask\" to [workspace] members in Cargo.toml");
+    eprintln!("  3. Run `cargo xtask ci` to verify your pipeline");
 
     Ok(())
 }
@@ -205,7 +231,6 @@ mod tests {
     #[test]
     fn write_cargo_alias_creates_config() {
         let dir = tempfile::tempdir().unwrap();
-        let prev = std::env::current_dir().unwrap();
         let cargo_dir = dir.path().join(".cargo");
         std::fs::create_dir_all(&cargo_dir).unwrap();
         let config_path = cargo_dir.join("config.toml");
@@ -214,7 +239,6 @@ mod tests {
         let written = std::fs::read_to_string(&config_path).unwrap();
         assert!(written.contains("xtask"));
         assert!(written.contains("run --package xtask"));
-        let _ = prev;
     }
 
     #[test]
@@ -235,5 +259,33 @@ mod tests {
         assert!(written.contains("[build]"));
         assert!(written.contains("[alias]"));
         assert!(written.contains("run --package xtask"));
+    }
+
+    #[test]
+    fn generated_toml_includes_all_sections() {
+        let plan = plan::plan_from_discovery().unwrap();
+        let toml = render_toml::render_toml(&plan);
+
+        // Should have workspace crates
+        assert!(toml.contains("[workspace]"));
+        assert!(toml.contains("crates = ["));
+
+        // Should have propagation (either active or commented)
+        assert!(
+            toml.contains("[[workspace.propagation]]")
+                || toml.contains("# [[workspace.propagation]]")
+        );
+
+        // Should have protocol (either active or commented)
+        assert!(toml.contains("[protocol]") || toml.contains("# [protocol]"));
+
+        // Should have CI steps
+        assert!(toml.contains("[[ci.steps]]") || toml.contains("# [[ci.steps]]"));
+
+        // Should have flow (either active or commented)
+        assert!(toml.contains("# [flow]") || toml.contains("[flow]"));
+
+        // Should have coverage (either active or commented)
+        assert!(toml.contains("[coverage]") || toml.contains("# [coverage]"));
     }
 }
