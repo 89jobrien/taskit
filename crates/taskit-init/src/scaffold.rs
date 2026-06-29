@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use crate::plan::InitPlan;
 use taskit_types::error::{InitError, TaskitError};
 
 /// Create the `.ctx/` project context directory scaffold.
@@ -276,6 +277,151 @@ allow-git = []
     Ok(())
 }
 
+/// Generate an mdBook scaffold in `docs/` with a chapter per workspace crate.
+pub fn write_mdbook(plan: &InitPlan, project_name: &str, force: bool) -> Result<(), TaskitError> {
+    let docs_dir = Path::new("docs");
+    let src_dir = docs_dir.join("src");
+    let book_toml = docs_dir.join("book.toml");
+
+    if book_toml.exists() && !force {
+        eprintln!("docs/book.toml already exists, skipping");
+        return Ok(());
+    }
+
+    std::fs::create_dir_all(src_dir.join("crates"))?;
+
+    // book.toml
+    let book_content = format!(
+        "\
+[book]
+title = \"{project_name}\"
+authors = []
+language = \"en\"
+multilingual = false
+src = \"src\"
+
+[build]
+build-dir = \"dist\"
+
+[output.html]
+git-repository-url = \"\"
+default-theme = \"rust\"
+preferred-dark-theme = \"ayu\"
+"
+    );
+    std::fs::write(&book_toml, book_content).map_err(|e| InitError::WriteFile {
+        file: "docs/book.toml".into(),
+        reason: e.to_string(),
+    })?;
+
+    // SUMMARY.md
+    let mut summary = format!("# Summary\n\n[{project_name}](./README.md)\n\n");
+    summary.push_str("# Architecture\n\n");
+    summary.push_str("- [Overview](./architecture/overview.md)\n");
+    summary.push_str("\n# Crates\n\n");
+
+    for c in &plan.crates {
+        let name = c.pkg.as_deref().unwrap_or(&c.dir);
+        let slug = name.replace('/', "-");
+        summary.push_str(&format!("- [{name}](./crates/{slug}.md)\n"));
+
+        // Create stub crate doc
+        let crate_doc = src_dir.join("crates").join(format!("{slug}.md"));
+        if !crate_doc.exists() || force {
+            std::fs::write(
+                &crate_doc,
+                format!("# {name}\n\n<!-- Crate documentation -->\n"),
+            )?;
+        }
+    }
+
+    summary.push_str("\n# Reference\n\n");
+    summary.push_str("- [Configuration](./reference/configuration.md)\n");
+    summary.push_str("- [CI Pipeline](./reference/ci-pipeline.md)\n");
+
+    std::fs::write(src_dir.join("SUMMARY.md"), &summary).map_err(|e| InitError::WriteFile {
+        file: "docs/src/SUMMARY.md".into(),
+        reason: e.to_string(),
+    })?;
+
+    // Stub pages
+    let readme = src_dir.join("README.md");
+    if !readme.exists() || force {
+        std::fs::write(
+            &readme,
+            format!("# {project_name}\n\nWelcome to the {project_name} documentation.\n"),
+        )?;
+    }
+
+    std::fs::create_dir_all(src_dir.join("architecture"))?;
+    let overview = src_dir.join("architecture/overview.md");
+    if !overview.exists() || force {
+        std::fs::write(
+            &overview,
+            "# Architecture Overview\n\n<!-- Describe workspace structure and crate relationships -->\n",
+        )?;
+    }
+
+    std::fs::create_dir_all(src_dir.join("reference"))?;
+    let config_doc = src_dir.join("reference/configuration.md");
+    if !config_doc.exists() || force {
+        std::fs::write(
+            &config_doc,
+            "\
+# Configuration
+
+## taskit.toml
+
+All configuration lives in `taskit.toml` at the workspace root.
+
+### Sections
+
+| Section | Purpose |
+|---------|---------|
+| `[workspace]` | Crate list, propagation rules, offline skip |
+| `[protocol]` | Contract surface drift detection |
+| `[coverage]` | Coverage enforcement |
+| `[ci]` | Pipeline steps |
+| `[flow]` | Git branching workflow |
+",
+        )?;
+    }
+
+    let ci_doc = src_dir.join("reference/ci-pipeline.md");
+    if !ci_doc.exists() || force {
+        std::fs::write(
+            &ci_doc,
+            "\
+# CI Pipeline
+
+Run the full pipeline:
+
+```sh
+cargo xtask ci
+```
+
+## Steps
+
+| Step | Command | Gate |
+|------|---------|------|
+| Self-check | `taskit self-check` | Yes |
+| Format | `taskit fmt --check` | No |
+| Lint | `taskit lint` | No |
+| Compile tests | `taskit compile-tests` | No |
+| Test | `taskit test` | No |
+| Deps | `taskit check-deps` | No |
+| Drift | `taskit check-protocol-drift` | No |
+",
+        )?;
+    }
+
+    eprintln!(
+        "wrote docs/ mdBook scaffold ({} crate pages)",
+        plan.crates.len()
+    );
+    Ok(())
+}
+
 #[cfg(unix)]
 fn make_executable(path: &Path) -> Result<(), TaskitError> {
     use std::os::unix::fs::PermissionsExt;
@@ -361,6 +507,62 @@ mod tests {
         let content = std::fs::read_to_string(dir.path().join(".github/workflows/ci.yml")).unwrap();
         assert!(content.contains("cargo xtask ci"));
         assert!(content.contains("dtolnay/rust-toolchain"));
+
+        std::env::set_current_dir(prev).unwrap();
+    }
+
+    #[test]
+    fn mdbook_scaffold_creates_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let prev = std::env::current_dir().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        let plan = InitPlan {
+            crates: vec![
+                crate::plan::CratePlan {
+                    dir: "crates/core".into(),
+                    pkg: Some("my-core".into()),
+                },
+                crate::plan::CratePlan {
+                    dir: "crates/cli".into(),
+                    pkg: None,
+                },
+            ],
+            propagation: vec![],
+            surfaces: vec![],
+            coverage: None,
+            ci_steps: vec![],
+            offline_skip: None,
+            flow: None,
+            git_hooks: false,
+            github_ci: false,
+            deny_toml: false,
+            ctx_scaffold: false,
+            mdbook: false,
+        };
+        write_mdbook(&plan, "test-project", false).unwrap();
+
+        assert!(dir.path().join("docs/book.toml").exists());
+        assert!(dir.path().join("docs/src/SUMMARY.md").exists());
+        assert!(dir.path().join("docs/src/README.md").exists());
+        assert!(
+            dir.path()
+                .join("docs/src/architecture/overview.md")
+                .exists()
+        );
+        assert!(
+            dir.path()
+                .join("docs/src/reference/configuration.md")
+                .exists()
+        );
+        assert!(dir.path().join("docs/src/crates").is_dir());
+
+        let summary = std::fs::read_to_string(dir.path().join("docs/src/SUMMARY.md")).unwrap();
+        assert!(summary.contains("# Crates"));
+        assert!(summary.contains("test-project"));
+
+        let book = std::fs::read_to_string(dir.path().join("docs/book.toml")).unwrap();
+        assert!(book.contains("title = \"test-project\""));
 
         std::env::set_current_dir(prev).unwrap();
     }

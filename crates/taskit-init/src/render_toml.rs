@@ -205,6 +205,7 @@ mod tests {
             github_ci: false,
             deny_toml: false,
             ctx_scaffold: false,
+            mdbook: false,
         }
     }
 

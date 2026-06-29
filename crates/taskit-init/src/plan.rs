@@ -15,6 +15,7 @@ pub struct InitPlan {
     pub github_ci: bool,
     pub deny_toml: bool,
     pub ctx_scaffold: bool,
+    pub mdbook: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -133,6 +134,7 @@ pub fn plan_from_discovery() -> Result<InitPlan> {
         github_ci: true,
         deny_toml: true,
         ctx_scaffold: true,
+        mdbook: true,
     })
 }
 
@@ -212,6 +214,11 @@ pub fn plan_interactive() -> Result<InitPlan> {
 
     plan.ctx_scaffold = Confirm::new()
         .with_prompt("Generate .ctx/ project context scaffold?")
+        .default(true)
+        .interact()?;
+
+    plan.mdbook = Confirm::new()
+        .with_prompt("Generate docs/ mdBook scaffold?")
         .default(true)
         .interact()?;
 

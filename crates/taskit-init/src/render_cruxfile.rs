@@ -56,6 +56,7 @@ mod tests {
             github_ci: false,
             deny_toml: false,
             ctx_scaffold: false,
+            mdbook: false,
         };
         let yaml = render_cruxfile(&plan, "myproject");
         assert!(yaml.contains("name: myproject-ci"));
@@ -78,6 +79,7 @@ mod tests {
             github_ci: false,
             deny_toml: false,
             ctx_scaffold: false,
+            mdbook: false,
         };
         let yaml = render_cruxfile(&plan, "proj");
         assert!(yaml.contains("run: taskit ci"));
@@ -97,6 +99,7 @@ mod tests {
             github_ci: false,
             deny_toml: false,
             ctx_scaffold: false,
+            mdbook: false,
         };
         let yaml = render_cruxfile(&plan, "taskit");
         assert!(yaml.contains("# Cruxfile for taskit"));

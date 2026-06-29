@@ -62,6 +62,9 @@ pub fn run(force: bool, interactive: bool) -> Result<(), TaskitError> {
     if init_plan.ctx_scaffold {
         scaffold::write_ctx_scaffold(force)?;
     }
+    if init_plan.mdbook {
+        scaffold::write_mdbook(&init_plan, &project_name, force)?;
+    }
 
     eprintln!();
     eprintln!("taskit initialized for {project_name}!");
