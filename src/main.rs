@@ -1,8 +1,8 @@
 use clap::{Parser, Subcommand};
 use std::{env, path::Path};
 use taskit_engine::{
-    audit, check_deps, check_freshness, ci, clean, dev_setup, fmt, health, hooks, inspect, lint,
-    protocol, publish, quick, runner, testing, update_claude, version,
+    audit, check_deps, check_freshness, ci, clean, dev_setup, flow, fmt, health, hooks, inspect,
+    lint, protocol, publish, quick, runner, testing, update_claude, version,
 };
 use taskit_types::config::DEFAULT_COVERAGE_THRESHOLD;
 use taskit_types::output_format::OutputFormat;
@@ -179,6 +179,11 @@ enum Cmd {
         #[arg(long)]
         allow_dirty: bool,
     },
+    /// Git branching workflow: main -> staging -> release -> main
+    Flow {
+        #[command(subcommand)]
+        sub: FlowCmd,
+    },
     /// Generate taskit.toml and Cruxfile for the current workspace
     Init {
         /// Overwrite existing taskit.toml
@@ -188,6 +193,18 @@ enum Cmd {
         #[arg(long)]
         interactive: bool,
     },
+}
+
+#[derive(Subcommand)]
+enum FlowCmd {
+    /// Show branch positions and ahead/behind counts
+    Status,
+    /// Merge staging into release
+    Promote,
+    /// Merge release into main, then sync main into staging
+    Finish,
+    /// Validate current branch is not protected (for pre-commit hooks)
+    Guard,
 }
 
 fn main() -> miette::Result<()> {
@@ -303,6 +320,15 @@ fn main() -> miette::Result<()> {
             skip_docs,
             allow_dirty,
         } => publish::run(&sh, skip_docs, allow_dirty, cli.output),
+        Cmd::Flow { sub } => {
+            let flow_cfg = config.flow.as_ref().cloned().unwrap_or_default();
+            match sub {
+                FlowCmd::Status => flow::status(&sh, &flow_cfg),
+                FlowCmd::Promote => flow::promote(&sh, &flow_cfg),
+                FlowCmd::Finish => flow::finish(&sh, &flow_cfg),
+                FlowCmd::Guard => flow::guard(&sh, &flow_cfg),
+            }
+        }
         Cmd::Init { .. } => unreachable!("handled above"),
     };
     result.map_err(Into::into)

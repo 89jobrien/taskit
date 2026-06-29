@@ -19,6 +19,10 @@ pub enum TaskitError {
     #[diagnostic(transparent)]
     Init(#[from] InitError),
 
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    Flow(#[from] FlowError),
+
     #[error("io error: {0}")]
     #[diagnostic(code(taskit::io))]
     Io(#[from] std::io::Error),
@@ -129,6 +133,41 @@ pub enum InitError {
     #[error("failed to write {file}: {reason}")]
     #[diagnostic(code(taskit::init::write))]
     WriteFile { file: String, reason: String },
+}
+
+#[derive(Debug, Error, Diagnostic)]
+pub enum FlowError {
+    #[error("not on expected branch: expected '{expected}', got '{actual}'")]
+    #[diagnostic(
+        code(taskit::flow::wrong_branch),
+        help("switch to '{expected}' before running this command")
+    )]
+    WrongBranch { expected: String, actual: String },
+
+    #[error("branch '{branch}' is protected -- direct commits are blocked")]
+    #[diagnostic(
+        code(taskit::flow::protected),
+        help("commit to '{staging}' and use `taskit flow promote`")
+    )]
+    ProtectedBranch { branch: String, staging: String },
+
+    #[error("branch '{branch}' does not exist")]
+    #[diagnostic(
+        code(taskit::flow::missing_branch),
+        help("create it with: git branch {branch}")
+    )]
+    MissingBranch { branch: String },
+
+    #[error("branch '{branch}' has uncommitted changes")]
+    #[diagnostic(
+        code(taskit::flow::dirty),
+        help("commit or stash changes before flow operations")
+    )]
+    DirtyWorktree { branch: String },
+
+    #[error("merge failed: {reason}")]
+    #[diagnostic(code(taskit::flow::merge_failed))]
+    MergeFailed { reason: String },
 }
 
 #[derive(Debug, Error, Diagnostic)]

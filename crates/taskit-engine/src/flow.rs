@@ -1,0 +1,320 @@
+use taskit_types::config::FlowConfig;
+use taskit_types::error::{FlowError, TaskitError};
+use xshell::{Shell, cmd};
+
+use crate::runner::is_dry_run;
+
+fn current_branch(sh: &Shell) -> Result<String, TaskitError> {
+    Ok(cmd!(sh, "git branch --show-current")
+        .read()
+        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?
+        .trim()
+        .to_string())
+}
+
+fn branch_exists(sh: &Shell, branch: &str) -> Result<bool, TaskitError> {
+    let result = cmd!(sh, "git rev-parse --verify --quiet {branch}")
+        .quiet()
+        .output()
+        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+    Ok(result.status.success())
+}
+
+fn is_clean(sh: &Shell) -> Result<bool, TaskitError> {
+    let output = cmd!(sh, "git status --porcelain")
+        .read()
+        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+    Ok(output.trim().is_empty())
+}
+
+fn require_clean(sh: &Shell, branch: &str) -> Result<(), TaskitError> {
+    if !is_clean(sh)? {
+        return Err(FlowError::DirtyWorktree {
+            branch: branch.to_string(),
+        }
+        .into());
+    }
+    Ok(())
+}
+
+fn require_branch(sh: &Shell, expected: &str) -> Result<(), TaskitError> {
+    let actual = current_branch(sh)?;
+    if actual != expected {
+        return Err(FlowError::WrongBranch {
+            expected: expected.to_string(),
+            actual,
+        }
+        .into());
+    }
+    Ok(())
+}
+
+fn require_branch_exists(sh: &Shell, branch: &str) -> Result<(), TaskitError> {
+    if !branch_exists(sh, branch)? {
+        return Err(FlowError::MissingBranch {
+            branch: branch.to_string(),
+        }
+        .into());
+    }
+    Ok(())
+}
+
+fn ahead_behind(sh: &Shell, local: &str, remote: &str) -> Result<(usize, usize), TaskitError> {
+    let output = cmd!(sh, "git rev-list --left-right --count {local}...{remote}")
+        .read()
+        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+    let parts: Vec<&str> = output.split_whitespace().collect();
+    if parts.len() != 2 {
+        return Ok((0, 0));
+    }
+    let ahead = parts[0].parse().unwrap_or(0);
+    let behind = parts[1].parse().unwrap_or(0);
+    Ok((ahead, behind))
+}
+
+fn merge_no_ff(sh: &Shell, branch: &str, message: &str) -> Result<(), TaskitError> {
+    if is_dry_run() {
+        eprintln!("dry-run: git merge --no-ff {branch} -m \"{message}\"");
+        return Ok(());
+    }
+    let output = cmd!(sh, "git merge --no-ff {branch} -m {message}")
+        .quiet()
+        .output()
+        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(FlowError::MergeFailed {
+            reason: stderr.trim().to_string(),
+        }
+        .into());
+    }
+    Ok(())
+}
+
+fn checkout(sh: &Shell, branch: &str) -> Result<(), TaskitError> {
+    if is_dry_run() {
+        eprintln!("dry-run: git checkout {branch}");
+        return Ok(());
+    }
+    cmd!(sh, "git checkout {branch}")
+        .quiet()
+        .run()
+        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+    Ok(())
+}
+
+pub fn status(sh: &Shell, flow: &FlowConfig) -> Result<(), TaskitError> {
+    let main = flow.main_branch();
+    let staging = flow.staging_branch();
+    let release = flow.release_branch();
+    let current = current_branch(sh)?;
+
+    eprintln!("Flow status (current branch: {current})");
+    eprintln!();
+
+    for (from, to) in [(staging, main), (release, staging), (main, release)] {
+        if !branch_exists(sh, from)? || !branch_exists(sh, to)? {
+            eprintln!("  {from} -> {to}: (branch missing)");
+            continue;
+        }
+        let (ahead, behind) = ahead_behind(sh, from, to)?;
+        eprintln!("  {from} -> {to}: {ahead} ahead, {behind} behind");
+    }
+    Ok(())
+}
+
+pub fn promote(sh: &Shell, flow: &FlowConfig) -> Result<(), TaskitError> {
+    let staging = flow.staging_branch();
+    let release = flow.release_branch();
+
+    require_branch(sh, staging)?;
+    require_clean(sh, staging)?;
+    require_branch_exists(sh, release)?;
+
+    eprintln!("Promoting {staging} -> {release}");
+    checkout(sh, release)?;
+    merge_no_ff(
+        sh,
+        staging,
+        &format!("flow: promote {staging} into {release}"),
+    )?;
+    checkout(sh, staging)?;
+    eprintln!("Done. Now on {staging}. Review {release}, then `taskit flow finish`.");
+    Ok(())
+}
+
+pub fn finish(sh: &Shell, flow: &FlowConfig) -> Result<(), TaskitError> {
+    let main = flow.main_branch();
+    let staging = flow.staging_branch();
+    let release = flow.release_branch();
+
+    require_branch(sh, release)?;
+    require_clean(sh, release)?;
+    require_branch_exists(sh, main)?;
+    require_branch_exists(sh, staging)?;
+
+    eprintln!("Finishing release: {release} -> {main}, then syncing {main} -> {staging}");
+
+    // Merge release into main
+    checkout(sh, main)?;
+    merge_no_ff(sh, release, &format!("flow: finish {release} into {main}"))?;
+
+    // Sync main back into staging
+    checkout(sh, staging)?;
+    merge_no_ff(sh, main, &format!("flow: sync {main} into {staging}"))?;
+
+    eprintln!("Done. Now on {staging}. All branches are in sync.");
+    Ok(())
+}
+
+pub fn guard(sh: &Shell, flow: &FlowConfig) -> Result<(), TaskitError> {
+    let current = current_branch(sh)?;
+    let main = flow.main_branch();
+    let release = flow.release_branch();
+
+    if current == main || current == release {
+        return Err(FlowError::ProtectedBranch {
+            branch: current,
+            staging: flow.staging_branch().to_string(),
+        }
+        .into());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn default_flow() -> FlowConfig {
+        FlowConfig::default()
+    }
+
+    #[test]
+    fn default_branch_names() {
+        let f = default_flow();
+        assert_eq!(f.main_branch(), "main");
+        assert_eq!(f.staging_branch(), "staging");
+        assert_eq!(f.release_branch(), "release");
+    }
+
+    #[test]
+    fn custom_branch_names() {
+        let f = FlowConfig {
+            main: Some("production".into()),
+            staging: Some("develop".into()),
+            release: Some("rc".into()),
+        };
+        assert_eq!(f.main_branch(), "production");
+        assert_eq!(f.staging_branch(), "develop");
+        assert_eq!(f.release_branch(), "rc");
+    }
+
+    #[test]
+    fn wrong_branch_error_display() {
+        let err = FlowError::WrongBranch {
+            expected: "staging".into(),
+            actual: "main".into(),
+        };
+        assert!(err.to_string().contains("expected 'staging'"));
+        assert!(err.to_string().contains("got 'main'"));
+    }
+
+    #[test]
+    fn wrong_branch_diagnostic_code() {
+        use miette::Diagnostic;
+        let err = FlowError::WrongBranch {
+            expected: "staging".into(),
+            actual: "main".into(),
+        };
+        let code = err.code().expect("should have code");
+        assert_eq!(code.to_string(), "taskit::flow::wrong_branch");
+    }
+
+    #[test]
+    fn protected_branch_error_display() {
+        let err = FlowError::ProtectedBranch {
+            branch: "main".into(),
+            staging: "staging".into(),
+        };
+        assert!(err.to_string().contains("protected"));
+        assert!(err.to_string().contains("main"));
+    }
+
+    #[test]
+    fn protected_branch_diagnostic_code() {
+        use miette::Diagnostic;
+        let err = FlowError::ProtectedBranch {
+            branch: "main".into(),
+            staging: "staging".into(),
+        };
+        let code = err.code().expect("should have code");
+        assert_eq!(code.to_string(), "taskit::flow::protected");
+    }
+
+    #[test]
+    fn missing_branch_error_display() {
+        let err = FlowError::MissingBranch {
+            branch: "release".into(),
+        };
+        assert!(err.to_string().contains("does not exist"));
+    }
+
+    #[test]
+    fn dirty_worktree_error_display() {
+        let err = FlowError::DirtyWorktree {
+            branch: "staging".into(),
+        };
+        assert!(err.to_string().contains("uncommitted changes"));
+    }
+
+    #[test]
+    fn merge_failed_error_display() {
+        let err = FlowError::MergeFailed {
+            reason: "conflict in Cargo.toml".into(),
+        };
+        assert!(err.to_string().contains("merge failed"));
+        assert!(err.to_string().contains("conflict"));
+    }
+
+    #[test]
+    fn merge_failed_diagnostic_code() {
+        use miette::Diagnostic;
+        let err = FlowError::MergeFailed {
+            reason: "conflict".into(),
+        };
+        let code = err.code().expect("should have code");
+        assert_eq!(code.to_string(), "taskit::flow::merge_failed");
+    }
+
+    #[test]
+    fn flow_config_parses_from_toml() {
+        let cfg: FlowConfig = toml::from_str(
+            r#"
+main = "production"
+staging = "develop"
+release = "rc"
+"#,
+        )
+        .unwrap();
+        assert_eq!(cfg.main_branch(), "production");
+        assert_eq!(cfg.staging_branch(), "develop");
+        assert_eq!(cfg.release_branch(), "rc");
+    }
+
+    #[test]
+    fn flow_config_parses_empty_toml() {
+        let cfg: FlowConfig = toml::from_str("").unwrap();
+        assert_eq!(cfg.main_branch(), "main");
+        assert_eq!(cfg.staging_branch(), "staging");
+        assert_eq!(cfg.release_branch(), "release");
+    }
+
+    #[test]
+    fn flow_config_partial_override() {
+        let cfg: FlowConfig = toml::from_str(r#"staging = "dev""#).unwrap();
+        assert_eq!(cfg.main_branch(), "main");
+        assert_eq!(cfg.staging_branch(), "dev");
+        assert_eq!(cfg.release_branch(), "release");
+    }
+}
