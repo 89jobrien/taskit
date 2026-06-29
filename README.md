@@ -78,32 +78,37 @@ cmd  = "check-protocol-drift"
 
 ## Subcommands
 
-| Command                                          | Description                                         |
-| ------------------------------------------------ | --------------------------------------------------- |
-| `fmt [--check] [--affected]`                     | Format (or check) Rust code                         |
-| `lint [--crate-name X] [--affected]`             | Run clippy                                          |
-| `test [--crate-name X] [--affected] [--offline]` | Run tests via nextest                               |
-| `coverage [--crate-name X]`                      | Coverage with threshold (default 80%)               |
-| `compile-tests`                                  | Compile test binaries without running them          |
-| `check-deps`                                     | Check for unused dependencies (cargo-udeps)         |
-| `check-protocol-drift [--update] [--warn-only]`  | Verify tracked file hashes                          |
-| `check-freshness`                                | Verify protocol drift lockfile is up to date        |
-| `quick`                                          | Fast local feedback loop (affected crates, offline) |
-| `ci [--fail-fast] [--include-network]`           | Full CI pipeline                                    |
-| `pre-commit` / `pre-push`                        | Git hook delegates                                  |
-| `install-hooks`                                  | Install git hooks                                   |
-| `audit`                                          | Run cargo-deny (advisories, licenses, bans)         |
-| `clean [--older-than N]`                         | Clean build artifacts                               |
-| `version`                                        | Show workspace crate versions                       |
-| `dev-setup`                                      | Install development tools                           |
-| `self-check`                                     | Verify required tools are installed                 |
-| `self-test`                                      | Run taskit's own test suite (hash-cached)           |
-| `update-claude-version <version>`                | Update pinned Claude Code version                   |
-| `proptest [--crate-name X]`                      | Run property-based tests                            |
-| `fuzz <target> [--duration N]`                   | Run cargo-fuzz on a target                          |
-| `bench [--crate-name X] [--save-baseline]`       | Run criterion benchmarks                            |
-| `test-report`                                    | Generate unified coverage report                    |
-| `snapshot-review`                                | Review pending insta snapshots                      |
+| Command                                                                | Description                                         |
+| ---------------------------------------------------------------------- | --------------------------------------------------- |
+| `fmt [--check] [--affected]`                                           | Format (or check) Rust code                         |
+| `lint [--crate-name X] [--affected] [--continue-on-error]`             | Run clippy                                          |
+| `test [--crate-name X] [--affected] [--offline] [--continue-on-error]` | Run tests via nextest                               |
+| `coverage [--crate-name X] [--threshold N]`                            | Coverage with threshold (default 80%)               |
+| `compile-tests`                                                        | Compile test binaries without running them          |
+| `check-deps`                                                           | Check for unused dependencies (cargo-udeps)         |
+| `check-protocol-drift [--update] [--warn-only] [--hook]`               | Verify tracked file hashes                          |
+| `check-protocol-sites --file F --pattern P --expected N`               | Count construction sites for key structs            |
+| `check-freshness`                                                      | Verify protocol drift lockfile is up to date        |
+| `quick`                                                                | Fast local feedback loop (affected crates, offline) |
+| `ci [--fail-fast] [--include-network]`                                 | Full CI pipeline                                    |
+| `pre-commit` / `pre-push`                                              | Git hook delegates                                  |
+| `install-hooks`                                                        | Install git hooks                                   |
+| `audit`                                                                | Run cargo-deny (advisories, licenses, bans)         |
+| `clean [--older-than Nd]`                                              | Clean build artifacts                               |
+| `health [--update]`                                                    | Measure codebase health, compare to baseline        |
+| `inspect [--max-warnings N] [--max-todo N]`                            | Check workspace metrics against thresholds          |
+| `publish [--skip-docs] [--allow-dirty]`                                | Generate docs and publish to crates.io              |
+| `init [--force] [--interactive]`                                       | Generate taskit.toml, Cruxfile, xtask/              |
+| `version`                                                              | Show workspace crate versions                       |
+| `dev-setup`                                                            | Install development tools                           |
+| `self-check`                                                           | Verify required tools are installed                 |
+| `self-test`                                                            | Run taskit's own test suite (hash-cached)           |
+| `update-claude-version <version>`                                      | Update pinned Claude Code version                   |
+| `proptest --crate-name X`                                              | Run property-based tests                            |
+| `fuzz <target> [--duration N]`                                         | Run cargo-fuzz on a target                          |
+| `bench [--crate-name X] [--save-baseline]`                             | Run criterion benchmarks                            |
+| `test-report`                                                          | Generate unified coverage report                    |
+| `snapshot-review`                                                      | Review pending insta snapshots                      |
 
 ## Affected-crate detection
 

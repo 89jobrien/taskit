@@ -36,6 +36,7 @@ taskit --dry-run <subcommand>   # print without executing
 | `compile-tests`                                          | Compile test binaries without running  |
 | `check-deps`                                             | Check for unused dependencies          |
 | `check-protocol-drift [--update] [--warn-only] [--hook]` | Verify core contract hashes            |
+| `check-protocol-sites --file F --pattern P --expected N` | Count construction sites for structs   |
 | `check-freshness`                                        | Verify drift lockfile freshness        |
 | `pre-commit` / `pre-push`                                | Git hook delegates                     |
 | `audit`                                                  | Run cargo-deny                         |
@@ -51,7 +52,8 @@ taskit --dry-run <subcommand>   # print without executing
 
 ```
 taskit (root bin)
-+-- crates/taskit-core    -- shared types, traits, OutputFormat
++-- crates/taskit-types   -- shared types: Config, Error, StepResult, OutputFormat
++-- crates/taskit-core    -- ports: PipelineRunner trait
 +-- crates/taskit-engine  -- CI pipeline engine, config loading, formatters
 +-- crates/taskit-init    -- `taskit init`: discovery + file generation
 +-- crates/taskit-crux    -- EmbeddedCruxRunner (optional, `crux` feature)
@@ -62,7 +64,8 @@ taskit (root bin)
 | Crate           | Role                                                        |
 | --------------- | ----------------------------------------------------------- |
 | `taskit`        | Binary entry point; CLI parsing (clap) and dispatch         |
-| `taskit-core`   | Shared types: Config, StepResult, PipelineRunner trait      |
+| `taskit-types`  | Leaf crate: Config, TaskitError, StepResult, OutputFormat   |
+| `taskit-core`   | Ports only: PipelineRunner trait                            |
 | `taskit-engine` | CI pipeline, config loading, output formatters, step engine |
 | `taskit-init`   | InitPlan discovery, TOML/Cruxfile rendering, interactive UI |
 | `taskit-crux`   | EmbeddedCruxRunner stub (feature-gated)                     |
@@ -70,9 +73,11 @@ taskit (root bin)
 ### Key Modules
 
 - **`src/main.rs`** -- CLI parsing and dispatch; Init before config load
-- **`taskit-core/config.rs`** -- Config, WorkspaceConfig, CiConfig types
+- **`taskit-types/config.rs`** -- Config, WorkspaceConfig, CiConfig types
+- **`taskit-types/error.rs`** -- TaskitError, ConfigError, PipelineError, etc.
+- **`taskit-types/step.rs`** -- StepResult, StepStatus, PipelineOutcome
+- **`taskit-types/output_format.rs`** -- OutputFormat enum
 - **`taskit-core/pipeline_runner.rs`** -- PipelineRunner trait (port)
-- **`taskit-core/step.rs`** -- StepResult, StepStatus, PipelineOutcome
 - **`taskit-engine/config.rs`** -- load(), discover(), config parsing
 - **`taskit-engine/ci.rs`** -- CI pipeline assembly and step dispatch
 - **`taskit-engine/step.rs`** -- Pipeline builder with step/gate/fail-fast
@@ -105,4 +110,4 @@ Tests are colocated in each module under `#[cfg(test)]`.
 
 # currentDate
 
-Today's date is 2026-06-27.
+Today's date is 2026-06-28.

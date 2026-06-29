@@ -93,3 +93,7 @@ tag_prefix = "taskit-crux-v"
 [crates.taskit-engine.release]
 publish = true
 tag_prefix = "taskit-engine-v"
+
+[crates.taskit-types.release]
+publish = true
+tag_prefix = "taskit-types-v"
