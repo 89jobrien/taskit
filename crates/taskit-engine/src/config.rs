@@ -156,7 +156,21 @@ fn cargo_workspace_root() -> Result<PathBuf, TaskitError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
     use std::fs;
+
+    proptest! {
+        #[test]
+        fn prop_parse_config_never_panics(
+            content in "[a-z_\\[\\]=\"\n ]{0,120}",
+        ) {
+            let dir = tempfile::tempdir().expect("tempdir");
+            let path = dir.path().join(CONFIG_FILE);
+            fs::write(&path, &content).unwrap();
+            // Must not panic — either Ok or Err is acceptable.
+            let _ = parse_config(&path);
+        }
+    }
 
     fn write_temp_config(content: &str) -> (tempfile::TempDir, PathBuf) {
         let dir = tempfile::tempdir().expect("tempdir");

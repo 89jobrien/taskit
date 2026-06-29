@@ -118,6 +118,43 @@ impl FlowConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn prop_flow_config_branch_names_nonempty(
+            main in proptest::option::of("[a-z][a-z0-9-]{0,20}"),
+            staging in proptest::option::of("[a-z][a-z0-9-]{0,20}"),
+            release in proptest::option::of("[a-z][a-z0-9-]{0,20}"),
+        ) {
+            let cfg = FlowConfig { main, staging, release };
+            prop_assert!(!cfg.main_branch().is_empty());
+            prop_assert!(!cfg.staging_branch().is_empty());
+            prop_assert!(!cfg.release_branch().is_empty());
+        }
+
+        #[test]
+        fn prop_crate_entry_pkg_name_nonempty(
+            dir in "[a-z][a-z0-9-]{1,20}",
+            pkg in proptest::option::of("[a-z][a-z0-9-]{1,20}"),
+        ) {
+            let entry = CrateEntry { dir, pkg };
+            prop_assert!(!entry.pkg_name().is_empty());
+        }
+
+        #[test]
+        fn prop_coverage_threshold_positive_finite(
+            threshold in proptest::option::of(0.0f64..=100.0f64),
+        ) {
+            let cfg = CoverageConfig {
+                crate_name: "test".into(),
+                threshold,
+            };
+            let t = cfg.threshold();
+            prop_assert!(t > 0.0);
+            prop_assert!(t.is_finite());
+        }
+    }
 
     #[test]
     fn ci_config_cruxfile_defaults_to_none() {

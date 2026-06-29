@@ -13,4 +13,5 @@ serde.workspace = true
 thiserror = "2"
 
 [dev-dependencies]
+proptest = "1"
 toml = "0.8"

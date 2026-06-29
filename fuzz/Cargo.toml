@@ -1,0 +1,24 @@
+[package]
+name = "taskit-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[[bin]]
+name = "fuzz_parse_config"
+path = "fuzz_targets/fuzz_parse_config.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_lockfile_parse"
+path = "fuzz_targets/fuzz_lockfile_parse.rs"
+doc = false
+
+[dependencies]
+libfuzzer-sys = "0.4"
+taskit-types = { path = "../crates/taskit-types" }
+toml = "0.8"
+serde_json = "1"
