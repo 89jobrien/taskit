@@ -29,6 +29,7 @@ pub fn run(
     output_format: OutputFormat,
 ) -> Result<(), TaskitError> {
     let offline = !include_network;
+    let capture = matches!(output_format, OutputFormat::Sarif);
     let outcome = match ci {
         Some(cfg) if !cfg.steps.is_empty() => {
             run_from_config_internal(sh, ws, proto, cov, cfg, fail_fast, offline)
@@ -37,7 +38,7 @@ pub fn run(
             // Explicit [ci] with empty steps = run nothing
             Pipeline::new(fail_fast).run()
         }
-        None => run_default_internal(sh, ws, proto, cov, fail_fast, offline),
+        None => run_default_pipeline(sh, ws, proto, cov, fail_fast, offline, capture),
     };
     Ok(crate::output::write_output(output_format, &outcome)?)
 }
@@ -65,6 +66,7 @@ pub(crate) fn run_from_config_internal(
                         duration: std::time::Duration::ZERO,
                         error: Some(e.to_string()),
                         gate: step.gate,
+                        diagnostics: vec![],
                     }],
                     total: std::time::Duration::ZERO,
                     passed: false,
@@ -135,22 +137,72 @@ pub(crate) fn run_default_internal(
     fail_fast: bool,
     offline: bool,
 ) -> PipelineOutcome {
+    run_default_pipeline(sh, ws, proto, cov, fail_fast, offline, false)
+}
+
+/// Build and run the default pipeline, optionally capturing per-diagnostic data.
+fn run_default_pipeline(
+    sh: &Shell,
+    ws: &WorkspaceConfig,
+    proto: Option<&ProtocolConfig>,
+    cov: Option<&CoverageConfig>,
+    fail_fast: bool,
+    offline: bool,
+    capture_diagnostics: bool,
+) -> PipelineOutcome {
+    use crate::step::DiagnosticSink;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
     let mut pipeline = Pipeline::new(fail_fast)
         .gate("self-check", || {
             dev_setup::self_check().map_err(anyhow::Error::from)
         })
         .step("fmt --check", || {
             fmt::run(sh, ws, true, false).map_err(anyhow::Error::from)
-        })
-        .step("lint", || {
+        });
+
+    if capture_diagnostics {
+        let lint_sink: DiagnosticSink = Rc::new(RefCell::new(Vec::new()));
+        let lint_sink_clone = lint_sink.clone();
+        pipeline = pipeline.step_with_diagnostics("lint", lint_sink, move || {
+            let (success, diags) = lint::run_capturing(sh, ws)?;
+            lint_sink_clone.borrow_mut().extend(diags);
+            if success {
+                Ok(())
+            } else {
+                anyhow::bail!("clippy found errors")
+            }
+        });
+    } else {
+        pipeline = pipeline.step("lint", || {
             lint::run(sh, ws, None, false, false).map_err(anyhow::Error::from)
-        })
-        .step("compile-tests", || {
-            testing::compile::run(sh).map_err(anyhow::Error::from)
-        })
-        .step("test", || {
+        });
+    }
+
+    pipeline = pipeline.step("compile-tests", || {
+        testing::compile::run(sh).map_err(anyhow::Error::from)
+    });
+
+    if capture_diagnostics {
+        let test_sink: DiagnosticSink = Rc::new(RefCell::new(Vec::new()));
+        let test_sink_clone = test_sink.clone();
+        pipeline = pipeline.step_with_diagnostics("test", test_sink, move || {
+            let (success, diags) = testing::run::run_capturing(sh, ws, offline)?;
+            test_sink_clone.borrow_mut().extend(diags);
+            if success {
+                Ok(())
+            } else {
+                anyhow::bail!("tests failed")
+            }
+        });
+    } else {
+        pipeline = pipeline.step("test", || {
             testing::run::run(sh, ws, None, false, false, offline).map_err(anyhow::Error::from)
-        })
+        });
+    }
+
+    pipeline = pipeline
         .step("check-deps", || {
             check_deps::run(sh).map_err(anyhow::Error::from)
         })

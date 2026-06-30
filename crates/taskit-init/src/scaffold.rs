@@ -1,10 +1,11 @@
 use std::path::Path;
 
+use crate::emit_file;
 use crate::plan::InitPlan;
-use taskit_types::error::{InitError, TaskitError};
+use taskit_types::error::TaskitError;
 
 /// Create the `.ctx/` project context directory scaffold.
-pub fn write_ctx_scaffold(force: bool) -> Result<(), TaskitError> {
+pub fn write_ctx_scaffold(force: bool, dry_run: bool) -> Result<(), TaskitError> {
     let ctx = Path::new(".ctx");
     if ctx.exists() && !force {
         eprintln!(".ctx/ already exists, skipping");
@@ -20,20 +21,26 @@ pub fn write_ctx_scaffold(force: bool) -> Result<(), TaskitError> {
         ".ctx/reports",
         ".ctx/xcache",
     ];
-    for d in &dirs {
-        std::fs::create_dir_all(d)?;
+    if !dry_run {
+        for d in &dirs {
+            std::fs::create_dir_all(d)?;
+        }
+    } else {
+        for d in &dirs {
+            eprintln!("would create {d}/");
+        }
     }
 
     // .initialized marker
     let init_marker = ctx.join(".initialized");
-    if !init_marker.exists() {
-        std::fs::write(&init_marker, "")?;
+    if !init_marker.exists() || dry_run {
+        emit_file(&init_marker, "", dry_run)?;
     }
 
     // Stub HANDOFF.md
     let handoff = ctx.join("HANDOFF.md");
     if !handoff.exists() || force {
-        std::fs::write(&handoff, "# Handoff\n\nNo active handoff state.\n")?;
+        emit_file(&handoff, "# Handoff\n\nNo active handoff state.\n", dry_run)?;
     }
 
     // Stub memory-bank files
@@ -68,14 +75,14 @@ pub fn write_ctx_scaffold(force: bool) -> Result<(), TaskitError> {
     for (name, content) in &memory_stubs {
         let path = mb.join(name);
         if !path.exists() || force {
-            std::fs::write(&path, content)?;
+            emit_file(&path, content, dry_run)?;
         }
     }
 
-    // .gitignore for .ctx — keep structure but ignore session data
+    // .gitignore for .ctx
     let gitignore = ctx.join(".gitignore");
     if !gitignore.exists() || force {
-        std::fs::write(
+        emit_file(
             &gitignore,
             "\
 # Session-specific data (not committed)
@@ -89,21 +96,23 @@ crs-stats.json
 logs/
 xcache/
 
-# Baselines (committed — track quality over time)
+# Baselines (committed -- track quality over time)
 !rustqual-baseline.json
 
 # Keep structure
 !.gitkeep
 ",
+            dry_run,
         )?;
     }
 
-    eprintln!("wrote .ctx/ scaffold (memory-bank, sessions, tasks, review)");
+    let verb = if dry_run { "would write" } else { "wrote" };
+    eprintln!("{verb} .ctx/ scaffold (memory-bank, sessions, tasks, review)");
     Ok(())
 }
 
 /// Generate git hooks in `.githooks/` that delegate to taskit.
-pub fn write_git_hooks(force: bool) -> Result<(), TaskitError> {
+pub fn write_git_hooks(force: bool, dry_run: bool) -> Result<(), TaskitError> {
     let dir = Path::new(".githooks");
 
     if dir.exists() && !force {
@@ -111,10 +120,8 @@ pub fn write_git_hooks(force: bool) -> Result<(), TaskitError> {
         return Ok(());
     }
 
-    std::fs::create_dir_all(dir)?;
-
     let pre_commit = dir.join("pre-commit");
-    std::fs::write(
+    emit_file(
         &pre_commit,
         "\
 #!/bin/sh
@@ -122,15 +129,14 @@ pub fn write_git_hooks(force: bool) -> Result<(), TaskitError> {
 # Install: git config core.hooksPath .githooks
 exec cargo xtask pre-commit
 ",
-    )
-    .map_err(|e| InitError::WriteFile {
-        file: ".githooks/pre-commit".into(),
-        reason: e.to_string(),
-    })?;
-    make_executable(&pre_commit)?;
+        dry_run,
+    )?;
+    if !dry_run {
+        make_executable(&pre_commit)?;
+    }
 
     let pre_push = dir.join("pre-push");
-    std::fs::write(
+    emit_file(
         &pre_push,
         "\
 #!/bin/sh
@@ -138,31 +144,36 @@ exec cargo xtask pre-commit
 # Install: git config core.hooksPath .githooks
 exec cargo xtask pre-push
 ",
-    )
-    .map_err(|e| InitError::WriteFile {
-        file: ".githooks/pre-push".into(),
-        reason: e.to_string(),
-    })?;
-    make_executable(&pre_push)?;
+        dry_run,
+    )?;
+    if !dry_run {
+        make_executable(&pre_push)?;
+    }
 
     // Set core.hooksPath
-    let status = std::process::Command::new("git")
-        .args(["config", "core.hooksPath", ".githooks"])
-        .status();
-    match status {
-        Ok(s) if s.success() => {
-            eprintln!("wrote .githooks/ and set git core.hooksPath");
+    if !dry_run {
+        let status = std::process::Command::new("git")
+            .args(["config", "core.hooksPath", ".githooks"])
+            .status();
+        match status {
+            Ok(s) if s.success() => {
+                eprintln!("wrote .githooks/ and set git core.hooksPath");
+            }
+            _ => {
+                eprintln!(
+                    "wrote .githooks/ (run `git config core.hooksPath .githooks` to activate)"
+                );
+            }
         }
-        _ => {
-            eprintln!("wrote .githooks/ (run `git config core.hooksPath .githooks` to activate)");
-        }
+    } else {
+        eprintln!("would set git core.hooksPath to .githooks");
     }
 
     Ok(())
 }
 
 /// Generate a GitHub Actions CI workflow.
-pub fn write_github_ci(force: bool) -> Result<(), TaskitError> {
+pub fn write_github_ci(force: bool, dry_run: bool) -> Result<(), TaskitError> {
     let dir = Path::new(".github/workflows");
     let path = dir.join("ci.yml");
 
@@ -171,9 +182,7 @@ pub fn write_github_ci(force: bool) -> Result<(), TaskitError> {
         return Ok(());
     }
 
-    std::fs::create_dir_all(dir)?;
-
-    std::fs::write(
+    emit_file(
         &path,
         "\
 name: CI
@@ -209,18 +218,14 @@ jobs:
       - name: Run CI pipeline
         run: cargo xtask ci --fail-fast
 ",
-    )
-    .map_err(|e| InitError::WriteFile {
-        file: ".github/workflows/ci.yml".into(),
-        reason: e.to_string(),
-    })?;
+        dry_run,
+    )?;
 
-    eprintln!("wrote .github/workflows/ci.yml");
     Ok(())
 }
 
 /// Generate a starter `deny.toml` for cargo-deny.
-pub fn write_deny_toml(force: bool) -> Result<(), TaskitError> {
+pub fn write_deny_toml(force: bool, dry_run: bool) -> Result<(), TaskitError> {
     let path = Path::new("deny.toml");
 
     if path.exists() && !force {
@@ -268,17 +273,18 @@ allow-registry = [\"{registry_url}\"]
 allow-git = []
 "
     );
-    std::fs::write(path, &content).map_err(|e| InitError::WriteFile {
-        file: "deny.toml".into(),
-        reason: e.to_string(),
-    })?;
+    emit_file(path, &content, dry_run)?;
 
-    eprintln!("wrote deny.toml");
     Ok(())
 }
 
 /// Generate an mdBook scaffold in `docs/` with a chapter per workspace crate.
-pub fn write_mdbook(plan: &InitPlan, project_name: &str, force: bool) -> Result<(), TaskitError> {
+pub fn write_mdbook(
+    plan: &InitPlan,
+    project_name: &str,
+    force: bool,
+    dry_run: bool,
+) -> Result<(), TaskitError> {
     let docs_dir = Path::new("docs");
     let src_dir = docs_dir.join("src");
     let book_toml = docs_dir.join("book.toml");
@@ -288,7 +294,9 @@ pub fn write_mdbook(plan: &InitPlan, project_name: &str, force: bool) -> Result<
         return Ok(());
     }
 
-    std::fs::create_dir_all(src_dir.join("crates"))?;
+    if !dry_run {
+        std::fs::create_dir_all(src_dir.join("crates"))?;
+    }
 
     // book.toml
     let book_content = format!(
@@ -309,10 +317,7 @@ default-theme = \"rust\"
 preferred-dark-theme = \"ayu\"
 "
     );
-    std::fs::write(&book_toml, book_content).map_err(|e| InitError::WriteFile {
-        file: "docs/book.toml".into(),
-        reason: e.to_string(),
-    })?;
+    emit_file(&book_toml, &book_content, dry_run)?;
 
     // SUMMARY.md
     let mut summary = format!("# Summary\n\n[{project_name}](./README.md)\n\n");
@@ -328,9 +333,10 @@ preferred-dark-theme = \"ayu\"
         // Create stub crate doc
         let crate_doc = src_dir.join("crates").join(format!("{slug}.md"));
         if !crate_doc.exists() || force {
-            std::fs::write(
+            emit_file(
                 &crate_doc,
-                format!("# {name}\n\n<!-- Crate documentation -->\n"),
+                &format!("# {name}\n\n<!-- Crate documentation -->\n"),
+                dry_run,
             )?;
         }
     }
@@ -339,33 +345,36 @@ preferred-dark-theme = \"ayu\"
     summary.push_str("- [Configuration](./reference/configuration.md)\n");
     summary.push_str("- [CI Pipeline](./reference/ci-pipeline.md)\n");
 
-    std::fs::write(src_dir.join("SUMMARY.md"), &summary).map_err(|e| InitError::WriteFile {
-        file: "docs/src/SUMMARY.md".into(),
-        reason: e.to_string(),
-    })?;
+    emit_file(&src_dir.join("SUMMARY.md"), &summary, dry_run)?;
 
     // Stub pages
     let readme = src_dir.join("README.md");
     if !readme.exists() || force {
-        std::fs::write(
+        emit_file(
             &readme,
-            format!("# {project_name}\n\nWelcome to the {project_name} documentation.\n"),
+            &format!("# {project_name}\n\nWelcome to the {project_name} documentation.\n"),
+            dry_run,
         )?;
     }
 
-    std::fs::create_dir_all(src_dir.join("architecture"))?;
+    if !dry_run {
+        std::fs::create_dir_all(src_dir.join("architecture"))?;
+    }
     let overview = src_dir.join("architecture/overview.md");
     if !overview.exists() || force {
-        std::fs::write(
+        emit_file(
             &overview,
             "# Architecture Overview\n\n<!-- Describe workspace structure and crate relationships -->\n",
+            dry_run,
         )?;
     }
 
-    std::fs::create_dir_all(src_dir.join("reference"))?;
+    if !dry_run {
+        std::fs::create_dir_all(src_dir.join("reference"))?;
+    }
     let config_doc = src_dir.join("reference/configuration.md");
     if !config_doc.exists() || force {
-        std::fs::write(
+        emit_file(
             &config_doc,
             "\
 # Configuration
@@ -384,12 +393,13 @@ All configuration lives in `taskit.toml` at the workspace root.
 | `[ci]` | Pipeline steps |
 | `[flow]` | Git branching workflow |
 ",
+            dry_run,
         )?;
     }
 
     let ci_doc = src_dir.join("reference/ci-pipeline.md");
     if !ci_doc.exists() || force {
-        std::fs::write(
+        emit_file(
             &ci_doc,
             "\
 # CI Pipeline
@@ -412,11 +422,13 @@ cargo xtask ci
 | Deps | `taskit check-deps` | No |
 | Drift | `taskit check-protocol-drift` | No |
 ",
+            dry_run,
         )?;
     }
 
+    let verb = if dry_run { "would write" } else { "wrote" };
     eprintln!(
-        "wrote docs/ mdBook scaffold ({} crate pages)",
+        "{verb} docs/ mdBook scaffold ({} crate pages)",
         plan.crates.len()
     );
     Ok(())
@@ -446,7 +458,7 @@ mod tests {
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
 
-        let result = write_ctx_scaffold(false);
+        let result = write_ctx_scaffold(false, false);
         assert!(result.is_ok());
         assert!(dir.path().join(".ctx/memory-bank").is_dir());
         assert!(dir.path().join(".ctx/sessions").is_dir());
@@ -473,10 +485,24 @@ mod tests {
         std::env::set_current_dir(dir.path()).unwrap();
 
         std::fs::create_dir_all(dir.path().join(".ctx")).unwrap();
-        let result = write_ctx_scaffold(false);
+        let result = write_ctx_scaffold(false, false);
         assert!(result.is_ok());
         // Should not have created subdirs since .ctx existed
         assert!(!dir.path().join(".ctx/memory-bank").exists());
+
+        std::env::set_current_dir(prev).unwrap();
+    }
+
+    #[test]
+    fn ctx_scaffold_dry_run_no_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let prev = std::env::current_dir().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        let result = write_ctx_scaffold(false, true);
+        assert!(result.is_ok());
+        assert!(!dir.path().join(".ctx/memory-bank").exists());
+        assert!(!dir.path().join(".ctx/HANDOFF.md").exists());
 
         std::env::set_current_dir(prev).unwrap();
     }
@@ -487,7 +513,7 @@ mod tests {
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
 
-        write_deny_toml(false).unwrap();
+        write_deny_toml(false, false).unwrap();
         let content = std::fs::read_to_string(dir.path().join("deny.toml")).unwrap();
         assert!(content.contains("[advisories]"));
         assert!(content.contains("[licenses]"));
@@ -498,12 +524,24 @@ mod tests {
     }
 
     #[test]
+    fn deny_toml_dry_run_no_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let prev = std::env::current_dir().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        write_deny_toml(false, true).unwrap();
+        assert!(!dir.path().join("deny.toml").exists());
+
+        std::env::set_current_dir(prev).unwrap();
+    }
+
+    #[test]
     fn github_ci_content() {
         let dir = tempfile::tempdir().unwrap();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
 
-        write_github_ci(false).unwrap();
+        write_github_ci(false, false).unwrap();
         let content = std::fs::read_to_string(dir.path().join(".github/workflows/ci.yml")).unwrap();
         assert!(content.contains("cargo xtask ci"));
         assert!(content.contains("dtolnay/rust-toolchain"));
@@ -540,7 +578,7 @@ mod tests {
             ctx_scaffold: false,
             mdbook: false,
         };
-        write_mdbook(&plan, "test-project", false).unwrap();
+        write_mdbook(&plan, "test-project", false, false).unwrap();
 
         assert!(dir.path().join("docs/book.toml").exists());
         assert!(dir.path().join("docs/src/SUMMARY.md").exists());
@@ -580,7 +618,7 @@ mod tests {
             .output()
             .ok();
 
-        write_git_hooks(false).unwrap();
+        write_git_hooks(false, false).unwrap();
         let pre_commit = std::fs::read_to_string(dir.path().join(".githooks/pre-commit")).unwrap();
         assert!(pre_commit.contains("cargo xtask pre-commit"));
         let pre_push = std::fs::read_to_string(dir.path().join(".githooks/pre-push")).unwrap();

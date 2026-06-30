@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::step::{PipelineOutcome, StepStatus};
+use crate::step::{PipelineOutcome, StepResult, StepStatus};
 
 // Re-export from core.
 pub use taskit_types::output_format::OutputFormat;
@@ -17,6 +17,7 @@ pub fn formatter_for(format: OutputFormat) -> Box<dyn OutputFormatter> {
         OutputFormat::Github => Box::new(GithubFormatter),
         OutputFormat::Junit => Box::new(JunitFormatter),
         OutputFormat::Diagnostic => Box::new(DiagnosticFormatter),
+        OutputFormat::Sarif => Box::new(SarifFormatter),
     }
 }
 
@@ -248,6 +249,113 @@ impl OutputFormatter for DiagnosticFormatter {
     }
 }
 
+// -- SARIF 2.1.0 -------------------------------------------------------------
+
+pub struct SarifFormatter;
+
+impl OutputFormatter for SarifFormatter {
+    fn render(&self, outcome: &PipelineOutcome) -> String {
+        let runs: Vec<serde_json::Value> = outcome.results.iter().map(sarif_run_for_step).collect();
+        let sarif = serde_json::json!({
+            "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+            "version": "2.1.0",
+            "runs": runs,
+        });
+        serde_json::to_string_pretty(&sarif).expect("SARIF serialization cannot fail")
+    }
+}
+
+fn sarif_run_for_step(step: &StepResult) -> serde_json::Value {
+    use taskit_types::step::DiagnosticLevel;
+
+    let tool_name = sarif_tool_name(&step.name);
+    let execution_successful = step.status != StepStatus::Fail;
+
+    // Collect unique rules from diagnostics.
+    let mut rule_ids: Vec<String> = step.diagnostics.iter().map(|d| d.rule_id.clone()).collect();
+    rule_ids.sort();
+    rule_ids.dedup();
+
+    let rules: Vec<serde_json::Value> = rule_ids
+        .iter()
+        .map(|id| {
+            serde_json::json!({
+                "id": id,
+                "shortDescription": { "text": id },
+            })
+        })
+        .collect();
+
+    let results: Vec<serde_json::Value> = step
+        .diagnostics
+        .iter()
+        .map(|d| {
+            let level = match d.level {
+                DiagnosticLevel::Error => "error",
+                DiagnosticLevel::Warning => "warning",
+                DiagnosticLevel::Note => "note",
+            };
+            let mut result = serde_json::json!({
+                "ruleId": d.rule_id,
+                "level": level,
+                "message": { "text": d.message },
+            });
+            if let Some(file) = &d.file {
+                let mut region = serde_json::Map::new();
+                if let Some(line) = d.line {
+                    region.insert("startLine".into(), serde_json::Value::Number(line.into()));
+                }
+                if let Some(col) = d.column {
+                    region.insert("startColumn".into(), serde_json::Value::Number(col.into()));
+                }
+                let location = serde_json::json!({
+                    "physicalLocation": {
+                        "artifactLocation": { "uri": file },
+                        "region": region,
+                    }
+                });
+                result["locations"] = serde_json::json!([location]);
+            }
+            result
+        })
+        .collect();
+
+    let mut driver = serde_json::json!({
+        "name": tool_name,
+    });
+    if !rules.is_empty() {
+        driver["rules"] = serde_json::json!(rules);
+    }
+
+    serde_json::json!({
+        "tool": { "driver": driver },
+        "invocations": [{
+            "executionSuccessful": execution_successful,
+        }],
+        "results": results,
+    })
+}
+
+/// Map step name to a recognizable SARIF tool name.
+fn sarif_tool_name(step_name: &str) -> &str {
+    let lower = step_name.to_ascii_lowercase();
+    if lower.contains("lint") || lower.contains("clippy") {
+        return "clippy";
+    }
+    if lower.contains("test") {
+        return "cargo-nextest";
+    }
+    if lower.contains("fmt") {
+        return "rustfmt";
+    }
+    if lower.contains("audit") {
+        return "cargo-deny";
+    }
+    // Leak-free: return the input for unknown steps.
+    // We can't return &str from a computed String, so use a static fallback.
+    "taskit"
+}
+
 // -- Miette error reporting --------------------------------------------------
 
 use miette::NamedSource;
@@ -305,6 +413,11 @@ pub fn write_output(format: OutputFormat, outcome: &PipelineOutcome) -> Result<(
             std::fs::write(path, &rendered).ok();
             eprintln!("JUnit results written to {path}");
         }
+        OutputFormat::Sarif => {
+            let path = "target/taskit-results.sarif";
+            std::fs::write(path, &rendered).ok();
+            eprintln!("SARIF results written to {path}");
+        }
         _ => eprint!("{rendered}"),
     }
     if let OutputFormat::Github = format
@@ -342,6 +455,7 @@ mod tests {
                     duration: Duration::from_millis(1200),
                     error: None,
                     gate: true,
+                    diagnostics: vec![],
                 },
                 StepResult {
                     name: "test".into(),
@@ -349,6 +463,7 @@ mod tests {
                     duration: Duration::from_millis(14700),
                     error: Some("3 tests failed".into()),
                     gate: false,
+                    diagnostics: vec![],
                 },
             ],
             total: Duration::from_millis(15900),
@@ -364,6 +479,7 @@ mod tests {
                 duration: Duration::from_secs(1),
                 error: None,
                 gate: false,
+                diagnostics: vec![],
             }],
             total: Duration::from_secs(1),
             passed: true,
@@ -459,6 +575,7 @@ mod tests {
                 duration: Duration::ZERO,
                 error: None,
                 gate: false,
+                diagnostics: vec![],
             }],
             total: Duration::ZERO,
             passed: true,

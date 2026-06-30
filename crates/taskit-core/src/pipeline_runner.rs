@@ -42,6 +42,7 @@ mod tests {
                     duration: Duration::from_millis(10),
                     error: None,
                     gate: false,
+                    diagnostics: vec![],
                 }],
                 total: Duration::from_millis(10),
                 passed: self.passed,

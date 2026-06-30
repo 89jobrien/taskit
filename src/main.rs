@@ -212,7 +212,7 @@ fn main() -> miette::Result<()> {
 
     // Init runs before config loading (taskit.toml may not exist yet)
     if let Cmd::Init { force, interactive } = cli.cmd {
-        return taskit_init::run(force, interactive).map_err(Into::into);
+        return taskit_init::run(force, interactive, cli.dry_run).map_err(Into::into);
     }
 
     let workspace = taskit_engine::config::load()?;

@@ -7,6 +7,7 @@ pub enum OutputFormat {
     Github,
     Junit,
     Diagnostic,
+    Sarif,
 }
 
 #[cfg(test)]
@@ -26,6 +27,7 @@ mod tests {
             OutputFormat::Github,
             OutputFormat::Junit,
             OutputFormat::Diagnostic,
+            OutputFormat::Sarif,
         ];
         // Verify each variant has a distinct debug representation
         let names: Vec<String> = variants.iter().map(|v| format!("{v:?}")).collect();

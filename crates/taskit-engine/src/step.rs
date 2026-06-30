@@ -1,9 +1,19 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use crate::progress::Spinner;
+use taskit_types::step::DiagnosticRecord;
 
 // Re-export core types for convenience.
 pub use taskit_types::step::{PipelineOutcome, StepResult, StepStatus};
+
+/// Shared buffer for collecting diagnostics from within a step closure.
+///
+/// Pass a clone into your step closure and push diagnostics into it.
+/// After the step runs, the pipeline extracts the diagnostics and attaches
+/// them to the `StepResult`.
+pub type DiagnosticSink = Rc<RefCell<Vec<DiagnosticRecord>>>;
 
 const COL_NAME: usize = 30;
 const COL_STATUS: usize = 10;
@@ -13,6 +23,7 @@ struct PipelineStep<'a> {
     name: String,
     is_gate: bool,
     f: Box<dyn FnOnce() -> anyhow::Result<()> + 'a>,
+    diagnostics: Option<DiagnosticSink>,
 }
 
 pub struct Pipeline<'a> {
@@ -34,6 +45,7 @@ impl<'a> Pipeline<'a> {
             name: name.to_string(),
             is_gate: false,
             f: Box::new(f),
+            diagnostics: None,
         });
         self
     }
@@ -44,6 +56,26 @@ impl<'a> Pipeline<'a> {
             name: name.to_string(),
             is_gate: true,
             f: Box::new(f),
+            diagnostics: None,
+        });
+        self
+    }
+
+    /// Step with a diagnostic sink for capturing per-finding data (SARIF output).
+    ///
+    /// The closure should push `DiagnosticRecord`s into the sink. After the step
+    /// runs, the pipeline drains the sink into `StepResult.diagnostics`.
+    pub fn step_with_diagnostics(
+        mut self,
+        name: &str,
+        sink: DiagnosticSink,
+        f: impl FnOnce() -> anyhow::Result<()> + 'a,
+    ) -> Self {
+        self.steps.push(PipelineStep {
+            name: name.to_string(),
+            is_gate: false,
+            f: Box::new(f),
+            diagnostics: Some(sink),
         });
         self
     }
@@ -65,6 +97,7 @@ impl<'a> Pipeline<'a> {
                     duration: Duration::ZERO,
                     error: None,
                     gate: ps.is_gate,
+                    diagnostics: vec![],
                 });
                 continue;
             }
@@ -89,12 +122,17 @@ impl<'a> Pipeline<'a> {
                     (StepStatus::Fail, Some(msg))
                 }
             };
+            let step_diagnostics = ps
+                .diagnostics
+                .map(|sink| sink.borrow_mut().drain(..).collect())
+                .unwrap_or_default();
             results.push(StepResult {
                 name: ps.name,
                 status,
                 duration,
                 error,
                 gate: ps.is_gate,
+                diagnostics: step_diagnostics,
             });
         }
 

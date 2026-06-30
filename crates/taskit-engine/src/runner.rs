@@ -60,6 +60,39 @@ pub fn xrun(cmd: xshell::Cmd<'_>) -> Result<(), TaskitError> {
     Ok(())
 }
 
+/// Captured output from a command execution.
+pub struct CapturedOutput {
+    pub stdout: String,
+    pub stderr: String,
+    pub success: bool,
+}
+
+/// Run a shell command and capture its stdout/stderr.
+///
+/// Returns `Ok(CapturedOutput)` even on non-zero exit (success=false).
+/// Returns `Err` only if the command cannot be spawned.
+pub fn xrun_capture(cmd: xshell::Cmd<'_>) -> Result<CapturedOutput, TaskitError> {
+    if is_dry_run() {
+        eprintln!("dry-run: {cmd}");
+        return Ok(CapturedOutput {
+            stdout: String::new(),
+            stderr: String::new(),
+            success: true,
+        });
+    }
+    let label = cmd.to_string();
+    let out = cmd
+        .quiet()
+        .ignore_status()
+        .output()
+        .with_context(|| label)?;
+    Ok(CapturedOutput {
+        stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+        success: out.status.success(),
+    })
+}
+
 /// Best-effort run (ignores errors), or in dry-run mode print instead.
 #[allow(dead_code)]
 pub fn xrun_ok(cmd: xshell::Cmd<'_>) {

@@ -122,6 +122,7 @@ impl PipelineRunner for SubprocessCruxRunner {
                 duration,
                 error,
                 gate: false,
+                diagnostics: vec![],
             }],
             total: duration,
             passed,
@@ -294,6 +295,7 @@ mod tests {
             duration: Duration::from_millis(10),
             error: None,
             gate: false,
+            diagnostics: vec![],
         };
         let outcome = PipelineOutcome {
             results: vec![step],
@@ -315,6 +317,7 @@ mod tests {
             duration: Duration::from_millis(5),
             error: Some("clippy found warnings".into()),
             gate: false,
+            diagnostics: vec![],
         };
         let outcome = PipelineOutcome {
             results: vec![step],
@@ -337,6 +340,7 @@ mod tests {
             duration: Duration::ZERO,
             error: None,
             gate: false,
+            diagnostics: vec![],
         };
         let outcome = PipelineOutcome {
             results: vec![step],
@@ -357,6 +361,7 @@ mod tests {
             duration: Duration::ZERO,
             error: None,
             gate: false,
+            diagnostics: vec![],
         };
         let outcome = PipelineOutcome {
             results: vec![step],
@@ -377,6 +382,7 @@ mod tests {
             duration: Duration::ZERO,
             error: None,
             gate: false,
+            diagnostics: vec![],
         };
         let outcome = PipelineOutcome {
             results: vec![step],
