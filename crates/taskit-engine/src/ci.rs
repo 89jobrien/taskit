@@ -158,7 +158,7 @@ fn run_default_pipeline(
     use std::rc::Rc;
 
     let mut pipeline = Pipeline::new(fail_fast)
-        .gate("self-check", || dev_setup::self_check())
+        .gate("self-check", dev_setup::self_check)
         .step("fmt --check", || fmt::run(sh, ws, true, false));
 
     if capture_diagnostics {
