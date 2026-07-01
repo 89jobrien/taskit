@@ -9,7 +9,7 @@ use taskit_types::output_format::OutputFormat;
 use xshell::Shell;
 
 #[derive(Parser)]
-#[command(name = "taskit", about = "Config-driven cargo xtask runner")]
+#[command(name = "taskit", about = "Config-driven CI pipeline runner")]
 struct Cli {
     /// Print commands without executing them
     #[arg(long, global = true)]
@@ -108,7 +108,7 @@ enum Cmd {
     PreCommit,
     /// Run pre-push checks (affected crate lint + test + coverage + drift)
     PrePush,
-    /// Install git hooks that delegate to cargo xtask
+    /// Install git hooks that delegate to taskit
     InstallHooks,
     /// Run cargo-deny (advisories, licenses, bans)
     Audit,
@@ -123,7 +123,7 @@ enum Cmd {
     DevSetup,
     /// Verify required tools are installed
     SelfCheck,
-    /// Run xtask's own test suite (hash-cached: skipped when source is unchanged)
+    /// Run taskit's own test suite (hash-cached: skipped when source is unchanged)
     SelfTest,
     /// Update pinned Claude Code version
     UpdateClaudeVersion {
@@ -224,7 +224,7 @@ fn main() -> miette::Result<()> {
     let ws = &config.workspace;
     let proto = config.protocol.as_ref();
     let sh = Shell::new()
-        .map_err(|e| taskit_types::error::TaskitError::from(anyhow::anyhow!("{e}")))
+        .map_err(taskit_types::error::TaskitError::other)
         .map_err(miette::Report::from)?;
 
     runner::set_dry_run(cli.dry_run);
@@ -257,9 +257,9 @@ fn main() -> miette::Result<()> {
                 .or(config.coverage.as_ref().map(|c| c.crate_name.as_str()));
             match pkg {
                 Some(name) => testing::coverage::run(&sh, name, threshold),
-                None => return Err(taskit_types::error::TaskitError::from(anyhow::anyhow!(
+                None => return Err(taskit_types::error::TaskitError::other(
                     "no crate specified: use --crate-name or set [coverage].crate_name in taskit.toml"
-                )).into()),
+                ).into()),
             }
         }
         Cmd::CheckProtocolDrift {

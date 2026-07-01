@@ -1,5 +1,5 @@
-use anyhow::Result;
 use taskit_types::config::PropagationEntry;
+use taskit_types::error::TaskitError;
 
 /// Intermediate representation of what taskit init will generate.
 #[derive(Debug, Clone)]
@@ -104,7 +104,7 @@ impl InitPlan {
 }
 
 /// Build an InitPlan from cargo metadata discovery.
-pub fn plan_from_discovery() -> Result<InitPlan> {
+pub fn plan_from_discovery() -> Result<InitPlan, TaskitError> {
     let metadata = cargo_metadata_members()?;
 
     let crates: Vec<CratePlan> = metadata
@@ -139,7 +139,7 @@ pub fn plan_from_discovery() -> Result<InitPlan> {
 }
 
 /// Build an InitPlan interactively using dialoguer prompts.
-pub fn plan_interactive() -> Result<InitPlan> {
+pub fn plan_interactive() -> Result<InitPlan, TaskitError> {
     use dialoguer::{Confirm, Input};
 
     let mut plan = plan_from_discovery()?;
@@ -147,16 +147,19 @@ pub fn plan_interactive() -> Result<InitPlan> {
     let add_coverage = Confirm::new()
         .with_prompt("Add coverage configuration?")
         .default(false)
-        .interact()?;
+        .interact()
+        .map_err(TaskitError::other)?;
 
     if add_coverage {
         let crate_name: String = Input::new()
             .with_prompt("Coverage crate name")
-            .interact_text()?;
+            .interact_text()
+            .map_err(TaskitError::other)?;
         let threshold: f64 = Input::new()
             .with_prompt("Coverage threshold (%)")
             .default(80.0)
-            .interact_text()?;
+            .interact_text()
+            .map_err(TaskitError::other)?;
         plan.coverage = Some(CoveragePlan {
             crate_name,
             threshold,
@@ -166,7 +169,8 @@ pub fn plan_interactive() -> Result<InitPlan> {
     let offline_skip: String = Input::new()
         .with_prompt("Offline skip expression (empty for none)")
         .default(String::new())
-        .interact_text()?;
+        .interact_text()
+        .map_err(TaskitError::other)?;
     if !offline_skip.is_empty() {
         plan.offline_skip = Some(offline_skip);
     }
@@ -174,20 +178,24 @@ pub fn plan_interactive() -> Result<InitPlan> {
     plan.flow = if Confirm::new()
         .with_prompt("Configure git flow branches?")
         .default(true)
-        .interact()?
+        .interact()
+        .map_err(TaskitError::other)?
     {
         let main: String = Input::new()
             .with_prompt("Main branch")
             .default("main".into())
-            .interact_text()?;
+            .interact_text()
+            .map_err(TaskitError::other)?;
         let staging: String = Input::new()
             .with_prompt("Staging branch")
             .default("staging".into())
-            .interact_text()?;
+            .interact_text()
+            .map_err(TaskitError::other)?;
         let release: String = Input::new()
             .with_prompt("Release branch")
             .default("release".into())
-            .interact_text()?;
+            .interact_text()
+            .map_err(TaskitError::other)?;
         Some(FlowPlan {
             main,
             staging,
@@ -200,27 +208,32 @@ pub fn plan_interactive() -> Result<InitPlan> {
     plan.git_hooks = Confirm::new()
         .with_prompt("Generate git hooks (.githooks/)?")
         .default(true)
-        .interact()?;
+        .interact()
+        .map_err(TaskitError::other)?;
 
     plan.github_ci = Confirm::new()
         .with_prompt("Generate GitHub Actions CI workflow?")
         .default(true)
-        .interact()?;
+        .interact()
+        .map_err(TaskitError::other)?;
 
     plan.deny_toml = Confirm::new()
         .with_prompt("Generate deny.toml for cargo-deny?")
         .default(true)
-        .interact()?;
+        .interact()
+        .map_err(TaskitError::other)?;
 
     plan.ctx_scaffold = Confirm::new()
         .with_prompt("Generate .ctx/ project context scaffold?")
         .default(true)
-        .interact()?;
+        .interact()
+        .map_err(TaskitError::other)?;
 
     plan.mdbook = Confirm::new()
         .with_prompt("Generate docs/ mdBook scaffold?")
         .default(true)
-        .interact()?;
+        .interact()
+        .map_err(TaskitError::other)?;
 
     Ok(plan)
 }
@@ -232,11 +245,11 @@ struct DiscoveredMember {
     deps: Vec<String>,
 }
 
-fn cargo_metadata_members() -> Result<Vec<DiscoveredMember>> {
+fn cargo_metadata_members() -> Result<Vec<DiscoveredMember>, TaskitError> {
     let metadata = cargo_metadata::MetadataCommand::new()
         .no_deps()
         .exec()
-        .map_err(|e| anyhow::anyhow!("cargo metadata failed: {e}"))?;
+        .map_err(|e| TaskitError::other(format!("cargo metadata failed: {e}")))?;
 
     let ws_root = metadata.workspace_root.as_std_path();
     let ws_pkg_names: Vec<String> = metadata

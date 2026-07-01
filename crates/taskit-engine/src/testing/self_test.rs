@@ -6,13 +6,13 @@ use xshell::{Shell, cmd};
 
 use crate::runner::xrun;
 
-const CACHE_FILE: &str = ".xtask-cache/self-test.json";
-const XTASK_SRC: &str = "xtask/src";
-const XTASK_CARGO_TOML: &str = "xtask/Cargo.toml";
+const CACHE_FILE: &str = ".taskit-cache/self-test.json";
+const TASKIT_SRC: &str = "src";
+const TASKIT_CARGO_TOML: &str = "Cargo.toml";
 
 #[derive(Serialize, Deserialize, Default, PartialEq, Debug)]
 struct SelfTestCache {
-    /// SHA-256 over all xtask `.rs` source files + `xtask/Cargo.toml` + `Cargo.lock`.
+    /// SHA-256 over all taskit `.rs` source files + `Cargo.toml` + `Cargo.lock`.
     source_hash: String,
 }
 
@@ -21,18 +21,18 @@ pub fn run(sh: &Shell) -> Result<(), TaskitError> {
     let cached = load_cache();
 
     if !cached.source_hash.is_empty() && cached.source_hash == current_hash {
-        eprintln!("xtask self-tests up to date (source unchanged). Skipping.");
+        eprintln!("taskit self-tests up to date (source unchanged). Skipping.");
         return Ok(());
     }
 
-    eprintln!("Running xtask self-tests...");
-    xrun(cmd!(sh, "cargo test --locked -p xtask"))?;
+    eprintln!("Running taskit self-tests...");
+    xrun(cmd!(sh, "cargo test --locked -p taskit"))?;
 
     save_cache(&SelfTestCache {
         source_hash: current_hash,
     })?;
     crate::cache::update()?;
-    eprintln!("xtask self-tests passed. Cache updated.");
+    eprintln!("taskit self-tests passed. Cache updated.");
     Ok(())
 }
 
@@ -49,19 +49,18 @@ fn save_cache(cache: &SelfTestCache) -> Result<(), TaskitError> {
     }
     fs::write(
         CACHE_FILE,
-        serde_json::to_string_pretty(cache)
-            .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?,
+        serde_json::to_string_pretty(cache).map_err(TaskitError::other)?,
     )?;
     Ok(())
 }
 
-/// Hash all `.rs` files under `xtask/src/` plus `xtask/Cargo.toml` and `Cargo.lock`.
+/// Hash all `.rs` files under `src/` plus `Cargo.toml` and `Cargo.lock`.
 fn compute_source_hash() -> Result<String, TaskitError> {
     let mut entries: BTreeMap<String, String> = BTreeMap::new();
 
-    collect_rs_files(Path::new(XTASK_SRC), &mut entries);
+    collect_rs_files(Path::new(TASKIT_SRC), &mut entries);
 
-    for extra in &[XTASK_CARGO_TOML, "Cargo.lock"] {
+    for extra in &[TASKIT_CARGO_TOML, "Cargo.lock"] {
         if let Some(hash) = file_hash(Path::new(extra)) {
             entries.insert(extra.to_string(), hash);
         }
@@ -109,7 +108,8 @@ mod tests {
 
     fn tmpdir() -> std::path::PathBuf {
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir().join(format!("xtask-selftest-{}-{}", std::process::id(), n));
+        let dir =
+            std::env::temp_dir().join(format!("taskit-selftest-{}-{}", std::process::id(), n));
         fs::create_dir_all(&dir).expect("create tmpdir");
         dir
     }
@@ -126,7 +126,7 @@ mod tests {
 
     #[test]
     fn file_hash_returns_none_for_missing_file() {
-        assert!(file_hash(Path::new("/tmp/__xtask_st_missing_xyz__.rs")).is_none());
+        assert!(file_hash(Path::new("/tmp/__taskit_st_missing_xyz__.rs")).is_none());
     }
 
     #[test]

@@ -8,7 +8,6 @@ description = "CI pipeline engine for taskit"
 [dependencies]
 taskit-core.workspace = true
 taskit-types.workspace = true
-anyhow.workspace = true
 cargo_metadata.workspace = true
 clap.workspace = true
 serde.workspace = true

@@ -1,6 +1,5 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use anyhow::Context;
 use taskit_types::error::TaskitError;
 
 static DRY_RUN: AtomicBool = AtomicBool::new(false);
@@ -16,7 +15,7 @@ pub fn is_dry_run() -> bool {
 
 /// Suppress child-process stdout/stderr for the duration of `f`.
 ///
-/// Used by `cargo xtask quick` so that only the progress spinners are visible.
+/// Used by `taskit quick` so that only the progress spinners are visible.
 /// The captured output is attached to the error on failure so nothing is lost.
 pub fn with_silent<F, T>(f: F) -> T
 where
@@ -42,21 +41,21 @@ pub fn xrun(cmd: xshell::Cmd<'_>) -> Result<(), TaskitError> {
     }
     if SILENT.load(Ordering::Acquire) {
         let label = cmd.to_string();
-        let out = cmd.quiet().output().with_context(|| label.clone())?;
+        let out = cmd
+            .quiet()
+            .output()
+            .map_err(|e| TaskitError::other(format!("{label}: {e}")))?;
         if !out.status.success() {
             let stdout = String::from_utf8_lossy(&out.stdout);
             let stderr = String::from_utf8_lossy(&out.stderr);
-            return Err(anyhow::anyhow!(
+            return Err(TaskitError::other(format!(
                 "{label} failed (exit {})\n{stdout}{stderr}",
                 out.status.code().unwrap_or(-1)
-            )
-            .into());
+            )));
         }
         return Ok(());
     }
-    cmd.quiet()
-        .run()
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+    cmd.quiet().run().map_err(TaskitError::other)?;
     Ok(())
 }
 
@@ -85,7 +84,7 @@ pub fn xrun_capture(cmd: xshell::Cmd<'_>) -> Result<CapturedOutput, TaskitError>
         .quiet()
         .ignore_status()
         .output()
-        .with_context(|| label)?;
+        .map_err(|e| TaskitError::other(format!("{label}: {e}")))?;
     Ok(CapturedOutput {
         stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
         stderr: String::from_utf8_lossy(&out.stderr).into_owned(),

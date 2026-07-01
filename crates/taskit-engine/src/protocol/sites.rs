@@ -16,9 +16,8 @@ pub fn run(
     expected: usize,
     warn_only: bool,
 ) -> Result<(), TaskitError> {
-    let content = fs::read_to_string(file).map_err(|e| {
-        TaskitError::from(anyhow::anyhow!("failed to read {}: {e}", file.display()))
-    })?;
+    let content = fs::read_to_string(file)
+        .map_err(|e| TaskitError::other(format!("failed to read {}: {e}", file.display())))?;
 
     let matches = match_lines(&content, pattern);
     let count = matches.len();
@@ -36,9 +35,9 @@ pub fn run(
         if warn_only {
             return Ok(());
         }
-        return Err(
-            anyhow::anyhow!("construction site count mismatch ({count} != {expected})").into(),
-        );
+        return Err(TaskitError::other(format!(
+            "construction site count mismatch ({count} != {expected})"
+        )));
     }
 
     eprintln!("OK: construction site count matches.");
@@ -58,7 +57,7 @@ mod tests {
     fn tmp_file(content: &str) -> std::path::PathBuf {
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
         let pid = std::process::id();
-        let path = std::env::temp_dir().join(format!("xtask_psites_{pid}_{n}.rs"));
+        let path = std::env::temp_dir().join(format!("taskit_psites_{pid}_{n}.rs"));
         std::fs::write(&path, content).expect("write tmp file");
         path
     }
@@ -139,7 +138,7 @@ mod tests {
 
     #[test]
     fn run_returns_error_for_missing_file() {
-        let p = std::path::Path::new("/tmp/__xtask_nonexistent_file_xyz__.rs");
+        let p = std::path::Path::new("/tmp/__taskit_nonexistent_file_xyz__.rs");
         assert!(run(p, "pattern", 0, false).is_err());
     }
 }

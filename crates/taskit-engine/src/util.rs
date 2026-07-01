@@ -63,7 +63,10 @@ pub fn run_per_crate(
             }
         }
         if !failed.is_empty() {
-            return Err(anyhow::anyhow!("failed for crate(s): {}", failed.join(", ")).into());
+            return Err(TaskitError::other(format!(
+                "failed for crate(s): {}",
+                failed.join(", ")
+            )));
         }
         return Ok(());
     }
@@ -78,13 +81,13 @@ mod tests {
 
     #[test]
     fn tool_exists_returns_true_for_cargo() {
-        // cargo is always present in the xtask build environment.
+        // cargo is always present in the build environment.
         assert!(tool_exists_cmd("cargo", &["--version"]));
     }
 
     #[test]
     fn tool_exists_returns_false_for_nonexistent_binary() {
-        assert!(!tool_exists("__xtask_test_nonexistent_binary_xyz_abc__"));
+        assert!(!tool_exists("__taskit_test_nonexistent_binary_xyz_abc__"));
     }
 
     #[test]
@@ -161,7 +164,7 @@ mod tests {
             Some("my-api"),
             false,
             false,
-            |_sh, _name| Err(anyhow::anyhow!("lint failed").into()),
+            |_sh, _name| Err(TaskitError::other("lint failed")),
             |_sh| Ok(()),
         );
         assert!(result.is_err());

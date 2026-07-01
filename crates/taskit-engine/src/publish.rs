@@ -1,4 +1,3 @@
-use anyhow::Context;
 use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};
 
@@ -27,7 +26,7 @@ pub fn run(
     if !skip_docs {
         pipeline = pipeline.gate("cargo doc", || {
             let doc_cmd = cmd!(sh, "cargo doc --workspace --no-deps");
-            runner::xrun(doc_cmd).context("cargo doc failed")
+            runner::xrun(doc_cmd)
         });
     }
 
@@ -43,7 +42,7 @@ pub fn run(
                 args.push("--allow-dirty");
             }
             let publish_cmd = cmd!(sh, "cargo {args...}");
-            runner::xrun(publish_cmd).with_context(|| format!("failed to publish {krate}"))
+            runner::xrun(publish_cmd)
         });
     }
 

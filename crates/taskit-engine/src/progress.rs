@@ -105,15 +105,14 @@ mod tests {
 
     #[test]
     fn with_spinner_propagates_ok() {
-        let result = with_spinner("test-ok", || Ok::<i32, anyhow::Error>(42));
+        let result = with_spinner("test-ok", || Ok::<i32, String>(42));
         assert_eq!(result.unwrap(), 42);
     }
 
     #[test]
     fn with_spinner_propagates_err() {
-        let result: Result<(), anyhow::Error> =
-            with_spinner("test-err", || Err(anyhow::anyhow!("boom")));
+        let result: Result<(), String> = with_spinner("test-err", || Err("boom".to_string()));
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "boom");
+        assert_eq!(result.unwrap_err(), "boom");
     }
 }

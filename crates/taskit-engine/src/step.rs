@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use crate::progress::Spinner;
+use taskit_types::error::TaskitError;
 use taskit_types::step::DiagnosticRecord;
 
 // Re-export core types for convenience.
@@ -22,7 +23,7 @@ const SEPARATOR_WIDTH: usize = 55;
 struct PipelineStep<'a> {
     name: String,
     is_gate: bool,
-    f: Box<dyn FnOnce() -> anyhow::Result<()> + 'a>,
+    f: Box<dyn FnOnce() -> Result<(), TaskitError> + 'a>,
     diagnostics: Option<DiagnosticSink>,
 }
 
@@ -40,7 +41,7 @@ impl<'a> Pipeline<'a> {
     }
 
     /// Normal step. Skipped if a gate above failed, or if fail_fast and any prior step failed.
-    pub fn step(mut self, name: &str, f: impl FnOnce() -> anyhow::Result<()> + 'a) -> Self {
+    pub fn step(mut self, name: &str, f: impl FnOnce() -> Result<(), TaskitError> + 'a) -> Self {
         self.steps.push(PipelineStep {
             name: name.to_string(),
             is_gate: false,
@@ -51,7 +52,7 @@ impl<'a> Pipeline<'a> {
     }
 
     /// Hard gate. If this fails, all subsequent steps are skipped regardless of fail_fast.
-    pub fn gate(mut self, name: &str, f: impl FnOnce() -> anyhow::Result<()> + 'a) -> Self {
+    pub fn gate(mut self, name: &str, f: impl FnOnce() -> Result<(), TaskitError> + 'a) -> Self {
         self.steps.push(PipelineStep {
             name: name.to_string(),
             is_gate: true,
@@ -69,7 +70,7 @@ impl<'a> Pipeline<'a> {
         mut self,
         name: &str,
         sink: DiagnosticSink,
-        f: impl FnOnce() -> anyhow::Result<()> + 'a,
+        f: impl FnOnce() -> Result<(), TaskitError> + 'a,
     ) -> Self {
         self.steps.push(PipelineStep {
             name: name.to_string(),
@@ -194,7 +195,7 @@ mod tests {
         let ran_c2 = ran_c.clone();
         let outcome = Pipeline::new(true)
             .step("a", || Ok(()))
-            .step("b", || anyhow::bail!("b failed"))
+            .step("b", || Err(TaskitError::other("b failed")))
             .step("c", move || {
                 ran_c2.set(true);
                 Ok(())
@@ -211,7 +212,7 @@ mod tests {
         let ran_b = Rc::new(Cell::new(false));
         let ran_b2 = ran_b.clone();
         let outcome = Pipeline::new(false)
-            .gate("preflight", || anyhow::bail!("tools missing"))
+            .gate("preflight", || Err(TaskitError::other("tools missing")))
             .step("b", move || {
                 ran_b2.set(true);
                 Ok(())
@@ -246,7 +247,7 @@ mod tests {
         let ran_c2 = ran_c.clone();
         let outcome = Pipeline::new(false)
             .step("a", || Ok(()))
-            .step("b", || anyhow::bail!("b failed"))
+            .step("b", || Err(TaskitError::other("b failed")))
             .step("c", move || {
                 ran_c2.set(true);
                 Ok(())
@@ -269,7 +270,7 @@ mod tests {
         let ran_b = Rc::new(Cell::new(false));
         let ran_b2 = ran_b.clone();
         let outcome = Pipeline::new(false)
-            .step("a", || anyhow::bail!("a failed"))
+            .step("a", || Err(TaskitError::other("a failed")))
             .step("b", move || {
                 ran_b2.set(true);
                 Ok(())
@@ -282,8 +283,8 @@ mod tests {
     #[test]
     fn pipeline_multiple_failures_all_recorded_fail_fast_false() {
         let outcome = Pipeline::new(false)
-            .step("a", || anyhow::bail!("a"))
-            .step("b", || anyhow::bail!("b"))
+            .step("a", || Err(TaskitError::other("a")))
+            .step("b", || Err(TaskitError::other("b")))
             .step("c", || Ok(()))
             .run();
         assert!(!outcome.passed);
@@ -293,7 +294,7 @@ mod tests {
     #[test]
     fn pipeline_run_returns_outcome_with_error_and_gate() {
         let outcome = Pipeline::new(false)
-            .gate("g", || anyhow::bail!("gate failed"))
+            .gate("g", || Err(TaskitError::other("gate failed")))
             .step("s", || Ok(()))
             .run();
         assert!(!outcome.passed);

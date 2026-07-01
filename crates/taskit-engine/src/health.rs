@@ -1,4 +1,3 @@
-use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use taskit_types::error::TaskitError;
@@ -55,16 +54,17 @@ pub fn collect(sh: &Shell) -> Result<HealthBaseline, TaskitError> {
 pub fn load_baseline(workspace_root: &Path) -> Result<HealthBaseline, TaskitError> {
     let path = workspace_root.join(BASELINE_FILE);
     let content = std::fs::read_to_string(&path)
-        .with_context(|| format!("no baseline found at {}", path.display()))?;
-    Ok(serde_json::from_str(&content).context("failed to parse health baseline")?)
+        .map_err(|e| TaskitError::other(format!("no baseline found at {}: {e}", path.display())))?;
+    serde_json::from_str(&content)
+        .map_err(|e| TaskitError::other(format!("failed to parse health baseline: {e}")))
 }
 
 /// Write a baseline to `.health-baseline.json`.
 pub fn write_baseline(workspace_root: &Path, baseline: &HealthBaseline) -> Result<(), TaskitError> {
     let path = workspace_root.join(BASELINE_FILE);
-    let json = serde_json::to_string_pretty(baseline)
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
-    Ok(std::fs::write(&path, format!("{json}\n")).context("failed to write health baseline")?)
+    let json = serde_json::to_string_pretty(baseline).map_err(TaskitError::other)?;
+    std::fs::write(&path, format!("{json}\n"))
+        .map_err(|e| TaskitError::other(format!("failed to write health baseline: {e}")))
 }
 
 /// Compare current against a previous baseline and print a report.
@@ -148,7 +148,7 @@ pub fn run(sh: &Shell, workspace_root: &Path, update: bool) -> Result<(), Taskit
             if check(&current, &previous) {
                 Ok(())
             } else {
-                Err(anyhow::anyhow!("health regression detected").into())
+                Err(TaskitError::other("health regression detected"))
             }
         }
         Err(_) => {
@@ -185,7 +185,7 @@ fn collect_tests(sh: &Shell) -> Result<TestCounts, TaskitError> {
     let output = cmd!(sh, "cargo nextest run --workspace --no-fail-fast")
         .ignore_status()
         .read_stderr()
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+        .map_err(TaskitError::other)?;
     parse_nextest_summary(&output)
 }
 
@@ -193,7 +193,7 @@ fn collect_clippy(sh: &Shell) -> Result<ClippyCounts, TaskitError> {
     let output = cmd!(sh, "cargo clippy --workspace --message-format=json")
         .ignore_status()
         .read()
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+        .map_err(TaskitError::other)?;
     Ok(parse_clippy_json(&output))
 }
 
@@ -202,7 +202,7 @@ fn count_todo_fixme(sh: &Shell) -> Result<usize, TaskitError> {
     let output = cmd!(sh, "grep -r -c -E TODO|FIXME --include=*.rs crates/ src/")
         .ignore_status()
         .read()
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+        .map_err(TaskitError::other)?;
     Ok(parse_grep_counts(&output))
 }
 
@@ -210,7 +210,7 @@ fn collect_versions() -> Result<(usize, bool, String), TaskitError> {
     let metadata = cargo_metadata::MetadataCommand::new()
         .no_deps()
         .exec()
-        .context("cargo metadata failed")?;
+        .map_err(|e| TaskitError::other(format!("cargo metadata failed: {e}")))?;
 
     let packages: Vec<_> = metadata
         .packages

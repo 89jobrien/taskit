@@ -6,7 +6,6 @@ pub use taskit_types::config::{
     ProtocolConfig, SurfaceEntry, WorkspaceConfig,
 };
 
-use anyhow::Context;
 use std::{
     env, fs,
     path::{Path, PathBuf},
@@ -83,7 +82,8 @@ pub fn discover_with(
 
 /// Find the workspace root and load `taskit.toml` if present.
 pub fn load() -> Result<Workspace, TaskitError> {
-    let cwd = env::current_dir().context("failed to read current directory")?;
+    let cwd = env::current_dir()
+        .map_err(|e| TaskitError::other(format!("failed to read current directory: {e}")))?;
 
     if let Some(config_path) = find_config_file(&cwd) {
         let root = config_path
@@ -94,8 +94,11 @@ pub fn load() -> Result<Workspace, TaskitError> {
         let root = match &config.workspace.root {
             Some(override_root) => {
                 let resolved = root.join(override_root);
-                resolved.canonicalize().with_context(|| {
-                    format!("failed to resolve workspace.root = {}", resolved.display())
+                resolved.canonicalize().map_err(|e| {
+                    TaskitError::other(format!(
+                        "failed to resolve workspace.root = {}: {e}",
+                        resolved.display()
+                    ))
                 })?
             }
             None => root,
@@ -106,10 +109,12 @@ pub fn load() -> Result<Workspace, TaskitError> {
         return Ok(Workspace { root, config });
     }
 
-    let root = cargo_workspace_root().context(
-        "no taskit.toml found and `cargo metadata` failed; \
-         run taskit from inside a Cargo workspace",
-    )?;
+    let root = cargo_workspace_root().map_err(|e| {
+        TaskitError::other(format!(
+            "no taskit.toml found and `cargo metadata` failed; \
+             run taskit from inside a Cargo workspace: {e}"
+        ))
+    })?;
     let config = discover(&root).unwrap_or_default();
     Ok(Workspace { root, config })
 }
@@ -140,16 +145,17 @@ fn merge_discovered(config: &mut Config, discovered: Config) {
 }
 
 fn parse_config(path: &Path) -> Result<Config, TaskitError> {
-    let content =
-        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
-    Ok(toml::from_str(&content).with_context(|| format!("failed to parse {}", path.display()))?)
+    let content = fs::read_to_string(path)
+        .map_err(|e| TaskitError::other(format!("failed to read {}: {e}", path.display())))?;
+    toml::from_str(&content)
+        .map_err(|e| TaskitError::other(format!("failed to parse {}: {e}", path.display())))
 }
 
 fn cargo_workspace_root() -> Result<PathBuf, TaskitError> {
     let metadata = cargo_metadata::MetadataCommand::new()
         .no_deps()
         .exec()
-        .context("failed to run `cargo metadata`")?;
+        .map_err(|e| TaskitError::other(format!("failed to run `cargo metadata`: {e}")))?;
     Ok(metadata.workspace_root.into())
 }
 

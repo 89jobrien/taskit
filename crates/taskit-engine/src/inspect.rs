@@ -37,26 +37,26 @@ fn build_pipeline(baseline: &HealthBaseline, thresholds: &Thresholds) -> Pipelin
 
     let mut pipeline = Pipeline::new(false)
         .step(&format!("test failures <= {max_failures}"), move || {
-            threshold_check("test failures", failed, max_failures).map_err(anyhow::Error::from)
+            threshold_check("test failures", failed, max_failures)
         })
         .step(&format!("clippy errors <= {max_errors}"), move || {
-            threshold_check("clippy errors", errors, max_errors).map_err(anyhow::Error::from)
+            threshold_check("clippy errors", errors, max_errors)
         })
         .step(&format!("clippy warnings <= {max_warnings}"), move || {
-            threshold_check("clippy warnings", warnings, max_warnings).map_err(anyhow::Error::from)
+            threshold_check("clippy warnings", warnings, max_warnings)
         })
         .step("version consistency", move || {
             if consistent {
                 Ok(())
             } else {
-                Err(anyhow::anyhow!("workspace versions are inconsistent"))
+                Err(TaskitError::other("workspace versions are inconsistent"))
             }
         });
 
     if let Some(max_todo) = thresholds.max_todo_fixme {
         let todo_count = baseline.todo_fixme;
         pipeline = pipeline.step(&format!("TODO/FIXME <= {max_todo}"), move || {
-            threshold_check("TODO/FIXME", todo_count, max_todo).map_err(anyhow::Error::from)
+            threshold_check("TODO/FIXME", todo_count, max_todo)
         });
     }
 
@@ -67,7 +67,9 @@ fn threshold_check(name: &str, value: usize, limit: usize) -> Result<(), TaskitE
     if value <= limit {
         Ok(())
     } else {
-        Err(anyhow::anyhow!("{name}: {value} exceeds limit {limit}").into())
+        Err(TaskitError::other(format!(
+            "{name}: {value} exceeds limit {limit}"
+        )))
     }
 }
 

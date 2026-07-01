@@ -7,7 +7,7 @@ use crate::{config::WorkspaceConfig, fmt, lint, runner::with_silent, step::Pipel
 ///
 /// All steps operate on affected crates only (git diff vs origin/main) and
 /// skip tests that require external network access or credentials.
-/// No coverage, schema, or drift checks — those live in `cargo xtask ci`.
+/// No coverage, schema, or drift checks — those live in `taskit ci`.
 ///
 /// Tool stdout/stderr is suppressed; only progress spinners and the final
 /// summary table are shown.  On failure the captured output is included in
@@ -15,24 +15,18 @@ use crate::{config::WorkspaceConfig, fmt, lint, runner::with_silent, step::Pipel
 pub fn run(sh: &Shell, ws: &WorkspaceConfig) -> Result<(), TaskitError> {
     with_silent(|| {
         let outcome = Pipeline::new(false)
-            .step("fmt --check (affected)", || {
-                fmt::run(sh, ws, true, true).map_err(anyhow::Error::from)
-            })
-            .step("lint (affected)", || {
-                lint::run(sh, ws, None, true, false).map_err(anyhow::Error::from)
-            })
-            .step("compile-tests", || {
-                testing::compile::run(sh).map_err(anyhow::Error::from)
-            })
+            .step("fmt --check (affected)", || fmt::run(sh, ws, true, true))
+            .step("lint (affected)", || lint::run(sh, ws, None, true, false))
+            .step("compile-tests", || testing::compile::run(sh))
             .step("test (affected, offline)", || {
-                testing::run::run(sh, ws, None, true, false, true).map_err(anyhow::Error::from)
+                testing::run::run(sh, ws, None, true, false, true)
             })
             .run();
         crate::step::print_summary(&outcome);
         if outcome.passed {
             Ok(())
         } else {
-            Err(TaskitError::from(anyhow::anyhow!("quick checks failed")))
+            Err(TaskitError::other("quick checks failed"))
         }
     })
 }

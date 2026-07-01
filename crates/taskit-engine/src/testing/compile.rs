@@ -10,8 +10,8 @@ use xshell::{Shell, cmd};
 
 use crate::runner::{is_dry_run, xrun};
 
-const CACHE_DIR: &str = ".xtask-cache";
-const CACHE_FILE: &str = ".xtask-cache/compile-cache.json";
+const CACHE_DIR: &str = ".taskit-cache";
+const CACHE_FILE: &str = ".taskit-cache/compile-cache.json";
 
 // ── cache schema ─────────────────────────────────────────────────────────────
 
@@ -165,7 +165,7 @@ fn collect_crate_roots(dir: &Path, out: &mut Vec<(String, PathBuf)>) -> Result<(
         let name = name.to_string_lossy();
         if matches!(
             name.as_ref(),
-            "target" | ".git" | "node_modules" | ".xtask-cache" | "xtask"
+            "target" | ".git" | "node_modules" | ".taskit-cache"
         ) {
             continue;
         }
@@ -253,8 +253,7 @@ fn load_cache() -> CompileCache {
 
 fn write_cache(cache: &CompileCache) -> Result<(), TaskitError> {
     std::fs::create_dir_all(CACHE_DIR)?;
-    let json = serde_json::to_string_pretty(cache)
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+    let json = serde_json::to_string_pretty(cache).map_err(TaskitError::other)?;
     std::fs::write(CACHE_FILE, json)?;
     Ok(())
 }
@@ -280,7 +279,7 @@ mod tests {
         fn new() -> Self {
             let id = COUNTER.fetch_add(1, Ordering::SeqCst);
             let root =
-                std::env::temp_dir().join(format!("xtask-test-{}-{}", std::process::id(), id));
+                std::env::temp_dir().join(format!("taskit-test-{}-{}", std::process::id(), id));
             std::fs::create_dir_all(&root).expect("create temp workspace");
             Self { root }
         }
@@ -747,19 +746,22 @@ mod tests {
     }
 
     #[test]
-    fn regression_xtask_cache_dir_excluded_from_crate_roots() {
-        // .xtask-cache/ may contain a compile-cache.json that must never be
+    fn regression_taskit_cache_dir_excluded_from_crate_roots() {
+        // .taskit-cache/ may contain a compile-cache.json that must never be
         // treated as a crate root even if a stray Cargo.toml lands there.
         let ws = TempWorkspace::new();
         ws.write_crate("real-crate", "real");
-        ws.write(".xtask-cache/Cargo.toml", "[package]\nname = \"phantom\"\n");
+        ws.write(
+            ".taskit-cache/Cargo.toml",
+            "[package]\nname = \"phantom\"\n",
+        );
 
         let mut roots = Vec::new();
         collect_crate_roots(&ws.root, &mut roots).unwrap();
         let names: Vec<_> = roots.iter().map(|(n, _)| n.as_str()).collect();
         assert!(
             !names.contains(&"phantom"),
-            ".xtask-cache must be excluded from crate roots"
+            ".taskit-cache must be excluded from crate roots"
         );
     }
 

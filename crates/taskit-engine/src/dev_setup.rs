@@ -52,10 +52,9 @@ fn ensure_binstall(sh: &Shell) -> Result<(), TaskitError> {
         return Ok(());
     }
     if !confirm("  Install cargo-binstall now via `cargo install cargo-binstall`?") {
-        return Err(anyhow::anyhow!(
-            "cargo-binstall is required. Install it manually and re-run `cargo xtask dev-setup`."
-        )
-        .into());
+        return Err(TaskitError::other(
+            "cargo-binstall is required. Install it manually and re-run `taskit dev-setup`.",
+        ));
     }
     xrun(cmd!(sh, "cargo install cargo-binstall"))
 }
@@ -125,18 +124,17 @@ pub fn self_check() -> Result<(), TaskitError> {
         eprintln!("{:<COL_TOOL$} {:<COL_STATUS$} optional", name, status);
     }
     if missing {
-        return Err(anyhow::anyhow!(
-            "Required tools missing. Run `cargo xtask dev-setup` to install."
-        )
-        .into());
+        return Err(TaskitError::other(
+            "Required tools missing. Run `taskit dev-setup` to install.",
+        ));
     }
     match crate::cache::verify() {
-        Ok(true) => eprintln!("{:<COL_TOOL$} OK      cache integrity", ".xtask-cache"),
+        Ok(true) => eprintln!("{:<COL_TOOL$} OK      cache integrity", ".taskit-cache"),
         Ok(false) => eprintln!(
-            "{:<COL_TOOL$} DRIFT   run any xtask command to rebuild",
-            ".xtask-cache"
+            "{:<COL_TOOL$} DRIFT   run any taskit command to rebuild",
+            ".taskit-cache"
         ),
-        Err(e) => eprintln!("{:<COL_TOOL$} ERROR   {e}", ".xtask-cache"),
+        Err(e) => eprintln!("{:<COL_TOOL$} ERROR   {e}", ".taskit-cache"),
     }
     Ok(())
 }

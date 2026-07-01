@@ -68,12 +68,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "anyhow"
-version = "1.0.103"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
-
-[[package]]
 name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -828,7 +822,6 @@ dependencies = [
 name = "taskit"
 version = "0.6.0"
 dependencies = [
- "anyhow",
  "clap",
  "miette",
  "taskit-core",
@@ -850,7 +843,6 @@ dependencies = [
 name = "taskit-crux"
 version = "0.6.0"
 dependencies = [
- "anyhow",
  "taskit-core",
  "taskit-types",
 ]
@@ -859,7 +851,6 @@ dependencies = [
 name = "taskit-engine"
 version = "0.6.0"
 dependencies = [
- "anyhow",
  "cargo_metadata",
  "clap",
  "hex",
@@ -880,7 +871,6 @@ dependencies = [
 name = "taskit-init"
 version = "0.6.0"
 dependencies = [
- "anyhow",
  "cargo_metadata",
  "dialoguer",
  "taskit-core",
@@ -893,7 +883,6 @@ dependencies = [
 name = "taskit-types"
 version = "0.6.0"
 dependencies = [
- "anyhow",
  "clap",
  "miette",
  "proptest",
@@ -1254,13 +1243,6 @@ name = "xshell-macros"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32ac00cd3f8ec9c1d33fb3e7958a82df6989c42d747bd326c822b1d625283547"
-
-[[package]]
-name = "xtask"
-version = "0.1.0"
-dependencies = [
- "clap",
-]
 
 [[package]]
 name = "zerocopy"

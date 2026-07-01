@@ -32,9 +32,10 @@ pub enum TaskitError {
     Other(Box<dyn std::error::Error + Send + Sync>),
 }
 
-impl From<anyhow::Error> for TaskitError {
-    fn from(err: anyhow::Error) -> Self {
-        TaskitError::Other(err.into())
+impl TaskitError {
+    /// Create an `Other` variant from any display-able message.
+    pub fn other(msg: impl std::fmt::Display) -> Self {
+        TaskitError::Other(msg.to_string().into())
     }
 }
 

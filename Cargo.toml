@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/*", "xtask"]
+members = ["crates/*"]
 exclude = ["fuzz"]
 
 [workspace.package]
@@ -14,7 +14,6 @@ taskit-types = { version = "0.6.0", path = "crates/taskit-types" }
 taskit-engine = { version = "0.6.0", path = "crates/taskit-engine" }
 taskit-init = { version = "0.6.0", path = "crates/taskit-init" }
 taskit-crux = { version = "0.6.0", path = "crates/taskit-crux" }
-anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 xshell = "0.2"
 serde = { version = "1", features = ["derive"] }
@@ -27,9 +26,9 @@ version = "0.6.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Config-driven cargo xtask runner with affected-crate detection, protocol-drift tracking, and CI pipeline orchestration"
+description = "Config-driven CI pipeline runner with affected-crate detection, protocol-drift tracking, and pipeline orchestration"
 homepage = "https://github.com/89jobrien/taskit"
-keywords = ["cargo", "xtask", "ci", "workspace", "build-tool"]
+keywords = ["cargo", "ci", "workspace", "build-tool", "pipeline"]
 categories = ["development-tools", "command-line-utilities"]
 readme = "README.md"
 publish = true
@@ -44,7 +43,6 @@ taskit-types.workspace = true
 taskit-engine.workspace = true
 taskit-init.workspace = true
 taskit-crux = { workspace = true, optional = true }
-anyhow.workspace = true
 clap.workspace = true
 miette = { version = "7", features = ["fancy"] }
 xshell.workspace = true

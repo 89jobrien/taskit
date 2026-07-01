@@ -73,11 +73,10 @@ pub(crate) fn run_from_config_internal(
                 };
             }
         };
-        let f_anyhow = move || f().map_err(anyhow::Error::from);
         if step.gate {
-            pipeline = pipeline.gate(&step.name, f_anyhow);
+            pipeline = pipeline.gate(&step.name, f);
         } else {
-            pipeline = pipeline.step(&step.name, f_anyhow);
+            pipeline = pipeline.step(&step.name, f);
         }
     }
     pipeline.run()
@@ -123,7 +122,11 @@ fn dispatch_cmd<'a>(
             let root = std::env::current_dir()?;
             Box::new(move || crate::health::run(sh, &root, false))
         }
-        other => return Err(anyhow::anyhow!("unknown ci step command: {other:?}").into()),
+        other => {
+            return Err(TaskitError::other(format!(
+                "unknown ci step command: {other:?}"
+            )));
+        }
     };
     Ok(f)
 }
@@ -155,12 +158,8 @@ fn run_default_pipeline(
     use std::rc::Rc;
 
     let mut pipeline = Pipeline::new(fail_fast)
-        .gate("self-check", || {
-            dev_setup::self_check().map_err(anyhow::Error::from)
-        })
-        .step("fmt --check", || {
-            fmt::run(sh, ws, true, false).map_err(anyhow::Error::from)
-        });
+        .gate("self-check", || dev_setup::self_check())
+        .step("fmt --check", || fmt::run(sh, ws, true, false));
 
     if capture_diagnostics {
         let lint_sink: DiagnosticSink = Rc::new(RefCell::new(Vec::new()));
@@ -171,18 +170,14 @@ fn run_default_pipeline(
             if success {
                 Ok(())
             } else {
-                anyhow::bail!("clippy found errors")
+                Err(TaskitError::other("clippy found errors"))
             }
         });
     } else {
-        pipeline = pipeline.step("lint", || {
-            lint::run(sh, ws, None, false, false).map_err(anyhow::Error::from)
-        });
+        pipeline = pipeline.step("lint", || lint::run(sh, ws, None, false, false));
     }
 
-    pipeline = pipeline.step("compile-tests", || {
-        testing::compile::run(sh).map_err(anyhow::Error::from)
-    });
+    pipeline = pipeline.step("compile-tests", || testing::compile::run(sh));
 
     if capture_diagnostics {
         let test_sink: DiagnosticSink = Rc::new(RefCell::new(Vec::new()));
@@ -193,29 +188,28 @@ fn run_default_pipeline(
             if success {
                 Ok(())
             } else {
-                anyhow::bail!("tests failed")
+                Err(TaskitError::other("tests failed"))
             }
         });
     } else {
         pipeline = pipeline.step("test", || {
-            testing::run::run(sh, ws, None, false, false, offline).map_err(anyhow::Error::from)
+            testing::run::run(sh, ws, None, false, false, offline)
         });
     }
 
-    pipeline = pipeline
-        .step("check-deps", || {
-            check_deps::run(sh).map_err(anyhow::Error::from)
-        })
-        .step("check-protocol-drift", || {
-            let root = std::env::current_dir().map_err(anyhow::Error::from)?;
-            protocol::drift::run(&root, proto, false, false, false).map_err(anyhow::Error::from)
-        });
+    pipeline =
+        pipeline
+            .step("check-deps", || check_deps::run(sh))
+            .step("check-protocol-drift", || {
+                let root = std::env::current_dir()?;
+                protocol::drift::run(&root, proto, false, false, false)
+            });
 
     if let Some(c) = cov {
         let crate_name = c.crate_name.clone();
         let threshold = c.threshold();
         pipeline = pipeline.step(&format!("coverage ({crate_name})"), move || {
-            testing::coverage::run(sh, &crate_name, threshold).map_err(anyhow::Error::from)
+            testing::coverage::run(sh, &crate_name, threshold)
         });
     }
 

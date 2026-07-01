@@ -23,12 +23,11 @@ pub fn run(sh: &Shell, ws: &WorkspaceConfig) -> Result<(), TaskitError> {
 
     let meta_json = cmd!(sh, "cargo metadata --no-deps --format-version 1")
         .read()
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
-    let meta: serde_json::Value =
-        serde_json::from_str(&meta_json).map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
-    let packages = meta["packages"].as_array().ok_or_else(|| {
-        TaskitError::from(anyhow::anyhow!("no packages in cargo metadata output"))
-    })?;
+        .map_err(TaskitError::other)?;
+    let meta: serde_json::Value = serde_json::from_str(&meta_json).map_err(TaskitError::other)?;
+    let packages = meta["packages"]
+        .as_array()
+        .ok_or_else(|| TaskitError::other("no packages in cargo metadata output"))?;
 
     eprintln!("Workspace Versions:");
     if ws.crates.is_empty() {
@@ -51,7 +50,7 @@ pub fn run(sh: &Shell, ws: &WorkspaceConfig) -> Result<(), TaskitError> {
     eprintln!();
     let rustc = cmd!(sh, "rustc --version")
         .read()
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+        .map_err(TaskitError::other)?;
     eprintln!("  rustc: {rustc}");
     Ok(())
 }

@@ -7,7 +7,7 @@ use crate::runner::is_dry_run;
 fn current_branch(sh: &Shell) -> Result<String, TaskitError> {
     Ok(cmd!(sh, "git branch --show-current")
         .read()
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?
+        .map_err(TaskitError::other)?
         .trim()
         .to_string())
 }
@@ -16,14 +16,14 @@ fn branch_exists(sh: &Shell, branch: &str) -> Result<bool, TaskitError> {
     let result = cmd!(sh, "git rev-parse --verify --quiet {branch}")
         .quiet()
         .output()
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+        .map_err(TaskitError::other)?;
     Ok(result.status.success())
 }
 
 fn is_clean(sh: &Shell) -> Result<bool, TaskitError> {
     let output = cmd!(sh, "git status --porcelain")
         .read()
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+        .map_err(TaskitError::other)?;
     Ok(output.trim().is_empty())
 }
 
@@ -62,7 +62,7 @@ fn require_branch_exists(sh: &Shell, branch: &str) -> Result<(), TaskitError> {
 fn ahead_behind(sh: &Shell, local: &str, remote: &str) -> Result<(usize, usize), TaskitError> {
     let output = cmd!(sh, "git rev-list --left-right --count {local}...{remote}")
         .read()
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+        .map_err(TaskitError::other)?;
     let parts: Vec<&str> = output.split_whitespace().collect();
     if parts.len() != 2 {
         return Ok((0, 0));
@@ -80,7 +80,7 @@ fn merge_no_ff(sh: &Shell, branch: &str, message: &str) -> Result<(), TaskitErro
     let output = cmd!(sh, "git merge --no-ff {branch} -m {message}")
         .quiet()
         .output()
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+        .map_err(TaskitError::other)?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(FlowError::MergeFailed {
@@ -99,7 +99,7 @@ fn checkout(sh: &Shell, branch: &str) -> Result<(), TaskitError> {
     cmd!(sh, "git checkout {branch}")
         .quiet()
         .run()
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+        .map_err(TaskitError::other)?;
     Ok(())
 }
 

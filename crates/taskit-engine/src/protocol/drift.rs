@@ -1,4 +1,3 @@
-use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -117,14 +116,14 @@ pub fn run(
     report_drift(&drift);
     eprintln!(
         "protocol-drift: if this change is intentional, \
-         run `cargo xtask check-protocol-drift --update`"
+         run `taskit check-protocol-drift --update`"
     );
 
     if hook || warn_only {
         return Ok(());
     }
 
-    Err(anyhow::anyhow!("core contract drift detected").into())
+    Err(TaskitError::other("core contract drift detected"))
 }
 
 fn calculate_lockfile(root: &Path, surfaces: &[SurfaceEntry]) -> Result<Lockfile, TaskitError> {
@@ -132,7 +131,7 @@ fn calculate_lockfile(root: &Path, surfaces: &[SurfaceEntry]) -> Result<Lockfile
     for surface in surfaces {
         let path = root.join(&surface.path);
         let content = fs::read_to_string(&path)
-            .with_context(|| format!("failed to read {}", path.display()))?;
+            .map_err(|e| TaskitError::other(format!("failed to read {}: {e}", path.display())))?;
         let normalized = super::contract_hash::normalize(&content);
         hashes.push(SurfaceHash {
             name: surface.name.clone(),
@@ -148,38 +147,36 @@ fn calculate_lockfile(root: &Path, surfaces: &[SurfaceEntry]) -> Result<Lockfile
 }
 
 fn read_lockfile(path: &Path) -> Result<Lockfile, TaskitError> {
-    let content = fs::read_to_string(path).with_context(|| {
-        format!(
-            "failed to read {}; run `cargo xtask check-protocol-drift --update` to create it",
+    let content = fs::read_to_string(path).map_err(|e| {
+        TaskitError::other(format!(
+            "failed to read {}; run `taskit check-protocol-drift --update` to create it: {e}",
             path.display()
-        )
+        ))
     })?;
     let lockfile: Lockfile = serde_json::from_str(&content)
-        .with_context(|| format!("failed to parse {}", path.display()))?;
+        .map_err(|e| TaskitError::other(format!("failed to parse {}: {e}", path.display())))?;
     if lockfile.version != 1 {
-        return Err(anyhow::anyhow!(
+        return Err(TaskitError::other(format!(
             "unsupported protocol drift lockfile version {} in {}",
             lockfile.version,
             path.display()
-        )
-        .into());
+        )));
     }
     if lockfile.algorithm != ALGORITHM {
-        return Err(anyhow::anyhow!(
+        return Err(TaskitError::other(format!(
             "unsupported protocol drift algorithm {} in {} (expected {ALGORITHM})",
             lockfile.algorithm,
             path.display()
-        )
-        .into());
+        )));
     }
     Ok(lockfile)
 }
 
 fn write_lockfile(path: &Path, lockfile: &Lockfile) -> Result<(), TaskitError> {
-    let mut content = serde_json::to_string_pretty(lockfile)
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+    let mut content = serde_json::to_string_pretty(lockfile).map_err(TaskitError::other)?;
     content.push('\n');
-    Ok(fs::write(path, content).with_context(|| format!("failed to write {}", path.display()))?)
+    fs::write(path, content)
+        .map_err(|e| TaskitError::other(format!("failed to write {}: {e}", path.display())))
 }
 
 fn compare_lockfiles(expected: &Lockfile, actual: &Lockfile) -> Vec<Drift> {
@@ -246,7 +243,6 @@ fn display_relative(root: &Path, path: &Path) -> PathBuf {
 
 /// Parses Claude Code hook stdin JSON to extract the edited file path.
 mod hook_input {
-    use anyhow::Context;
     use serde::Deserialize;
     use std::{
         io::{self, IsTerminal as _, Read},
@@ -269,14 +265,14 @@ mod hook_input {
             return Ok(None);
         }
         let mut input = String::new();
-        io::stdin()
-            .read_to_string(&mut input)
-            .context("failed to read hook input from stdin")?;
+        io::stdin().read_to_string(&mut input).map_err(|e| {
+            TaskitError::other(format!("failed to read hook input from stdin: {e}"))
+        })?;
         if input.trim().is_empty() {
             return Ok(None);
         }
-        let parsed: HookInput =
-            serde_json::from_str(&input).context("failed to parse hook input JSON")?;
+        let parsed: HookInput = serde_json::from_str(&input)
+            .map_err(|e| TaskitError::other(format!("failed to parse hook input JSON: {e}")))?;
         Ok(parsed.tool_input.and_then(|ti| ti.file_path))
     }
 }

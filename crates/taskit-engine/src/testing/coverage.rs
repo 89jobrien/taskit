@@ -1,4 +1,3 @@
-use anyhow::Context;
 use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};
 
@@ -12,13 +11,16 @@ pub fn run(sh: &Shell, pkg: &str, threshold: f64) -> Result<(), TaskitError> {
     }
     let json = cmd!(sh, "cargo llvm-cov --locked -p {pkg} --lib --json")
         .read()
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+        .map_err(TaskitError::other)?;
 
-    let pct = parse_line_coverage(&json).context("failed to parse cargo llvm-cov --json output")?;
+    let pct = parse_line_coverage(&json)
+        .ok_or_else(|| TaskitError::other("failed to parse cargo llvm-cov --json output"))?;
 
     eprintln!("Coverage: {pct:.1}%");
     if pct < threshold {
-        return Err(anyhow::anyhow!("Coverage {pct:.1}% is below threshold {threshold}%").into());
+        return Err(TaskitError::other(format!(
+            "Coverage {pct:.1}% is below threshold {threshold}%"
+        )));
     }
     eprintln!("Coverage {pct:.1}% >= {threshold}% threshold — OK");
     Ok(())
