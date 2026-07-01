@@ -2,7 +2,7 @@ use taskit_types::config::PropagationEntry;
 use taskit_types::error::TaskitError;
 
 /// Intermediate representation of what taskit init will generate.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct InitPlan {
     pub crates: Vec<CratePlan>,
     pub propagation: Vec<PropagationEntry>,

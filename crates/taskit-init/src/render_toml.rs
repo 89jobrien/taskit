@@ -1,3 +1,4 @@
+use crate::escape::toml_string;
 use crate::plan::InitPlan;
 
 /// Render an InitPlan into taskit.toml content.
@@ -24,18 +25,19 @@ fn render_workspace(out: &mut String, plan: &InitPlan) {
     for c in &plan.crates {
         if let Some(ref pkg) = c.pkg {
             out.push_str(&format!(
-                "  {{ dir = \"{}\", pkg = \"{}\" }},\n",
-                c.dir, pkg
+                "  {{ dir = {}, pkg = {} }},\n",
+                toml_string(&c.dir),
+                toml_string(pkg)
             ));
         } else {
-            out.push_str(&format!("  {{ dir = \"{}\" }},\n", c.dir));
+            out.push_str(&format!("  {{ dir = {} }},\n", toml_string(&c.dir)));
         }
     }
     out.push_str("]\n");
 
     // offline_skip
     if let Some(ref expr) = plan.offline_skip {
-        out.push_str(&format!("offline_skip = \"{}\"\n", expr));
+        out.push_str(&format!("offline_skip = {}\n", toml_string(expr)));
     } else {
         out.push_str("# offline_skip = \"test(/.*network.*/)\"\n");
     }
@@ -56,12 +58,12 @@ fn render_propagation(out: &mut String, plan: &InitPlan) {
     } else {
         for p in &plan.propagation {
             out.push_str("\n[[workspace.propagation]]\n");
-            out.push_str(&format!("source = \"{}\"\n", p.source));
+            out.push_str(&format!("source = {}\n", toml_string(&p.source)));
             out.push_str(&format!(
                 "dependents = [{}]\n",
                 p.dependents
                     .iter()
-                    .map(|t| format!("\"{}\"", t))
+                    .map(|t| toml_string(t))
                     .collect::<Vec<_>>()
                     .join(", ")
             ));
@@ -89,8 +91,9 @@ fn render_protocol(out: &mut String, plan: &InitPlan) {
         out.push_str("# lockfile = \"taskit-protocol.lock\"\n");
         for s in &plan.surfaces {
             out.push_str(&format!(
-                "\n[[protocol.surfaces]]\nname = \"{}\"\npath = \"{}\"\n",
-                s.name, s.path
+                "\n[[protocol.surfaces]]\nname = {}\npath = {}\n",
+                toml_string(&s.name),
+                toml_string(&s.path)
             ));
         }
     }
@@ -100,8 +103,9 @@ fn render_coverage(out: &mut String, plan: &InitPlan) {
     out.push('\n');
     if let Some(ref cov) = plan.coverage {
         out.push_str(&format!(
-            "[coverage]\ncrate_name = \"{}\"\nthreshold = {:.1}\n",
-            cov.crate_name, cov.threshold
+            "[coverage]\ncrate_name = {}\nthreshold = {:.1}\n",
+            toml_string(&cov.crate_name),
+            cov.threshold
         ));
     } else {
         out.push_str(
@@ -122,8 +126,10 @@ fn render_ci(out: &mut String, plan: &InitPlan) {
         out.push_str("# cruxfile = \"Cruxfile\"\n");
         for step in &plan.ci_steps {
             out.push_str(&format!(
-                "\n[[ci.steps]]\nname = \"{}\"\ncmd = \"{}\"\ngate = {}\n",
-                step.name, step.cmd, step.gate
+                "\n[[ci.steps]]\nname = {}\ncmd = {}\ngate = {}\n",
+                toml_string(&step.name),
+                toml_string(&step.cmd),
+                step.gate
             ));
         }
     } else {
@@ -166,9 +172,9 @@ fn render_flow(out: &mut String, plan: &InitPlan) {
             );
         } else {
             out.push_str("[flow]\n");
-            out.push_str(&format!("main = \"{}\"\n", flow.main));
-            out.push_str(&format!("staging = \"{}\"\n", flow.staging));
-            out.push_str(&format!("release = \"{}\"\n", flow.release));
+            out.push_str(&format!("main = {}\n", toml_string(&flow.main)));
+            out.push_str(&format!("staging = {}\n", toml_string(&flow.staging)));
+            out.push_str(&format!("release = {}\n", toml_string(&flow.release)));
         }
     } else {
         out.push_str(
@@ -324,6 +330,21 @@ mod tests {
         let toml = render_toml(&plan);
         assert!(toml.contains("offline_skip = \"test(/.*network.*/)\""));
         assert!(!toml.contains("# offline_skip"));
+    }
+
+    #[test]
+    fn render_escapes_hostile_crate_dir() {
+        let mut plan = minimal_plan();
+        plan.crates = vec![CratePlan {
+            dir: "evil\" }]\n[[ci.steps]]\nname = \"pwn\"\ncmd = \"pwn".into(),
+            pkg: None,
+        }];
+        let toml_str = render_toml(&plan);
+        let parsed: taskit_types::config::Config =
+            toml::from_str(&toml_str).expect("escaped output must stay valid TOML");
+        // The hostile name must stay a single string value, not become new config.
+        assert!(parsed.ci.is_none(), "injection must not create [ci] steps");
+        assert_eq!(parsed.workspace.crates.len(), 1);
     }
 
     #[test]

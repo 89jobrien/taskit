@@ -86,7 +86,11 @@ fn staged_rs_hash(sh: &Shell, staged: &str) -> Result<String, TaskitError> {
     let paths = rs_paths_from_staged(staged);
     let mut outer = Sha256::new();
     for path in paths {
-        let blob = cmd!(sh, "git show {path}")
+        // `:<path>` reads the staged (index) blob. A bare path would be
+        // parsed as a revision/pathspec — wrong content, and a path starting
+        // with `-` could even be interpreted as a flag.
+        let spec = format!(":{path}");
+        let blob = cmd!(sh, "git show {spec}")
             .read()
             .map_err(TaskitError::other)?;
         let mut inner = Sha256::new();

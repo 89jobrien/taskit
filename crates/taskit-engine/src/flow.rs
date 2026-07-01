@@ -4,6 +4,38 @@ use xshell::{Shell, cmd};
 
 use crate::runner::is_dry_run;
 
+/// Reject configured branch names that git could misparse: flags (leading
+/// `-`), revision-range operators (`..`), whitespace/control characters, and
+/// other characters `git check-ref-format` forbids.
+fn validate_branch_name(name: &str) -> Result<(), TaskitError> {
+    let bad_char = |c: char| {
+        c.is_whitespace() || c.is_control() || matches!(c, '~' | '^' | ':' | '?' | '*' | '[' | '\\')
+    };
+    if name.is_empty()
+        || name.starts_with('-')
+        || name.starts_with('.')
+        || name.starts_with('/')
+        || name.ends_with('/')
+        || name.ends_with('.')
+        || name.ends_with(".lock")
+        || name.contains("..")
+        || name.contains("@{")
+        || name.chars().any(bad_char)
+    {
+        return Err(TaskitError::other(format!(
+            "invalid branch name in [flow] config: {name:?}"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_flow_config(flow: &FlowConfig) -> Result<(), TaskitError> {
+    validate_branch_name(flow.main_branch())?;
+    validate_branch_name(flow.staging_branch())?;
+    validate_branch_name(flow.release_branch())?;
+    Ok(())
+}
+
 fn current_branch(sh: &Shell) -> Result<String, TaskitError> {
     Ok(cmd!(sh, "git branch --show-current")
         .read()
@@ -104,6 +136,7 @@ fn checkout(sh: &Shell, branch: &str) -> Result<(), TaskitError> {
 }
 
 pub fn status(sh: &Shell, flow: &FlowConfig) -> Result<(), TaskitError> {
+    validate_flow_config(flow)?;
     let main = flow.main_branch();
     let staging = flow.staging_branch();
     let release = flow.release_branch();
@@ -124,6 +157,7 @@ pub fn status(sh: &Shell, flow: &FlowConfig) -> Result<(), TaskitError> {
 }
 
 pub fn promote(sh: &Shell, flow: &FlowConfig) -> Result<(), TaskitError> {
+    validate_flow_config(flow)?;
     let staging = flow.staging_branch();
     let release = flow.release_branch();
 
@@ -144,6 +178,7 @@ pub fn promote(sh: &Shell, flow: &FlowConfig) -> Result<(), TaskitError> {
 }
 
 pub fn finish(sh: &Shell, flow: &FlowConfig) -> Result<(), TaskitError> {
+    validate_flow_config(flow)?;
     let main = flow.main_branch();
     let staging = flow.staging_branch();
     let release = flow.release_branch();
@@ -168,6 +203,7 @@ pub fn finish(sh: &Shell, flow: &FlowConfig) -> Result<(), TaskitError> {
 }
 
 pub fn guard(sh: &Shell, flow: &FlowConfig) -> Result<(), TaskitError> {
+    validate_flow_config(flow)?;
     let current = current_branch(sh)?;
     let main = flow.main_branch();
     let release = flow.release_branch();
@@ -188,6 +224,52 @@ mod tests {
 
     fn default_flow() -> FlowConfig {
         FlowConfig::default()
+    }
+
+    #[test]
+    fn validate_accepts_common_branch_names() {
+        for name in ["main", "staging", "release", "feature/foo-bar", "v1.2.x"] {
+            assert!(validate_branch_name(name).is_ok(), "should accept {name:?}");
+        }
+    }
+
+    #[test]
+    fn validate_rejects_flag_like_and_malformed_names() {
+        for name in [
+            "",
+            "-D",
+            "--force",
+            "a..b",
+            "a b",
+            "a\tb",
+            "a~1",
+            "HEAD@{1}",
+            "a:b",
+            ".hidden",
+            "/abs",
+            "trailing/",
+            "name.lock",
+            "star*",
+        ] {
+            assert!(
+                validate_branch_name(name).is_err(),
+                "should reject {name:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn flow_commands_reject_malicious_config() {
+        let sh = Shell::new().unwrap();
+        let cfg = FlowConfig {
+            main: Some("--upload-pack=/tmp/evil".into()),
+            staging: None,
+            release: None,
+        };
+        assert!(status(&sh, &cfg).is_err());
+        assert!(promote(&sh, &cfg).is_err());
+        assert!(finish(&sh, &cfg).is_err());
+        assert!(guard(&sh, &cfg).is_err());
     }
 
     #[test]

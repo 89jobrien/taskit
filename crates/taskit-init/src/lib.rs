@@ -1,3 +1,4 @@
+pub mod escape;
 pub mod plan;
 pub mod render_cruxfile;
 pub mod render_toml;

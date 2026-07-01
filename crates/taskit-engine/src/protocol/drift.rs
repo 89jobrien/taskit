@@ -43,6 +43,23 @@ impl Drift {
     }
 }
 
+/// Resolve a config-supplied path against `root`, rejecting absolute paths
+/// and `..` components so `taskit.toml` cannot make the drift check read
+/// from or write to files outside the workspace.
+fn resolve_under_root(root: &Path, rel: &str) -> Result<PathBuf, TaskitError> {
+    use std::path::Component;
+    let rel_path = Path::new(rel);
+    let escapes = rel_path
+        .components()
+        .any(|c| !matches!(c, Component::Normal(_) | Component::CurDir));
+    if rel_path.is_absolute() || escapes {
+        return Err(TaskitError::other(format!(
+            "invalid path in [protocol] config (must be relative, without `..`): {rel:?}"
+        )));
+    }
+    Ok(root.join(rel_path))
+}
+
 /// Run the protocol-drift check.
 ///
 /// `config` is the `[protocol]` section from `taskit.toml`, or `None` in
@@ -84,7 +101,7 @@ pub fn run(
     }
 
     let current = calculate_lockfile(root, surfaces)?;
-    let lock_path = root.join(lock_rel);
+    let lock_path = resolve_under_root(root, lock_rel)?;
 
     if update {
         if crate::runner::is_dry_run() {
@@ -129,7 +146,7 @@ pub fn run(
 fn calculate_lockfile(root: &Path, surfaces: &[SurfaceEntry]) -> Result<Lockfile, TaskitError> {
     let mut hashes = Vec::with_capacity(surfaces.len());
     for surface in surfaces {
-        let path = root.join(&surface.path);
+        let path = resolve_under_root(root, &surface.path)?;
         let content = fs::read_to_string(&path)
             .map_err(|e| TaskitError::other(format!("failed to read {}: {e}", path.display())))?;
         let normalized = super::contract_hash::normalize(&content);
@@ -366,6 +383,36 @@ mod tests {
         let surfaces = vec![SurfaceEntry {
             name: "missing".to_string(),
             path: "does_not_exist.rs".to_string(),
+        }];
+        assert!(calculate_lockfile(dir.path(), &surfaces).is_err());
+    }
+
+    // --- resolve_under_root ---
+
+    #[test]
+    fn resolve_under_root_accepts_relative_paths() {
+        let root = Path::new("/workspace");
+        assert_eq!(
+            resolve_under_root(root, "src/lib.rs").unwrap(),
+            root.join("src/lib.rs")
+        );
+        assert!(resolve_under_root(root, "./taskit-protocol.lock").is_ok());
+    }
+
+    #[test]
+    fn resolve_under_root_rejects_escaping_paths() {
+        let root = Path::new("/workspace");
+        assert!(resolve_under_root(root, "/etc/passwd").is_err());
+        assert!(resolve_under_root(root, "../outside.rs").is_err());
+        assert!(resolve_under_root(root, "src/../../outside.rs").is_err());
+    }
+
+    #[test]
+    fn calculate_lockfile_rejects_traversal_surface_path() {
+        let dir = TempDir::new().expect("tempdir");
+        let surfaces = vec![SurfaceEntry {
+            name: "evil".to_string(),
+            path: "../../../etc/passwd".to_string(),
         }];
         assert!(calculate_lockfile(dir.path(), &surfaces).is_err());
     }

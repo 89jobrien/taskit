@@ -24,14 +24,20 @@ pub fn run(sh: &Shell, older_than: Option<&str>) -> Result<(), TaskitError> {
 }
 
 /// Remove taskit-generated artifacts outside of target/.
+///
+/// Uses `symlink_metadata` so a symlink planted at an artifact path is
+/// removed as a link instead of recursing into (and deleting) its target.
 fn prune_artifacts() -> Result<(), TaskitError> {
     let artifacts = [".taskit-cache", "target/taskit-results.xml"];
     for path in artifacts {
         let p = std::path::Path::new(path);
-        if p.is_dir() {
+        let Ok(meta) = std::fs::symlink_metadata(p) else {
+            continue;
+        };
+        if meta.is_dir() {
             std::fs::remove_dir_all(p)?;
             eprintln!("removed {path}/");
-        } else if p.is_file() {
+        } else {
             std::fs::remove_file(p)?;
             eprintln!("removed {path}");
         }
