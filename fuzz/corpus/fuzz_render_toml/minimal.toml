@@ -1,0 +1,57 @@
+[workspace]
+crates = [
+  { dir = "." },
+]
+# offline_skip = "test(/.*network.*/)"
+
+# Propagation rules: when a source crate changes, its dependents are
+# automatically included in affected-crate detection.
+#
+# [[workspace.propagation]]
+# source = "my-core"
+# dependents = ["my-engine", "my-cli"]
+
+# Protocol drift detection: track SHA-256 hashes of contract surfaces.
+# Run `taskit check-protocol-drift --update` to regenerate the lockfile.
+#
+# [protocol]
+# lockfile = "taskit-protocol.lock"
+#
+# [[protocol.surfaces]]
+# name = "core-api"
+# path = "crates/core/src/lib.rs"
+
+# Coverage enforcement: run `taskit coverage` to check.
+#
+# [coverage]
+# crate_name = "my-crate"
+# threshold = 80.0
+
+# CI pipeline steps. Run `taskit ci` to execute all steps.
+#
+# [ci]
+# cruxfile = "Cruxfile"
+#
+# [[ci.steps]]
+# name = "fmt --check"
+# cmd = "fmt --check"
+# gate = false
+#
+# [[ci.steps]]
+# name = "test"
+# cmd = "test"
+# gate = false
+
+# Git flow: main (stable) -> staging (work) -> release (publish) -> main
+# Uncomment to enable `taskit flow` subcommands.
+#
+# [flow]
+# main = "main"
+# staging = "staging"
+# release = "release"
+
+# Release configuration for `taskit release`.
+#
+# [release]
+# github_repo = "owner/repo"
+# publish_order = ["my-types", "my-core", "my-cli"]
