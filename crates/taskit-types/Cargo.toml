@@ -6,7 +6,6 @@ license.workspace = true
 description = "Shared types and error definitions for taskit"
 
 [dependencies]
-clap.workspace = true
 miette = { version = "7", features = ["derive"] }
 serde.workspace = true
 thiserror = "2"

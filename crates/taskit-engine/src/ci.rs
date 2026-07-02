@@ -1,126 +1,209 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use taskit_types::error::TaskitError;
 use xshell::Shell;
 
 use crate::{
     check_deps,
-    config::{CiConfig, CoverageConfig, ProtocolConfig, WorkspaceConfig},
+    config::{CiConfig, CiStep, CoverageConfig, ProtocolConfig, WorkspaceConfig},
     dev_setup, fmt, lint,
     output::OutputFormat,
     protocol,
-    step::{Pipeline, PipelineOutcome},
+    step::{DiagnosticSink, Pipeline, PipelineOutcome},
     testing,
 };
+
+/// Options controlling a CI pipeline run.
+#[derive(Debug, Clone, Copy)]
+pub struct CiOptions {
+    pub fail_fast: bool,
+    pub include_network: bool,
+    pub output_format: OutputFormat,
+}
+
+/// Shared context handed to every step factory.
+#[derive(Clone, Copy)]
+pub(crate) struct StepContext<'a> {
+    pub sh: &'a Shell,
+    pub ws: &'a WorkspaceConfig,
+    pub proto: Option<&'a ProtocolConfig>,
+    pub cov: Option<&'a CoverageConfig>,
+    pub offline: bool,
+}
+
+type StepFn<'a> = Box<dyn FnOnce() -> Result<(), TaskitError> + 'a>;
+
+/// A dispatched step: either a plain closure or one that also collects
+/// per-finding diagnostics (used for SARIF output).
+enum StepExec<'a> {
+    Plain(StepFn<'a>),
+    Captured(DiagnosticSink, StepFn<'a>),
+}
 
 /// Run the CI pipeline.
 ///
 /// When `ci` contains steps they are dispatched dynamically from the config,
 /// allowing workspaces to define their own pipeline in `taskit.toml`.
-/// When `ci` is `None` or empty the built-in default pipeline is used.
-// TODO: 8 params — bundle fail_fast, include_network, output_format into a CiRunConfig struct
-#[allow(clippy::too_many_arguments)]
+/// When `ci` is `None` the built-in default steps are used; an explicit
+/// `[ci]` with empty steps runs nothing.
 pub fn run(
     sh: &Shell,
     ws: &WorkspaceConfig,
     proto: Option<&ProtocolConfig>,
     ci: Option<&CiConfig>,
     cov: Option<&CoverageConfig>,
-    fail_fast: bool,
-    include_network: bool,
-    output_format: OutputFormat,
+    opts: CiOptions,
 ) -> Result<(), TaskitError> {
-    let offline = !include_network;
-    let capture = matches!(output_format, OutputFormat::Sarif);
-    let outcome = match ci {
-        Some(cfg) if !cfg.steps.is_empty() => {
-            run_from_config_internal(sh, ws, proto, cov, cfg, fail_fast, offline)
-        }
-        Some(_) => {
-            // Explicit [ci] with empty steps = run nothing
-            Pipeline::new(fail_fast).run()
-        }
-        None => run_default_pipeline(sh, ws, proto, cov, fail_fast, offline, capture),
+    let ctx = StepContext {
+        sh,
+        ws,
+        proto,
+        cov,
+        offline: !opts.include_network,
     };
-    Ok(crate::output::write_output(output_format, &outcome)?)
+    let capture = matches!(opts.output_format, OutputFormat::Sarif);
+    let outcome = run_pipeline_internal(ctx, ci, opts.fail_fast, capture);
+    Ok(crate::output::write_output(opts.output_format, &outcome)?)
 }
 
-/// Build and run a pipeline from `[[ci.steps]]` in `taskit.toml`.
-pub(crate) fn run_from_config_internal(
-    sh: &Shell,
-    ws: &WorkspaceConfig,
-    proto: Option<&ProtocolConfig>,
-    cov: Option<&CoverageConfig>,
-    cfg: &CiConfig,
+/// Select the step list (configured or default) and run it.
+pub(crate) fn run_pipeline_internal(
+    ctx: StepContext<'_>,
+    ci: Option<&CiConfig>,
     fail_fast: bool,
-    offline: bool,
+    capture: bool,
 ) -> PipelineOutcome {
-    // Build pipeline; if dispatch fails, return a single-step failure outcome.
+    match ci {
+        Some(cfg) if !cfg.steps.is_empty() => build_and_run(ctx, &cfg.steps, fail_fast, capture),
+        // Explicit [ci] with empty steps = run nothing
+        Some(_) => Pipeline::new(fail_fast).run(),
+        None => build_and_run(ctx, &default_steps(ctx.cov), fail_fast, capture),
+    }
+}
+
+/// The built-in default step list, used when no `[[ci.steps]]` are
+/// configured. Expressed as `CiStep` data so it flows through the same
+/// dispatch as user-configured pipelines.
+fn default_steps(cov: Option<&CoverageConfig>) -> Vec<CiStep> {
+    let step = |name: &str, cmd: &str, gate: bool| CiStep {
+        name: name.to_string(),
+        cmd: cmd.to_string(),
+        gate,
+    };
+    let mut steps = vec![
+        step("self-check", "self-check", true),
+        step("fmt --check", "fmt --check", false),
+        step("lint", "lint", false),
+        step("compile-tests", "compile-tests", false),
+        step("test", "test", false),
+        step("check-deps", "check-deps", false),
+        step("check-protocol-drift", "check-protocol-drift", false),
+    ];
+    if let Some(c) = cov {
+        steps.push(step(
+            &format!("coverage ({})", c.crate_name),
+            "coverage",
+            false,
+        ));
+    }
+    steps
+}
+
+/// Build a pipeline from step configs and run it. A dispatch failure
+/// (unknown command) becomes a single-step failure outcome.
+fn build_and_run(
+    ctx: StepContext<'_>,
+    steps: &[CiStep],
+    fail_fast: bool,
+    capture: bool,
+) -> PipelineOutcome {
     let mut pipeline = Pipeline::new(fail_fast);
-    for step in &cfg.steps {
-        let f = match dispatch_cmd(&step.cmd, sh, ws, proto, cov, offline) {
-            Ok(f) => f,
-            Err(e) => {
-                return PipelineOutcome {
-                    results: vec![crate::step::StepResult {
-                        name: step.name.clone(),
-                        status: crate::step::StepStatus::Fail,
-                        duration: std::time::Duration::ZERO,
-                        error: Some(e.to_string()),
-                        gate: step.gate,
-                        diagnostics: vec![],
-                    }],
-                    total: std::time::Duration::ZERO,
-                    passed: false,
-                };
+    for step in steps {
+        match dispatch_cmd(&step.cmd, ctx, capture) {
+            Ok(StepExec::Plain(f)) if step.gate => pipeline = pipeline.gate(&step.name, f),
+            Ok(StepExec::Plain(f)) => pipeline = pipeline.step(&step.name, f),
+            Ok(StepExec::Captured(sink, f)) => {
+                pipeline = pipeline.step_with_diagnostics(&step.name, sink, f);
             }
-        };
-        if step.gate {
-            pipeline = pipeline.gate(&step.name, f);
-        } else {
-            pipeline = pipeline.step(&step.name, f);
+            Err(e) => return dispatch_failure(step, e),
         }
     }
     pipeline.run()
 }
 
-/// Map a `cmd` string to a closure that runs the corresponding built-in step.
+fn dispatch_failure(step: &CiStep, e: TaskitError) -> PipelineOutcome {
+    PipelineOutcome {
+        results: vec![crate::step::StepResult {
+            name: step.name.clone(),
+            status: crate::step::StepStatus::Fail,
+            duration: std::time::Duration::ZERO,
+            error: Some(e.to_string()),
+            gate: step.gate,
+            diagnostics: vec![],
+        }],
+        total: std::time::Duration::ZERO,
+        passed: false,
+    }
+}
+
+/// Map a `cmd` string to the corresponding built-in step.
 ///
 /// The `cmd` syntax mirrors taskit's CLI subcommands:
 /// `"fmt --check"`, `"lint"`, `"test"`, `"coverage"`, `"compile-tests"`,
-/// `"check-deps"`, `"check-protocol-drift"`, `"self-check"`.
+/// `"check-deps"`, `"check-protocol-drift"`, `"self-check"`, `"health"`.
+///
+/// When `capture` is set, steps that can report per-finding diagnostics
+/// (`lint`, `test`) return a `Captured` exec with an attached sink.
 fn dispatch_cmd<'a>(
     cmd: &str,
-    sh: &'a Shell,
-    ws: &'a WorkspaceConfig,
-    proto: Option<&'a ProtocolConfig>,
-    cov: Option<&'a CoverageConfig>,
-    offline: bool,
-) -> Result<Box<dyn FnOnce() -> Result<(), TaskitError> + 'a>, TaskitError> {
+    ctx: StepContext<'a>,
+    capture: bool,
+) -> Result<StepExec<'a>, TaskitError> {
     let parts: Vec<&str> = cmd.split_whitespace().collect();
     let sub = *parts.first().unwrap_or(&"");
-    let f: Box<dyn FnOnce() -> Result<(), TaskitError> + 'a> = match sub {
+    let exec = match sub {
         "fmt" => {
             let check = parts.contains(&"--check");
-            Box::new(move || fmt::run(sh, ws, check, false))
+            plain(move || fmt::run(ctx.sh, ctx.ws, check, false))
         }
-        "lint" => Box::new(move || lint::run(sh, ws, None, false, false)),
-        "compile-tests" => Box::new(move || testing::compile::run(sh)),
-        "test" => Box::new(move || testing::run::run(sh, ws, None, false, false, offline)),
-        "coverage" => Box::new(move || match cov {
-            Some(c) => testing::coverage::run(sh, &c.crate_name, c.threshold()),
+        "lint" if capture => captured(move |sink| {
+            let (success, diags) = lint::run_capturing(ctx.sh, ctx.ws)?;
+            sink.borrow_mut().extend(diags);
+            if success {
+                Ok(())
+            } else {
+                Err(TaskitError::other("clippy found errors"))
+            }
+        }),
+        "lint" => plain(move || lint::run(ctx.sh, ctx.ws, None, false, false)),
+        "compile-tests" => plain(move || testing::compile::run(ctx.sh)),
+        "test" if capture => captured(move |sink| {
+            let (success, diags) = testing::run::run_capturing(ctx.sh, ctx.ws, ctx.offline)?;
+            sink.borrow_mut().extend(diags);
+            if success {
+                Ok(())
+            } else {
+                Err(TaskitError::other("tests failed"))
+            }
+        }),
+        "test" => plain(move || testing::run::run(ctx.sh, ctx.ws, None, false, false, ctx.offline)),
+        "coverage" => plain(move || match ctx.cov {
+            Some(c) => testing::coverage::run(ctx.sh, &c.crate_name, c.threshold()),
             None => {
                 eprintln!("coverage: skipped (no [coverage] in taskit.toml)");
                 Ok(())
             }
         }),
-        "check-deps" => Box::new(move || check_deps::run(sh)),
-        "check-protocol-drift" => Box::new(move || {
+        "check-deps" => plain(move || check_deps::run(ctx.sh)),
+        "check-protocol-drift" => plain(move || {
             let root = std::env::current_dir()?;
-            protocol::drift::run(&root, proto, false, false, false)
+            protocol::drift::run(&root, ctx.proto, false, false, false)
         }),
-        "self-check" => Box::new(dev_setup::self_check),
+        "self-check" => plain(dev_setup::self_check),
         "health" => {
             let root = std::env::current_dir()?;
-            Box::new(move || crate::health::run(sh, &root, false))
+            plain(move || crate::health::run(ctx.sh, &root, false))
         }
         other => {
             return Err(TaskitError::other(format!(
@@ -128,92 +211,17 @@ fn dispatch_cmd<'a>(
             )));
         }
     };
-    Ok(f)
+    Ok(exec)
 }
 
-/// The built-in default pipeline, used when no `[[ci.steps]]` are configured.
-pub(crate) fn run_default_internal(
-    sh: &Shell,
-    ws: &WorkspaceConfig,
-    proto: Option<&ProtocolConfig>,
-    cov: Option<&CoverageConfig>,
-    fail_fast: bool,
-    offline: bool,
-) -> PipelineOutcome {
-    run_default_pipeline(sh, ws, proto, cov, fail_fast, offline, false)
+fn plain<'a>(f: impl FnOnce() -> Result<(), TaskitError> + 'a) -> StepExec<'a> {
+    StepExec::Plain(Box::new(f))
 }
 
-/// Build and run the default pipeline, optionally capturing per-diagnostic data.
-fn run_default_pipeline(
-    sh: &Shell,
-    ws: &WorkspaceConfig,
-    proto: Option<&ProtocolConfig>,
-    cov: Option<&CoverageConfig>,
-    fail_fast: bool,
-    offline: bool,
-    capture_diagnostics: bool,
-) -> PipelineOutcome {
-    use crate::step::DiagnosticSink;
-    use std::cell::RefCell;
-    use std::rc::Rc;
-
-    let mut pipeline = Pipeline::new(fail_fast)
-        .gate("self-check", dev_setup::self_check)
-        .step("fmt --check", || fmt::run(sh, ws, true, false));
-
-    if capture_diagnostics {
-        let lint_sink: DiagnosticSink = Rc::new(RefCell::new(Vec::new()));
-        let lint_sink_clone = lint_sink.clone();
-        pipeline = pipeline.step_with_diagnostics("lint", lint_sink, move || {
-            let (success, diags) = lint::run_capturing(sh, ws)?;
-            lint_sink_clone.borrow_mut().extend(diags);
-            if success {
-                Ok(())
-            } else {
-                Err(TaskitError::other("clippy found errors"))
-            }
-        });
-    } else {
-        pipeline = pipeline.step("lint", || lint::run(sh, ws, None, false, false));
-    }
-
-    pipeline = pipeline.step("compile-tests", || testing::compile::run(sh));
-
-    if capture_diagnostics {
-        let test_sink: DiagnosticSink = Rc::new(RefCell::new(Vec::new()));
-        let test_sink_clone = test_sink.clone();
-        pipeline = pipeline.step_with_diagnostics("test", test_sink, move || {
-            let (success, diags) = testing::run::run_capturing(sh, ws, offline)?;
-            test_sink_clone.borrow_mut().extend(diags);
-            if success {
-                Ok(())
-            } else {
-                Err(TaskitError::other("tests failed"))
-            }
-        });
-    } else {
-        pipeline = pipeline.step("test", || {
-            testing::run::run(sh, ws, None, false, false, offline)
-        });
-    }
-
-    pipeline =
-        pipeline
-            .step("check-deps", || check_deps::run(sh))
-            .step("check-protocol-drift", || {
-                let root = std::env::current_dir()?;
-                protocol::drift::run(&root, proto, false, false, false)
-            });
-
-    if let Some(c) = cov {
-        let crate_name = c.crate_name.clone();
-        let threshold = c.threshold();
-        pipeline = pipeline.step(&format!("coverage ({crate_name})"), move || {
-            testing::coverage::run(sh, &crate_name, threshold)
-        });
-    }
-
-    pipeline.run()
+fn captured<'a>(f: impl FnOnce(&DiagnosticSink) -> Result<(), TaskitError> + 'a) -> StepExec<'a> {
+    let sink: DiagnosticSink = Rc::new(RefCell::new(Vec::new()));
+    let sink_in = sink.clone();
+    StepExec::Captured(sink, Box::new(move || f(&sink_in)))
 }
 
 #[cfg(test)]
@@ -224,13 +232,23 @@ mod tests {
         Shell::new().expect("shell")
     }
 
+    fn make_ctx<'a>(sh: &'a Shell, ws: &'a WorkspaceConfig) -> StepContext<'a> {
+        StepContext {
+            sh,
+            ws,
+            proto: None,
+            cov: None,
+            offline: false,
+        }
+    }
+
     // --- dispatch_cmd ---
 
     #[test]
     fn dispatch_cmd_unknown_returns_error() {
         let sh = make_sh();
         let ws = WorkspaceConfig::default();
-        match dispatch_cmd("frobnicate", &sh, &ws, None, None, false) {
+        match dispatch_cmd("frobnicate", make_ctx(&sh, &ws), false) {
             Err(e) => assert!(
                 e.to_string().contains("unknown ci step command"),
                 "unexpected error: {e}"
@@ -243,7 +261,7 @@ mod tests {
     fn dispatch_cmd_empty_string_returns_error() {
         let sh = make_sh();
         let ws = WorkspaceConfig::default();
-        assert!(dispatch_cmd("", &sh, &ws, None, None, false).is_err());
+        assert!(dispatch_cmd("", make_ctx(&sh, &ws), false).is_err());
     }
 
     #[test]
@@ -264,7 +282,7 @@ mod tests {
         ];
         for cmd in known {
             assert!(
-                dispatch_cmd(cmd, &sh, &ws, None, None, false).is_ok(),
+                dispatch_cmd(cmd, make_ctx(&sh, &ws), false).is_ok(),
                 "dispatch_cmd({cmd:?}) should return Ok"
             );
         }
@@ -274,11 +292,59 @@ mod tests {
     fn dispatch_cmd_fmt_check_flag_parsed() {
         let sh = make_sh();
         let ws = WorkspaceConfig::default();
-        assert!(dispatch_cmd("fmt --check", &sh, &ws, None, None, false).is_ok());
-        assert!(dispatch_cmd("fmt", &sh, &ws, None, None, false).is_ok());
+        assert!(dispatch_cmd("fmt --check", make_ctx(&sh, &ws), false).is_ok());
+        assert!(dispatch_cmd("fmt", make_ctx(&sh, &ws), false).is_ok());
     }
 
-    // --- run_from_config with empty steps ---
+    #[test]
+    fn dispatch_cmd_capture_attaches_sink_for_lint_and_test() {
+        let sh = make_sh();
+        let ws = WorkspaceConfig::default();
+        for cmd in ["lint", "test"] {
+            match dispatch_cmd(cmd, make_ctx(&sh, &ws), true) {
+                Ok(StepExec::Captured(..)) => {}
+                _ => panic!("{cmd} with capture should dispatch as Captured"),
+            }
+        }
+    }
+
+    // --- default_steps ---
+
+    #[test]
+    fn default_steps_start_with_self_check_gate() {
+        let steps = default_steps(None);
+        assert_eq!(steps[0].cmd, "self-check");
+        assert!(steps[0].gate);
+        assert!(steps.iter().all(|s| !s.cmd.is_empty()));
+    }
+
+    #[test]
+    fn default_steps_include_coverage_only_when_configured() {
+        assert!(!default_steps(None).iter().any(|s| s.cmd == "coverage"));
+        let cov = CoverageConfig {
+            crate_name: "my-crate".into(),
+            threshold: None,
+        };
+        let steps = default_steps(Some(&cov));
+        let last = steps.last().unwrap();
+        assert_eq!(last.cmd, "coverage");
+        assert_eq!(last.name, "coverage (my-crate)");
+    }
+
+    #[test]
+    fn default_steps_all_dispatch() {
+        let sh = make_sh();
+        let ws = WorkspaceConfig::default();
+        for s in default_steps(None) {
+            assert!(
+                dispatch_cmd(&s.cmd, make_ctx(&sh, &ws), false).is_ok(),
+                "default step {:?} must dispatch",
+                s.cmd
+            );
+        }
+    }
+
+    // --- run with empty steps ---
 
     #[test]
     fn empty_steps_runs_nothing() {
@@ -289,8 +355,32 @@ mod tests {
             cruxfile: None,
         };
         // Empty steps = run nothing (not the default pipeline)
-        let outcome = run_from_config_internal(&sh, &ws, None, None, &cfg, false, false);
+        let outcome = run_pipeline_internal(make_ctx(&sh, &ws), Some(&cfg), false, false);
         assert!(outcome.passed);
         assert!(outcome.results.is_empty());
+    }
+
+    #[test]
+    fn unknown_step_produces_failure_outcome() {
+        let sh = make_sh();
+        let ws = WorkspaceConfig::default();
+        let cfg = CiConfig {
+            steps: vec![CiStep {
+                name: "bad".into(),
+                cmd: "frobnicate".into(),
+                gate: false,
+            }],
+            cruxfile: None,
+        };
+        let outcome = run_pipeline_internal(make_ctx(&sh, &ws), Some(&cfg), false, false);
+        assert!(!outcome.passed);
+        assert_eq!(outcome.results.len(), 1);
+        assert!(
+            outcome.results[0]
+                .error
+                .as_deref()
+                .unwrap_or("")
+                .contains("unknown")
+        );
     }
 }

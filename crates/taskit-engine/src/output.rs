@@ -2,13 +2,10 @@ use serde::Serialize;
 
 use crate::step::{PipelineOutcome, StepResult, StepStatus};
 
-// Re-export from core.
+// Re-export from core: the OutputFormatter port lives in taskit-core,
+// the concrete adapters live here.
+pub use taskit_core::output_formatter::OutputFormatter;
 pub use taskit_types::output_format::OutputFormat;
-
-/// Port: formats pipeline results for different output targets.
-pub trait OutputFormatter {
-    fn render(&self, outcome: &PipelineOutcome) -> String;
-}
 
 pub fn formatter_for(format: OutputFormat) -> Box<dyn OutputFormatter> {
     match format {

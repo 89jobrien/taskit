@@ -1,7 +1,24 @@
+use taskit_types::config::CoverageConfig;
 use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};
 
 use crate::runner::is_dry_run;
+
+/// Resolve the crate to measure from an explicit `--crate-name` flag or the
+/// `[coverage]` section, then run the coverage check.
+pub fn run_with_fallback(
+    sh: &Shell,
+    crate_name: Option<&str>,
+    cov: Option<&CoverageConfig>,
+    threshold: f64,
+) -> Result<(), TaskitError> {
+    match crate_name.or(cov.map(|c| c.crate_name.as_str())) {
+        Some(pkg) => run(sh, pkg, threshold),
+        None => Err(TaskitError::other(
+            "no crate specified: use --crate-name or set [coverage].crate_name in taskit.toml",
+        )),
+    }
+}
 
 pub fn run(sh: &Shell, pkg: &str, threshold: f64) -> Result<(), TaskitError> {
     eprintln!("Running coverage for {pkg} (threshold: {threshold}%)...");
@@ -34,6 +51,13 @@ fn parse_line_coverage(json: &str) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn run_with_fallback_errors_without_crate_or_config() {
+        let sh = Shell::new().unwrap();
+        let err = run_with_fallback(&sh, None, None, 80.0).unwrap_err();
+        assert!(err.to_string().contains("no crate specified"));
+    }
 
     #[test]
     fn parse_line_coverage_extracts_percent() {

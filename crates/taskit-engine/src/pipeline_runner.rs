@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Instant;
 
 use taskit_core::pipeline_runner::PipelineRunner;
@@ -38,35 +38,17 @@ impl<'a> BuiltinRunner<'a> {
 }
 
 impl PipelineRunner for BuiltinRunner<'_> {
-    fn run_pipeline(
-        &self,
-        _config_path: &Path,
-        fail_fast: bool,
-    ) -> Result<PipelineOutcome, TaskitError> {
-        let outcome = match self.ci {
-            Some(cfg) if !cfg.steps.is_empty() => crate::ci::run_from_config_internal(
-                self.sh,
-                self.ws,
-                self.proto,
-                self.cov,
-                cfg,
-                fail_fast,
-                self.offline,
-            ),
-            Some(_) => {
-                // Explicit [ci] with empty steps = run nothing
-                crate::step::Pipeline::new(fail_fast).run()
-            }
-            None => crate::ci::run_default_internal(
-                self.sh,
-                self.ws,
-                self.proto,
-                self.cov,
-                fail_fast,
-                self.offline,
-            ),
+    fn run_pipeline(&self, fail_fast: bool) -> Result<PipelineOutcome, TaskitError> {
+        let ctx = crate::ci::StepContext {
+            sh: self.sh,
+            ws: self.ws,
+            proto: self.proto,
+            cov: self.cov,
+            offline: self.offline,
         };
-        Ok(outcome)
+        Ok(crate::ci::run_pipeline_internal(
+            ctx, self.ci, fail_fast, false,
+        ))
     }
 }
 
@@ -82,16 +64,29 @@ impl SubprocessCruxRunner {
 }
 
 impl PipelineRunner for SubprocessCruxRunner {
-    fn run_pipeline(
-        &self,
-        _config_path: &Path,
-        _fail_fast: bool,
-    ) -> Result<PipelineOutcome, TaskitError> {
+    fn run_pipeline(&self, _fail_fast: bool) -> Result<PipelineOutcome, TaskitError> {
         if !self.cruxfile_path.exists() {
             return Err(TaskitError::Io(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
                 format!("cruxfile not found: {}", self.cruxfile_path.display()),
             )));
+        }
+
+        // Honor the global --dry-run contract like every other executor.
+        if crate::runner::is_dry_run() {
+            eprintln!("dry-run: crux run {}", self.cruxfile_path.display());
+            return Ok(PipelineOutcome {
+                results: vec![StepResult {
+                    name: "crux-pipeline".into(),
+                    status: StepStatus::Pass,
+                    duration: std::time::Duration::ZERO,
+                    error: None,
+                    gate: false,
+                    diagnostics: vec![],
+                }],
+                total: std::time::Duration::ZERO,
+                passed: true,
+            });
         }
 
         let start = Instant::now();
@@ -132,10 +127,11 @@ impl PipelineRunner for SubprocessCruxRunner {
 
 // ── Conformance ─────────────────────────────────────────────────────────────
 
-/// Invariant 1: nonexistent config path must return Err.
+/// Invariant 1: a runner constructed with a nonexistent cruxfile/config
+/// path must return Err.
 #[cfg(test)]
 pub(crate) fn assert_nonexistent_path_returns_err(runner: &dyn PipelineRunner) {
-    let result = runner.run_pipeline(Path::new("/nonexistent/taskit.toml"), false);
+    let result = runner.run_pipeline(false);
     assert!(
         result.is_err(),
         "run_pipeline with nonexistent path must return Err"
@@ -233,9 +229,7 @@ mod tests {
             cruxfile: None,
         };
         let runner = BuiltinRunner::new(&sh, &ws, None, None, Some(&ci), false);
-        let outcome = runner
-            .run_pipeline(Path::new("taskit.toml"), false)
-            .unwrap();
+        let outcome = runner.run_pipeline(false).unwrap();
         assert_eq!(outcome.results.len(), 1);
     }
 
@@ -254,9 +248,7 @@ mod tests {
         };
         let runner = BuiltinRunner::new(&sh, &ws, None, None, Some(&ci), false);
         // Runs the config-driven path (not the full default pipeline)
-        let outcome = runner
-            .run_pipeline(Path::new("taskit.toml"), false)
-            .unwrap();
+        let outcome = runner.run_pipeline(false).unwrap();
         assert_eq!(outcome.results.len(), 1);
         assert_eq!(outcome.results[0].name, "self-check");
     }
@@ -266,14 +258,14 @@ mod tests {
     #[test]
     fn subprocess_runner_missing_cruxfile_returns_err() {
         let runner = SubprocessCruxRunner::new(PathBuf::from("/nonexistent/ci.crux"));
-        let result = runner.run_pipeline(Path::new("/nonexistent/ci.crux"), false);
+        let result = runner.run_pipeline(false);
         assert!(result.is_err());
     }
 
     #[test]
     fn subprocess_runner_implements_trait() {
         let runner = SubprocessCruxRunner::new(PathBuf::from("/nonexistent/ci.crux"));
-        let result = runner.run_pipeline(Path::new("taskit.toml"), false);
+        let result = runner.run_pipeline(false);
         assert!(result.is_err(), "missing cruxfile should return Err");
     }
 

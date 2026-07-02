@@ -852,7 +852,6 @@ name = "taskit-engine"
 version = "0.6.0"
 dependencies = [
  "cargo_metadata",
- "clap",
  "hex",
  "indicatif",
  "miette",
@@ -883,7 +882,6 @@ dependencies = [
 name = "taskit-types"
 version = "0.6.0"
 dependencies = [
- "clap",
  "miette",
  "proptest",
  "serde",

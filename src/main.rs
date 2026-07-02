@@ -14,7 +14,7 @@ struct Cli {
     /// Print commands without executing them
     #[arg(long, global = true)]
     dry_run: bool,
-    /// Output format: human (default), json, github, junit
+    /// Output format: human (default), json, github, junit, diagnostic, sarif
     #[arg(long, global = true, default_value = "human")]
     output: OutputFormat,
     #[command(subcommand)]
@@ -251,17 +251,12 @@ fn main() -> miette::Result<()> {
         Cmd::Coverage {
             crate_name,
             threshold,
-        } => {
-            let pkg = crate_name
-                .as_deref()
-                .or(config.coverage.as_ref().map(|c| c.crate_name.as_str()));
-            match pkg {
-                Some(name) => testing::coverage::run(&sh, name, threshold),
-                None => return Err(taskit_types::error::TaskitError::other(
-                    "no crate specified: use --crate-name or set [coverage].crate_name in taskit.toml"
-                ).into()),
-            }
-        }
+        } => testing::coverage::run_with_fallback(
+            &sh,
+            crate_name.as_deref(),
+            config.coverage.as_ref(),
+            threshold,
+        ),
         Cmd::CheckProtocolDrift {
             update,
             warn_only,
@@ -286,9 +281,11 @@ fn main() -> miette::Result<()> {
             proto,
             config.ci.as_ref(),
             config.coverage.as_ref(),
-            fail_fast,
-            include_network,
-            cli.output,
+            ci::CiOptions {
+                fail_fast,
+                include_network,
+                output_format: cli.output,
+            },
         ),
         Cmd::CompileTests => testing::compile::run(&sh),
         Cmd::CheckDeps => check_deps::run(&sh),

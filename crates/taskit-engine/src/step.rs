@@ -16,10 +16,6 @@ pub use taskit_types::step::{PipelineOutcome, StepResult, StepStatus};
 /// them to the `StepResult`.
 pub type DiagnosticSink = Rc<RefCell<Vec<DiagnosticRecord>>>;
 
-const COL_NAME: usize = 30;
-const COL_STATUS: usize = 10;
-const SEPARATOR_WIDTH: usize = 55;
-
 struct PipelineStep<'a> {
     name: String,
     is_gate: bool,
@@ -145,25 +141,13 @@ impl<'a> Pipeline<'a> {
     }
 }
 
+/// Print the human summary table to stderr.
+///
+/// Delegates to the `Human` output formatter so the table has exactly one
+/// definition.
 pub fn print_summary(outcome: &PipelineOutcome) {
-    eprintln!();
-    eprintln!("{:<COL_NAME$} {:<COL_STATUS$} Duration", "Step", "Status");
-    eprintln!("{}", "-".repeat(SEPARATOR_WIDTH));
-    for s in &outcome.results {
-        eprintln!(
-            "{:<COL_NAME$} {:<COL_STATUS$} {:.1}s",
-            s.name,
-            s.status,
-            s.duration.as_secs_f64()
-        );
-    }
-    eprintln!("{}", "-".repeat(SEPARATOR_WIDTH));
-    eprintln!(
-        "{:<COL_NAME$} {:<COL_STATUS$} {:.1}s",
-        "Total",
-        "",
-        outcome.total.as_secs_f64()
-    );
+    use crate::output::{OutputFormat, formatter_for};
+    eprint!("{}", formatter_for(OutputFormat::Human).render(outcome));
 }
 
 #[cfg(test)]

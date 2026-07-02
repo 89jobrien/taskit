@@ -53,7 +53,7 @@ taskit --dry-run <subcommand>   # print without executing
 ```
 taskit (root bin)
 +-- crates/taskit-types   -- shared types: Config, Error, StepResult, OutputFormat
-+-- crates/taskit-core    -- ports: PipelineRunner trait
++-- crates/taskit-core    -- ports: PipelineRunner + OutputFormatter traits
 +-- crates/taskit-engine  -- CI pipeline engine, config loading, formatters
 +-- crates/taskit-init    -- `taskit init`: discovery + file generation
 +-- crates/taskit-crux    -- EmbeddedCruxRunner (optional, `crux` feature)
@@ -65,7 +65,7 @@ taskit (root bin)
 | --------------- | ----------------------------------------------------------- |
 | `taskit`        | Binary entry point; CLI parsing (clap) and dispatch         |
 | `taskit-types`  | Leaf crate: Config, TaskitError, StepResult, OutputFormat   |
-| `taskit-core`   | Ports only: PipelineRunner trait                            |
+| `taskit-core`   | Ports only: PipelineRunner + OutputFormatter traits         |
 | `taskit-engine` | CI pipeline, config loading, output formatters, step engine |
 | `taskit-init`   | InitPlan discovery, TOML/Cruxfile rendering, interactive UI |
 | `taskit-crux`   | EmbeddedCruxRunner stub (feature-gated)                     |
@@ -78,11 +78,12 @@ taskit (root bin)
 - **`taskit-types/step.rs`** -- StepResult, StepStatus, PipelineOutcome
 - **`taskit-types/output_format.rs`** -- OutputFormat enum
 - **`taskit-core/pipeline_runner.rs`** -- PipelineRunner trait (port)
+- **`taskit-core/output_formatter.rs`** -- OutputFormatter trait (port)
 - **`taskit-engine/config.rs`** -- load(), discover(), config parsing
 - **`taskit-engine/ci.rs`** -- CI pipeline assembly and step dispatch
 - **`taskit-engine/step.rs`** -- Pipeline builder with step/gate/fail-fast
 - **`taskit-engine/pipeline_runner.rs`** -- BuiltinRunner, SubprocessCruxRunner
-- **`taskit-engine/output.rs`** -- OutputFormatter trait + 5 format impls
+- **`taskit-engine/output.rs`** -- OutputFormatter adapters (6 formats)
 - **`taskit-init/plan.rs`** -- InitPlan, plan_from_discovery, plan_interactive
 - **`taskit-init/render_toml.rs`** -- Hand-built TOML renderer
 - **`taskit-init/render_cruxfile.rs`** -- Cruxfile YAML generator
