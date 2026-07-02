@@ -181,8 +181,17 @@ pub fn pre_push(ctx: &Ctx) -> Result<(), TaskitError> {
             crate::testing::coverage::run(ctx, &c.crate_name, c.threshold())?;
         }
     }
-    if let Err(e) = crate::protocol::drift::run(ctx, false, true, false) {
-        taskit_output::taskit_err!("[protocol-drift] warning: check could not complete: {e:#}");
+    if let Err(e) = crate::protocol::drift::run(ctx, false, false, false) {
+        taskit_output::taskit_err!("protocol-drift check failed: {e}");
+        taskit_output::taskit_progress!("self-healing: updating protocol lockfile...");
+        crate::protocol::drift::run(ctx, true, false, false)?;
+        taskit_output::taskit_progress!("re-checking protocol drift...");
+        crate::protocol::drift::run(ctx, false, false, false)?;
+        // Stage and amend the lockfile into the current commit
+        let sh = &ctx.sh;
+        ctx.run(cmd!(sh, "git add taskit-protocol.lock"))?;
+        ctx.run(cmd!(sh, "git commit --amend --no-edit"))?;
+        taskit_output::taskit_ok!("protocol lockfile updated and amended into commit");
     }
 
     if !ctx.dry_run {
