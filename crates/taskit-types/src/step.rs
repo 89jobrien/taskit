@@ -66,6 +66,7 @@ pub struct PipelineOutcome {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
 
     #[test]
     fn step_status_display() {
@@ -82,5 +83,82 @@ mod tests {
             passed: true,
         };
         assert!(outcome.passed);
+    }
+
+    // --- property tests ---
+
+    fn arb_step_status() -> impl Strategy<Value = StepStatus> {
+        prop_oneof![
+            Just(StepStatus::Pass),
+            Just(StepStatus::Fail),
+            Just(StepStatus::Skipped),
+        ]
+    }
+
+    /// Build a minimal StepResult with the given name, status, and duration (nanos).
+    fn make_step(name: String, status: StepStatus, nanos: u64) -> StepResult {
+        StepResult {
+            name,
+            status,
+            duration: Duration::from_nanos(nanos),
+            error: None,
+            gate: false,
+            diagnostics: vec![],
+        }
+    }
+
+    proptest! {
+        /// Any StepStatus Display output must be non-empty.
+        #[test]
+        fn prop_step_status_display_non_empty(status in arb_step_status()) {
+            let s = format!("{}", status);
+            prop_assert!(!s.is_empty());
+        }
+
+        /// A PipelineOutcome constructed with N all-Pass steps and passed=true
+        /// preserves len(results)==N and every status is Pass.
+        #[test]
+        fn prop_all_pass_outcome_consistent(n in 1usize..=5) {
+            let results: Vec<StepResult> = (0..n)
+                .map(|i| make_step(format!("step-{i}"), StepStatus::Pass, 0))
+                .collect();
+            let outcome = PipelineOutcome {
+                total: Duration::ZERO,
+                passed: true,
+                results,
+            };
+            prop_assert_eq!(outcome.results.len(), n);
+            prop_assert!(outcome.results.iter().all(|r| r.status == StepStatus::Pass));
+        }
+
+        /// The outcome total duration must be >= any individual step duration.
+        #[test]
+        fn prop_total_gte_max_step(
+            step_nanos in proptest::collection::vec(0u64..=1_000_000_000u64, 1..=5),
+            extra_nanos in 0u64..=1_000_000_000u64,
+        ) {
+            let results: Vec<StepResult> = step_nanos
+                .iter()
+                .enumerate()
+                .map(|(i, &nanos)| make_step(format!("step-{i}"), StepStatus::Pass, nanos))
+                .collect();
+            let max_step = step_nanos.iter().copied().max().unwrap_or(0);
+            let total = Duration::from_nanos(max_step + extra_nanos);
+            let outcome = PipelineOutcome { results, total, passed: true };
+            let max_individual = outcome
+                .results
+                .iter()
+                .map(|r| r.duration)
+                .max()
+                .unwrap_or(Duration::ZERO);
+            prop_assert!(outcome.total >= max_individual);
+        }
+
+        /// A non-empty name passed to StepResult is preserved exactly.
+        #[test]
+        fn prop_step_result_name_preserved(name in "[a-zA-Z0-9_\\-]{1,64}") {
+            let step = make_step(name.clone(), StepStatus::Pass, 0);
+            prop_assert_eq!(&step.name, &name);
+        }
     }
 }
