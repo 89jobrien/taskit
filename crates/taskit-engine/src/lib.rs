@@ -5,7 +5,9 @@ pub mod check_deps;
 pub mod check_freshness;
 pub mod ci;
 pub mod clean;
+pub mod command;
 pub mod config;
+pub mod ctx;
 pub mod dev_setup;
 pub mod discovery;
 pub mod flow;
@@ -20,12 +22,14 @@ pub mod progress;
 pub mod protocol;
 pub mod publish;
 pub mod quick;
-pub mod runner;
 pub mod step;
 pub mod testing;
 pub mod update_claude;
 pub mod util;
 pub mod version;
+
+pub use command::Command;
+pub use ctx::Ctx;
 
 /// Resolved workspace root and parsed config.
 #[derive(Debug)]

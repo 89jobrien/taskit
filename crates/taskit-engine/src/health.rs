@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use taskit_types::error::TaskitError;
+use taskit_types::error::{TaskitError, TaskitResultExt};
 use xshell::{Shell, cmd};
+
+use crate::ctx::Ctx;
 
 const BASELINE_FILE: &str = ".health-baseline.json";
 
@@ -54,17 +56,15 @@ pub fn collect(sh: &Shell) -> Result<HealthBaseline, TaskitError> {
 pub fn load_baseline(workspace_root: &Path) -> Result<HealthBaseline, TaskitError> {
     let path = workspace_root.join(BASELINE_FILE);
     let content = std::fs::read_to_string(&path)
-        .map_err(|e| TaskitError::other(format!("no baseline found at {}: {e}", path.display())))?;
-    serde_json::from_str(&content)
-        .map_err(|e| TaskitError::other(format!("failed to parse health baseline: {e}")))
+        .err_context_with(|| format!("no baseline found at {}", path.display()))?;
+    serde_json::from_str(&content).err_context("failed to parse health baseline")
 }
 
 /// Write a baseline to `.health-baseline.json`.
 pub fn write_baseline(workspace_root: &Path, baseline: &HealthBaseline) -> Result<(), TaskitError> {
     let path = workspace_root.join(BASELINE_FILE);
     let json = serde_json::to_string_pretty(baseline).map_err(TaskitError::other)?;
-    std::fs::write(&path, format!("{json}\n"))
-        .map_err(|e| TaskitError::other(format!("failed to write health baseline: {e}")))
+    std::fs::write(&path, format!("{json}\n")).err_context("failed to write health baseline")
 }
 
 /// Compare current against a previous baseline and print a report.
@@ -72,8 +72,8 @@ pub fn write_baseline(workspace_root: &Path, baseline: &HealthBaseline) -> Resul
 pub fn check(current: &HealthBaseline, previous: &HealthBaseline) -> bool {
     let mut regressed = false;
 
-    eprintln!("Health Check (baseline: {})", previous.date);
-    eprintln!("{}", "-".repeat(50));
+    taskit_output::taskit_progress!("Health Check (baseline: {})", previous.date);
+    taskit_output::taskit_progress!("{}", "-".repeat(50));
 
     regressed |= print_metric(
         "Tests (total)",
@@ -113,32 +113,34 @@ pub fn check(current: &HealthBaseline, previous: &HealthBaseline) -> bool {
     );
 
     if !current.versions_consistent {
-        eprintln!(
-            "  Versions consistent:  no (was: {})",
+        taskit_output::taskit_err!(
+            "Versions consistent:  no (was: {})",
             previous.versions_consistent
         );
         regressed = true;
     } else {
-        eprintln!("  Versions consistent:  yes");
+        taskit_output::taskit_ok!("Versions consistent:  yes");
     }
 
-    eprintln!("{}", "-".repeat(50));
+    taskit_output::taskit_progress!("{}", "-".repeat(50));
     if regressed {
-        eprintln!("REGRESSION detected");
+        taskit_output::taskit_err!("REGRESSION detected");
     } else {
-        eprintln!("No regressions");
+        taskit_output::taskit_ok!("No regressions");
     }
 
     !regressed
 }
 
 /// Run the health subcommand.
-pub fn run(sh: &Shell, workspace_root: &Path, update: bool) -> Result<(), TaskitError> {
+pub fn run(ctx: &Ctx, update: bool) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    let workspace_root = ctx.root();
     let current = collect(sh)?;
 
     if update {
         write_baseline(workspace_root, &current)?;
-        eprintln!("Baseline written to {BASELINE_FILE}");
+        taskit_output::taskit_ok!("Baseline written to {BASELINE_FILE}");
         print_summary(&current);
         return Ok(());
     }
@@ -152,28 +154,33 @@ pub fn run(sh: &Shell, workspace_root: &Path, update: bool) -> Result<(), Taskit
             }
         }
         Err(_) => {
-            eprintln!("No existing baseline found. Current health:");
+            taskit_output::taskit_progress!("No existing baseline found. Current health:");
             print_summary(&current);
-            eprintln!("\nRun `taskit health --update` to create a baseline.");
+            taskit_output::taskit_progress!("Run `taskit health --update` to create a baseline.");
             Ok(())
         }
     }
 }
 
 fn print_summary(b: &HealthBaseline) {
-    eprintln!(
-        "  Tests:       {} total, {} passed, {} failed, {} skipped",
-        b.tests.total, b.tests.passed, b.tests.failed, b.tests.skipped
+    taskit_output::taskit_progress!(
+        "Tests:       {} total, {} passed, {} failed, {} skipped",
+        b.tests.total,
+        b.tests.passed,
+        b.tests.failed,
+        b.tests.skipped
     );
-    eprintln!(
-        "  Clippy:      {} warnings, {} errors",
-        b.clippy.warnings, b.clippy.errors
+    taskit_output::taskit_progress!(
+        "Clippy:      {} warnings, {} errors",
+        b.clippy.warnings,
+        b.clippy.errors
     );
-    eprintln!("  TODO/FIXME:  {}", b.todo_fixme);
-    eprintln!("  Crates:      {}", b.crates);
-    eprintln!(
-        "  Version:     {} (consistent: {})",
-        b.version, b.versions_consistent
+    taskit_output::taskit_progress!("TODO/FIXME:  {}", b.todo_fixme);
+    taskit_output::taskit_progress!("Crates:      {}", b.crates);
+    taskit_output::taskit_progress!(
+        "Version:     {} (consistent: {})",
+        b.version,
+        b.versions_consistent
     );
 }
 
@@ -210,7 +217,7 @@ fn collect_versions() -> Result<(usize, bool, String), TaskitError> {
     let metadata = cargo_metadata::MetadataCommand::new()
         .no_deps()
         .exec()
-        .map_err(|e| TaskitError::other(format!("cargo metadata failed: {e}")))?;
+        .err_context("cargo metadata failed")?;
 
     let packages: Vec<_> = metadata
         .packages
@@ -362,7 +369,7 @@ fn print_metric(name: &str, previous: usize, current: usize, direction: Directio
         Direction::Neutral => false,
     };
     let marker = if regressed { " REGRESSION" } else { "" };
-    eprintln!("  {name:<20} {previous:>5} -> {current:>5} {arrow}{marker}");
+    taskit_output::taskit_progress!("{name:<20} {previous:>5} -> {current:>5} {arrow}{marker}");
     regressed
 }
 

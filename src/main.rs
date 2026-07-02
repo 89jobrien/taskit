@@ -1,9 +1,7 @@
 use clap::{Parser, Subcommand};
-use std::{env, path::Path};
-use taskit_engine::{
-    audit, check_deps, check_freshness, ci, clean, dev_setup, flow, fmt, health, hooks, inspect,
-    lint, protocol, publish, quick, runner, testing, update_claude, version,
-};
+use std::env;
+use taskit_engine::command::{self, Command};
+use taskit_engine::ctx::Ctx;
 use taskit_types::config::DEFAULT_COVERAGE_THRESHOLD;
 use taskit_types::output_format::OutputFormat;
 use xshell::Shell;
@@ -207,10 +205,125 @@ enum FlowCmd {
     Guard,
 }
 
+/// Map a parsed CLI subcommand to its [`Command`] implementation.
+///
+/// This is the single dispatch seam: adding a subcommand means adding a
+/// `Command` impl in `taskit-engine` and one arm here. `Init` is handled
+/// before this point (it runs without a loaded config).
+fn to_command(cmd: Cmd) -> Box<dyn Command> {
+    use command::*;
+    match cmd {
+        Cmd::Fmt { check, affected } => Box::new(Fmt { check, affected }),
+        Cmd::Lint {
+            crate_name,
+            affected,
+            continue_on_error,
+        } => Box::new(Lint {
+            crate_name,
+            affected,
+            continue_on_error,
+        }),
+        Cmd::Test {
+            crate_name,
+            affected,
+            continue_on_error,
+            offline,
+        } => Box::new(Test {
+            crate_name,
+            affected,
+            continue_on_error,
+            offline,
+        }),
+        Cmd::Coverage {
+            crate_name,
+            threshold,
+        } => Box::new(Coverage {
+            crate_name,
+            threshold,
+        }),
+        Cmd::CheckProtocolDrift {
+            update,
+            warn_only,
+            hook,
+        } => Box::new(CheckProtocolDrift {
+            update,
+            warn_only,
+            hook,
+        }),
+        Cmd::CheckProtocolSites {
+            file,
+            pattern,
+            expected,
+            warn_only,
+        } => Box::new(CheckProtocolSites {
+            file,
+            pattern,
+            expected,
+            warn_only,
+        }),
+        Cmd::Quick => Box::new(Quick),
+        Cmd::Ci {
+            fail_fast,
+            include_network,
+        } => Box::new(Ci {
+            fail_fast,
+            include_network,
+        }),
+        Cmd::CompileTests => Box::new(CompileTests),
+        Cmd::CheckDeps => Box::new(CheckDeps),
+        Cmd::CheckFreshness => Box::new(CheckFreshness),
+        Cmd::PreCommit => Box::new(PreCommit),
+        Cmd::PrePush => Box::new(PrePush),
+        Cmd::InstallHooks => Box::new(InstallHooks),
+        Cmd::Audit => Box::new(Audit),
+        Cmd::Clean { older_than } => Box::new(Clean { older_than }),
+        Cmd::Version => Box::new(Version),
+        Cmd::DevSetup => Box::new(DevSetup),
+        Cmd::SelfCheck => Box::new(SelfCheck),
+        Cmd::SelfTest => Box::new(SelfTest),
+        Cmd::UpdateClaudeVersion { version } => Box::new(UpdateClaudeVersion { version }),
+        Cmd::Proptest { crate_name } => Box::new(Proptest { crate_name }),
+        Cmd::Fuzz { target, duration } => Box::new(Fuzz { target, duration }),
+        Cmd::Bench {
+            crate_name,
+            save_baseline,
+        } => Box::new(Bench {
+            crate_name,
+            save_baseline,
+        }),
+        Cmd::TestReport => Box::new(TestReport),
+        Cmd::SnapshotReview => Box::new(SnapshotReview),
+        Cmd::Health { update } => Box::new(Health { update }),
+        Cmd::Inspect {
+            max_warnings,
+            max_todo,
+        } => Box::new(Inspect {
+            max_warnings,
+            max_todo,
+        }),
+        Cmd::Publish {
+            skip_docs,
+            allow_dirty,
+        } => Box::new(Publish {
+            skip_docs,
+            allow_dirty,
+        }),
+        Cmd::Flow { sub } => Box::new(Flow {
+            action: match sub {
+                FlowCmd::Status => FlowAction::Status,
+                FlowCmd::Promote => FlowAction::Promote,
+                FlowCmd::Finish => FlowAction::Finish,
+                FlowCmd::Guard => FlowAction::Guard,
+            },
+        }),
+        Cmd::Init { .. } => unreachable!("Init is handled before dispatch"),
+    }
+}
+
 fn main() -> miette::Result<()> {
     let cli = Cli::parse();
 
-    // Init runs before config loading (taskit.toml may not exist yet)
+    // Init runs before config loading (taskit.toml may not exist yet).
     if let Cmd::Init { force, interactive } = cli.cmd {
         return taskit_init::run(force, interactive, cli.dry_run).map_err(Into::into);
     }
@@ -220,116 +333,19 @@ fn main() -> miette::Result<()> {
     env::set_current_dir(&workspace_root)
         .map_err(taskit_types::error::TaskitError::from)
         .map_err(miette::Report::from)?;
-    let config = workspace.config;
-    let ws = &config.workspace;
-    let proto = config.protocol.as_ref();
+
     let sh = Shell::new()
         .map_err(taskit_types::error::TaskitError::other)
         .map_err(miette::Report::from)?;
+    taskit_output::set_sink(Box::new(taskit_output::StderrSink));
 
-    runner::set_dry_run(cli.dry_run);
-    let result: Result<(), taskit_types::error::TaskitError> = match cli.cmd {
-        Cmd::Fmt { check, affected } => fmt::run(&sh, ws, check, affected),
-        Cmd::Lint {
-            crate_name,
-            affected,
-            continue_on_error,
-        } => lint::run(&sh, ws, crate_name.as_deref(), affected, continue_on_error),
-        Cmd::Test {
-            crate_name,
-            affected,
-            continue_on_error,
-            offline,
-        } => testing::run::run(
-            &sh,
-            ws,
-            crate_name.as_deref(),
-            affected,
-            continue_on_error,
-            offline,
-        ),
-        Cmd::Coverage {
-            crate_name,
-            threshold,
-        } => {
-            let pkg = crate_name
-                .as_deref()
-                .or(config.coverage.as_ref().map(|c| c.crate_name.as_str()));
-            match pkg {
-                Some(name) => testing::coverage::run(&sh, name, threshold),
-                None => return Err(taskit_types::error::TaskitError::other(
-                    "no crate specified: use --crate-name or set [coverage].crate_name in taskit.toml"
-                ).into()),
-            }
-        }
-        Cmd::CheckProtocolDrift {
-            update,
-            warn_only,
-            hook,
-        } => {
-            let root = env::current_dir().map_err(taskit_types::error::TaskitError::from)?;
-            protocol::drift::run(&root, proto, update, warn_only, hook)
-        }
-        Cmd::CheckProtocolSites {
-            file,
-            pattern,
-            expected,
-            warn_only,
-        } => protocol::sites::run(Path::new(&file), &pattern, expected, warn_only),
-        Cmd::Quick => quick::run(&sh, ws),
-        Cmd::Ci {
-            fail_fast,
-            include_network,
-        } => ci::run(
-            &sh,
-            ws,
-            proto,
-            config.ci.as_ref(),
-            config.coverage.as_ref(),
-            fail_fast,
-            include_network,
-            cli.output,
-        ),
-        Cmd::CompileTests => testing::compile::run(&sh),
-        Cmd::CheckDeps => check_deps::run(&sh),
-        Cmd::CheckFreshness => check_freshness::run(&sh, proto),
-        Cmd::PreCommit => hooks::pre_commit(&sh),
-        Cmd::PrePush => hooks::pre_push(&sh, ws, proto, config.coverage.as_ref()),
-        Cmd::InstallHooks => hooks::install_hooks(),
-        Cmd::Audit => audit::run(&sh),
-        Cmd::Clean { older_than } => clean::run(&sh, older_than.as_deref()),
-        Cmd::Version => version::run(&sh, ws),
-        Cmd::DevSetup => dev_setup::setup(&sh),
-        Cmd::SelfCheck => dev_setup::self_check(),
-        Cmd::SelfTest => testing::self_test::run(&sh),
-        Cmd::UpdateClaudeVersion { version: ver } => update_claude::run(&sh, &ver),
-        Cmd::Proptest { crate_name } => testing::proptest::run(&sh, &crate_name),
-        Cmd::Fuzz { target, duration } => testing::fuzz::run(&sh, &target, duration),
-        Cmd::Bench {
-            crate_name,
-            save_baseline,
-        } => testing::bench::run(&sh, crate_name.as_deref(), save_baseline),
-        Cmd::TestReport => testing::report::run(&sh),
-        Cmd::SnapshotReview => testing::snapshot::run(&sh),
-        Cmd::Health { update } => health::run(&sh, &workspace_root, update),
-        Cmd::Inspect {
-            max_warnings,
-            max_todo,
-        } => inspect::run(&sh, max_warnings, max_todo, cli.output),
-        Cmd::Publish {
-            skip_docs,
-            allow_dirty,
-        } => publish::run(&sh, skip_docs, allow_dirty, cli.output),
-        Cmd::Flow { sub } => {
-            let flow_cfg = config.flow.as_ref().cloned().unwrap_or_default();
-            match sub {
-                FlowCmd::Status => flow::status(&sh, &flow_cfg),
-                FlowCmd::Promote => flow::promote(&sh, &flow_cfg),
-                FlowCmd::Finish => flow::finish(&sh, &flow_cfg),
-                FlowCmd::Guard => flow::guard(&sh, &flow_cfg),
-            }
-        }
-        Cmd::Init { .. } => unreachable!("handled above"),
-    };
-    result.map_err(Into::into)
+    let ctx = Ctx::new(
+        sh,
+        workspace_root,
+        workspace.config,
+        cli.dry_run,
+        cli.output,
+    );
+    let command = to_command(cli.cmd);
+    command.run(&ctx).map_err(Into::into)
 }

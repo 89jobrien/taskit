@@ -180,6 +180,25 @@ pub struct StepError {
     pub detail: Option<String>,
 }
 
+/// Ergonomic error-context mapping for Result types.
+///
+/// Replaces `.map_err(|e| TaskitError::other(format!("msg: {e}")))`
+/// with `.err_context("msg")?`.
+pub trait TaskitResultExt<T> {
+    fn err_context(self, msg: &str) -> Result<T, TaskitError>;
+    fn err_context_with<F: FnOnce() -> String>(self, f: F) -> Result<T, TaskitError>;
+}
+
+impl<T, E: std::fmt::Display> TaskitResultExt<T> for Result<T, E> {
+    fn err_context(self, msg: &str) -> Result<T, TaskitError> {
+        self.map_err(|e| TaskitError::other(format!("{msg}: {e}")))
+    }
+
+    fn err_context_with<F: FnOnce() -> String>(self, f: F) -> Result<T, TaskitError> {
+        self.map_err(|e| TaskitError::other(format!("{}: {e}", f())))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -314,5 +333,40 @@ mod tests {
             hint: "add [workspace] section".into(),
         };
         assert!(err.to_string().contains("missing workspace"));
+    }
+
+    #[test]
+    fn result_ext_ok_passthrough() {
+        let r: Result<i32, std::io::Error> = Ok(42);
+        assert_eq!(r.err_context("should not matter").unwrap(), 42);
+    }
+
+    #[test]
+    fn result_ext_err_wraps_message() {
+        let r: Result<(), std::io::Error> =
+            Err(std::io::Error::new(std::io::ErrorKind::NotFound, "gone"));
+        let err = r.err_context("reading file").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("reading file"), "got: {msg}");
+        assert!(msg.contains("gone"), "got: {msg}");
+    }
+
+    #[test]
+    fn result_ext_lazy_not_called_on_ok() {
+        use std::cell::Cell;
+        let called = Cell::new(false);
+        let r: Result<i32, std::io::Error> = Ok(1);
+        let _ = r.err_context_with(|| {
+            called.set(true);
+            "lazy".into()
+        });
+        assert!(!called.get());
+    }
+
+    #[test]
+    fn result_ext_lazy_called_on_err() {
+        let r: Result<(), String> = Err("bad".into());
+        let err = r.err_context_with(|| "lazy context".into()).unwrap_err();
+        assert!(err.to_string().contains("lazy context"));
     }
 }

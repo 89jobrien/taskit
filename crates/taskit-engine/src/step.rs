@@ -16,10 +16,6 @@ pub use taskit_types::step::{PipelineOutcome, StepResult, StepStatus};
 /// them to the `StepResult`.
 pub type DiagnosticSink = Rc<RefCell<Vec<DiagnosticRecord>>>;
 
-const COL_NAME: usize = 30;
-const COL_STATUS: usize = 10;
-const SEPARATOR_WIDTH: usize = 55;
-
 struct PipelineStep<'a> {
     name: String,
     is_gate: bool,
@@ -91,7 +87,7 @@ impl<'a> Pipeline<'a> {
         for ps in self.steps {
             let should_skip = gate_failed || (self.fail_fast && any_failed);
             if should_skip {
-                eprintln!("  - {} (skipped)", ps.name);
+                taskit_output::taskit_skip!("{} (skipped)", ps.name);
                 results.push(StepResult {
                     name: ps.name,
                     status: StepStatus::Skipped,
@@ -115,7 +111,7 @@ impl<'a> Pipeline<'a> {
                 Err(e) => {
                     sp.finish_err();
                     let msg = e.to_string();
-                    eprintln!("  error: {msg}");
+                    taskit_output::taskit_err!("{msg}");
                     any_failed = true;
                     if ps.is_gate {
                         gate_failed = true;
@@ -143,27 +139,6 @@ impl<'a> Pipeline<'a> {
             results,
         }
     }
-}
-
-pub fn print_summary(outcome: &PipelineOutcome) {
-    eprintln!();
-    eprintln!("{:<COL_NAME$} {:<COL_STATUS$} Duration", "Step", "Status");
-    eprintln!("{}", "-".repeat(SEPARATOR_WIDTH));
-    for s in &outcome.results {
-        eprintln!(
-            "{:<COL_NAME$} {:<COL_STATUS$} {:.1}s",
-            s.name,
-            s.status,
-            s.duration.as_secs_f64()
-        );
-    }
-    eprintln!("{}", "-".repeat(SEPARATOR_WIDTH));
-    eprintln!(
-        "{:<COL_NAME$} {:<COL_STATUS$} {:.1}s",
-        "Total",
-        "",
-        outcome.total.as_secs_f64()
-    );
 }
 
 #[cfg(test)]

@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, fs, path::Path};
 use taskit_types::error::TaskitError;
-use xshell::{Shell, cmd};
+use xshell::cmd;
 
-use crate::runner::xrun;
+use crate::ctx::Ctx;
 
 const CACHE_FILE: &str = ".taskit-cache/self-test.json";
 const TASKIT_SRC: &str = "src";
@@ -16,23 +16,24 @@ struct SelfTestCache {
     source_hash: String,
 }
 
-pub fn run(sh: &Shell) -> Result<(), TaskitError> {
+pub fn run(ctx: &Ctx) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
     let current_hash = compute_source_hash()?;
     let cached = load_cache();
 
     if !cached.source_hash.is_empty() && cached.source_hash == current_hash {
-        eprintln!("taskit self-tests up to date (source unchanged). Skipping.");
+        taskit_output::taskit_skip!("taskit self-tests up to date (source unchanged).");
         return Ok(());
     }
 
-    eprintln!("Running taskit self-tests...");
-    xrun(cmd!(sh, "cargo test --locked -p taskit"))?;
+    taskit_output::taskit_progress!("Running taskit self-tests...");
+    ctx.run(cmd!(sh, "cargo test --locked -p taskit"))?;
 
     save_cache(&SelfTestCache {
         source_hash: current_hash,
     })?;
     crate::cache::update()?;
-    eprintln!("taskit self-tests passed. Cache updated.");
+    taskit_output::taskit_ok!("taskit self-tests passed. Cache updated.");
     Ok(())
 }
 

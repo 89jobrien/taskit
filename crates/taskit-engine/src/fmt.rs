@@ -1,34 +1,31 @@
 use taskit_types::error::TaskitError;
-use xshell::{Shell, cmd};
+use xshell::cmd;
 
-use crate::{config::WorkspaceConfig, runner::xrun};
+use crate::ctx::Ctx;
 
-pub fn run(
-    sh: &Shell,
-    ws: &WorkspaceConfig,
-    check: bool,
-    affected: bool,
-) -> Result<(), TaskitError> {
+pub fn run(ctx: &Ctx, check: bool, affected: bool) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    let ws = ctx.ws();
     if affected {
         let crates = crate::affected::detect(sh, ws)?;
         if crates.is_empty() {
-            eprintln!("No affected crates detected, skipping.");
+            taskit_output::taskit_skip!("No affected crates detected, skipping.");
             return Ok(());
         }
         for crate_dir in &crates {
             let pkg = crate::affected::pkg_name(crate_dir, ws);
             if check {
-                xrun(cmd!(sh, "cargo fmt -p {pkg} -- --check"))?;
+                ctx.run(cmd!(sh, "cargo fmt -p {pkg} -- --check"))?;
             } else {
-                xrun(cmd!(sh, "cargo fmt -p {pkg}"))?;
+                ctx.run(cmd!(sh, "cargo fmt -p {pkg}"))?;
             }
         }
         return Ok(());
     }
     if check {
-        xrun(cmd!(sh, "cargo fmt --all -- --check"))?;
+        ctx.run(cmd!(sh, "cargo fmt --all -- --check"))?;
     } else {
-        xrun(cmd!(sh, "cargo fmt --all"))?;
+        ctx.run(cmd!(sh, "cargo fmt --all"))?;
     }
     Ok(())
 }

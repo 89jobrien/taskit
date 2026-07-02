@@ -6,11 +6,12 @@ license.workspace = true
 description = "Config and Cruxfile generator for taskit"
 
 [dependencies]
-taskit-core.workspace = true
 taskit-types.workspace = true
 cargo_metadata.workspace = true
 dialoguer = "0.11"
 
 [dev-dependencies]
+taskit-macros.workspace = true
+taskit-testing.workspace = true
 tempfile = "3"
 toml = "0.8"

@@ -1,12 +1,13 @@
 use taskit_types::error::TaskitError;
-use xshell::{Shell, cmd};
+use xshell::cmd;
 
-use crate::runner::is_dry_run;
+use crate::ctx::Ctx;
 
-pub fn run(sh: &Shell, pkg: &str, threshold: f64) -> Result<(), TaskitError> {
-    eprintln!("Running coverage for {pkg} (threshold: {threshold}%)...");
-    if is_dry_run() {
-        eprintln!("dry-run: cargo llvm-cov --locked -p {pkg} --lib --json");
+pub fn run(ctx: &Ctx, pkg: &str, threshold: f64) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    taskit_output::taskit_progress!("Running coverage for {pkg} (threshold: {threshold}%)...");
+    if ctx.dry_run {
+        taskit_output::taskit_dry!("cargo llvm-cov --locked -p {pkg} --lib --json");
         return Ok(());
     }
     let json = cmd!(sh, "cargo llvm-cov --locked -p {pkg} --lib --json")
@@ -16,13 +17,13 @@ pub fn run(sh: &Shell, pkg: &str, threshold: f64) -> Result<(), TaskitError> {
     let pct = parse_line_coverage(&json)
         .ok_or_else(|| TaskitError::other("failed to parse cargo llvm-cov --json output"))?;
 
-    eprintln!("Coverage: {pct:.1}%");
+    taskit_output::taskit_progress!("Coverage: {pct:.1}%");
     if pct < threshold {
         return Err(TaskitError::other(format!(
             "Coverage {pct:.1}% is below threshold {threshold}%"
         )));
     }
-    eprintln!("Coverage {pct:.1}% >= {threshold}% threshold — OK");
+    taskit_output::taskit_ok!("Coverage {pct:.1}% >= {threshold}% threshold — OK");
     Ok(())
 }
 

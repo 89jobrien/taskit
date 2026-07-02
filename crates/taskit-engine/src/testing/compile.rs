@@ -6,9 +6,9 @@ use std::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use taskit_types::error::TaskitError;
-use xshell::{Shell, cmd};
+use xshell::cmd;
 
-use crate::runner::{is_dry_run, xrun};
+use crate::ctx::Ctx;
 
 const CACHE_DIR: &str = ".taskit-cache";
 const CACHE_FILE: &str = ".taskit-cache/compile-cache.json";
@@ -37,20 +37,21 @@ struct CrateEntry {
 
 /// Compile all test binaries, skipping crates whose sources are unchanged.
 /// Recompiles only the crates where the module-level hash tree drifted.
-pub fn run(sh: &Shell) -> Result<(), TaskitError> {
+pub fn run(ctx: &Ctx) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
     let current = snapshot(Path::new("."))?;
     let cached = load_cache();
     let changed = stale_crates(&current, &cached);
 
     if changed.is_empty() {
-        eprintln!(
-            "compile-tests: all {} crates up to date, skipping",
+        taskit_output::taskit_skip!(
+            "compile-tests: all {} crates up to date",
             current.crates.len()
         );
         return Ok(());
     }
 
-    eprintln!(
+    taskit_output::taskit_progress!(
         "compile-tests: recompiling {}/{} crates: {}",
         changed.len(),
         current.crates.len(),
@@ -58,10 +59,10 @@ pub fn run(sh: &Shell) -> Result<(), TaskitError> {
     );
 
     for name in &changed {
-        xrun(cmd!(sh, "cargo nextest run --locked -p {name} --no-run"))?;
+        ctx.run(cmd!(sh, "cargo nextest run --locked -p {name} --no-run"))?;
     }
 
-    if !is_dry_run() {
+    if !ctx.dry_run {
         // Merge: keep unchanged entries from old cache, replace changed ones.
         let mut merged = CompileCache {
             cargo_lock_hash: current.cargo_lock_hash.clone(),
@@ -165,7 +166,7 @@ fn collect_crate_roots(dir: &Path, out: &mut Vec<(String, PathBuf)>) -> Result<(
         let name = name.to_string_lossy();
         if matches!(
             name.as_ref(),
-            "target" | ".git" | "node_modules" | ".taskit-cache"
+            "target" | ".git" | "node_modules" | ".taskit-cache" | "fuzz"
         ) {
             continue;
         }
@@ -762,6 +763,23 @@ mod tests {
         assert!(
             !names.contains(&"phantom"),
             ".taskit-cache must be excluded from crate roots"
+        );
+    }
+
+    #[test]
+    fn regression_fuzz_dir_excluded_from_crate_roots() {
+        // The cargo-fuzz `fuzz/` crate is excluded from the workspace, so
+        // compile-tests must not try to `cargo nextest -p taskit-fuzz` it.
+        let ws = TempWorkspace::new();
+        ws.write_crate("real-crate", "real");
+        ws.write("fuzz/Cargo.toml", "[package]\nname = \"taskit-fuzz\"\n");
+
+        let mut roots = Vec::new();
+        collect_crate_roots(&ws.root, &mut roots).unwrap();
+        let names: Vec<_> = roots.iter().map(|(n, _)| n.as_str()).collect();
+        assert!(
+            !names.contains(&"taskit-fuzz"),
+            "fuzz/ must be excluded from crate roots"
         );
     }
 

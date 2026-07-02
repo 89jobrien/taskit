@@ -824,10 +824,9 @@ version = "0.6.0"
 dependencies = [
  "clap",
  "miette",
- "taskit-core",
- "taskit-crux",
  "taskit-engine",
  "taskit-init",
+ "taskit-output",
  "taskit-types",
  "xshell",
 ]
@@ -844,6 +843,7 @@ name = "taskit-crux"
 version = "0.6.0"
 dependencies = [
  "taskit-core",
+ "taskit-testing",
  "taskit-types",
 ]
 
@@ -852,7 +852,6 @@ name = "taskit-engine"
 version = "0.6.0"
 dependencies = [
  "cargo_metadata",
- "clap",
  "hex",
  "indicatif",
  "miette",
@@ -861,6 +860,9 @@ dependencies = [
  "serde_json",
  "sha2",
  "taskit-core",
+ "taskit-macros",
+ "taskit-output",
+ "taskit-testing",
  "taskit-types",
  "tempfile",
  "toml",
@@ -873,10 +875,44 @@ version = "0.6.0"
 dependencies = [
  "cargo_metadata",
  "dialoguer",
- "taskit-core",
+ "taskit-macros",
+ "taskit-testing",
  "taskit-types",
  "tempfile",
  "toml",
+]
+
+[[package]]
+name = "taskit-macros"
+version = "0.6.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+ "taskit-testing",
+ "taskit-types",
+ "tempfile",
+]
+
+[[package]]
+name = "taskit-output"
+version = "0.6.0"
+dependencies = [
+ "miette",
+ "proptest",
+ "serde",
+ "serde_json",
+ "taskit-testing",
+ "taskit-types",
+]
+
+[[package]]
+name = "taskit-testing"
+version = "0.6.0"
+dependencies = [
+ "proptest",
+ "taskit-types",
+ "tempfile",
 ]
 
 [[package]]

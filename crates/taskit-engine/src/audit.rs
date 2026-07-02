@@ -1,10 +1,11 @@
 use taskit_types::error::TaskitError;
-use xshell::{Shell, cmd};
+use xshell::cmd;
 
-use crate::runner::xrun;
+use crate::ctx::Ctx;
 
-pub fn run(sh: &Shell) -> Result<(), TaskitError> {
-    eprintln!("Running cargo-deny...");
-    xrun(cmd!(sh, "cargo deny check"))?;
+pub fn run(ctx: &Ctx) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    taskit_output::taskit_progress!("Running cargo-deny...");
+    ctx.run(cmd!(sh, "cargo deny check"))?;
     Ok(())
 }

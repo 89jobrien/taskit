@@ -1,8 +1,8 @@
 use taskit_types::error::TaskitError;
 use xshell::Shell;
 
+use crate::ctx::Ctx;
 use crate::health::{self, HealthBaseline};
-use crate::output::OutputFormat;
 use crate::step::{Pipeline, PipelineOutcome};
 
 #[derive(Debug, Clone, Default)]
@@ -73,19 +73,15 @@ fn threshold_check(name: &str, value: usize, limit: usize) -> Result<(), TaskitE
     }
 }
 
-pub fn run(
-    sh: &Shell,
-    max_warnings: usize,
-    max_todo: Option<usize>,
-    fmt: OutputFormat,
-) -> Result<(), TaskitError> {
+pub fn run(ctx: &Ctx, max_warnings: usize, max_todo: Option<usize>) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
     let thresholds = Thresholds {
         max_clippy_warnings: max_warnings,
         max_todo_fixme: max_todo,
         ..Default::default()
     };
     let outcome = run_pipeline(sh, &thresholds)?;
-    Ok(crate::output::write_output(fmt, &outcome)?)
+    Ok(crate::output::write_output(ctx.output, &outcome)?)
 }
 
 #[cfg(test)]
@@ -93,6 +89,7 @@ mod tests {
     use super::*;
     use crate::health::{ClippyCounts, HealthBaseline, TestCounts};
     use crate::step::StepStatus;
+    use taskit_types::output_format::OutputFormat;
 
     fn baseline(
         failed: usize,

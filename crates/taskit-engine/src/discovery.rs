@@ -1,6 +1,6 @@
 use cargo_metadata::MetadataCommand;
 use std::path::{Path, PathBuf};
-use taskit_types::error::TaskitError;
+use taskit_types::error::{TaskitError, TaskitResultExt};
 
 use crate::config::PropagationEntry;
 
@@ -146,7 +146,7 @@ impl MetadataSource for CargoMetadataSource {
             .current_dir(&self.workspace_root)
             .no_deps()
             .exec()
-            .map_err(|e| TaskitError::other(format!("failed to run `cargo metadata`: {e}")))?;
+            .err_context("failed to run `cargo metadata`")?;
 
         let ws_root = metadata.workspace_root.as_std_path();
         let mut crates = Vec::new();
@@ -182,7 +182,7 @@ impl MetadataSource for CargoMetadataSource {
         let metadata = MetadataCommand::new()
             .current_dir(&self.workspace_root)
             .exec()
-            .map_err(|e| TaskitError::other(format!("failed to run `cargo metadata`: {e}")))?;
+            .err_context("failed to run `cargo metadata`")?;
 
         let member_names: std::collections::HashSet<String> = metadata
             .workspace_members

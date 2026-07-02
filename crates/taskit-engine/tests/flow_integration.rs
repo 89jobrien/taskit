@@ -1,14 +1,16 @@
+use taskit_engine::ctx::Ctx;
 use taskit_engine::flow;
-use taskit_types::config::FlowConfig;
+use taskit_types::config::{Config, FlowConfig};
 use taskit_types::error::{FlowError, TaskitError};
+use taskit_types::output_format::OutputFormat;
 use xshell::{Shell, cmd};
 
 /// Set up a temporary git repo with `main`, `staging`, and `release` branches.
 ///
-/// Returns `(TempDir, Shell, FlowConfig)`. The shell's working directory is set
-/// to the tempdir root. The caller must keep the `TempDir` alive for the duration
-/// of the test.
-fn setup_flow_repo() -> (tempfile::TempDir, Shell, FlowConfig) {
+/// Returns `(TempDir, Ctx, FlowConfig)`. The context's shell working directory
+/// is set to the tempdir root. The caller must keep the `TempDir` alive for the
+/// duration of the test.
+fn setup_flow_repo() -> (tempfile::TempDir, Ctx, FlowConfig) {
     let dir = tempfile::tempdir().expect("tempdir");
     let sh = Shell::new().expect("shell");
     sh.change_dir(dir.path());
@@ -37,7 +39,14 @@ fn setup_flow_repo() -> (tempfile::TempDir, Shell, FlowConfig) {
         .expect("branch release");
 
     let flow = FlowConfig::default();
-    (dir, sh, flow)
+    let ctx = Ctx::new(
+        sh,
+        dir.path().to_path_buf(),
+        Config::default(),
+        false,
+        OutputFormat::Human,
+    );
+    (dir, ctx, flow)
 }
 
 /// Helper: write a file, stage it, and commit with a message.
@@ -60,16 +69,16 @@ fn branch_sha(sh: &Shell, branch: &str) -> String {
 
 #[test]
 fn flow_status_shows_all_branches() {
-    let (_dir, sh, flow) = setup_flow_repo();
-    let result = flow::status(&sh, &flow);
+    let (_dir, ctx, flow) = setup_flow_repo();
+    let result = flow::status(&ctx, &flow);
     assert!(result.is_ok(), "flow::status failed: {result:?}");
 }
 
 #[test]
 fn flow_guard_blocks_on_main() {
-    let (_dir, sh, flow) = setup_flow_repo();
+    let (_dir, ctx, flow) = setup_flow_repo();
     // We start on main after setup.
-    let result = flow::guard(&sh, &flow);
+    let result = flow::guard(&ctx, &flow);
     match result {
         Err(TaskitError::Flow(FlowError::ProtectedBranch { branch, .. })) => {
             assert_eq!(branch, "main");
@@ -80,11 +89,11 @@ fn flow_guard_blocks_on_main() {
 
 #[test]
 fn flow_guard_allows_staging() {
-    let (_dir, sh, flow) = setup_flow_repo();
-    cmd!(sh, "git checkout staging")
+    let (_dir, ctx, flow) = setup_flow_repo();
+    cmd!(ctx.sh, "git checkout staging")
         .run()
         .expect("checkout staging");
-    let result = flow::guard(&sh, &flow);
+    let result = flow::guard(&ctx, &flow);
     assert!(
         result.is_ok(),
         "flow::guard should allow staging: {result:?}"
@@ -93,27 +102,32 @@ fn flow_guard_allows_staging() {
 
 #[test]
 fn flow_promote_merges_staging_to_release() {
-    let (_dir, sh, flow) = setup_flow_repo();
+    let (_dir, ctx, flow) = setup_flow_repo();
 
     // Add a commit on staging.
-    cmd!(sh, "git checkout staging")
+    cmd!(ctx.sh, "git checkout staging")
         .run()
         .expect("checkout staging");
-    commit_file(&sh, "feature.txt", "feature content\n", "feat: add feature");
+    commit_file(
+        &ctx.sh,
+        "feature.txt",
+        "feature content\n",
+        "feat: add feature",
+    );
 
-    let staging_sha = branch_sha(&sh, "staging");
+    let staging_sha = branch_sha(&ctx.sh, "staging");
 
-    flow::promote(&sh, &flow).expect("flow::promote");
+    flow::promote(&ctx, &flow).expect("flow::promote");
 
     // After promote we should be back on staging; verify release has the commit.
-    let release_sha = branch_sha(&sh, "release");
+    let release_sha = branch_sha(&ctx.sh, "release");
     assert_ne!(
         staging_sha, release_sha,
         "release should have advanced past its original tip"
     );
 
     // The staging commit must be reachable from release.
-    let reachable = cmd!(sh, "git merge-base --is-ancestor {staging_sha} release")
+    let reachable = cmd!(ctx.sh, "git merge-base --is-ancestor {staging_sha} release")
         .run()
         .is_ok();
     assert!(reachable, "staging commit not reachable from release");
@@ -121,9 +135,9 @@ fn flow_promote_merges_staging_to_release() {
 
 #[test]
 fn flow_promote_fails_on_wrong_branch() {
-    let (_dir, sh, flow) = setup_flow_repo();
+    let (_dir, ctx, flow) = setup_flow_repo();
     // We are on main — promote requires staging.
-    let result = flow::promote(&sh, &flow);
+    let result = flow::promote(&ctx, &flow);
     match result {
         Err(TaskitError::Flow(FlowError::WrongBranch { expected, actual })) => {
             assert_eq!(expected, "staging");
@@ -135,27 +149,27 @@ fn flow_promote_fails_on_wrong_branch() {
 
 #[test]
 fn flow_finish_merges_release_to_main_and_syncs_staging() {
-    let (_dir, sh, flow) = setup_flow_repo();
+    let (_dir, ctx, flow) = setup_flow_repo();
 
     // Add a commit directly on release.
-    cmd!(sh, "git checkout release")
+    cmd!(ctx.sh, "git checkout release")
         .run()
         .expect("checkout release");
-    commit_file(&sh, "hotfix.txt", "hotfix content\n", "fix: hotfix");
+    commit_file(&ctx.sh, "hotfix.txt", "hotfix content\n", "fix: hotfix");
 
-    let release_sha = branch_sha(&sh, "release");
+    let release_sha = branch_sha(&ctx.sh, "release");
 
-    flow::finish(&sh, &flow).expect("flow::finish");
+    flow::finish(&ctx, &flow).expect("flow::finish");
 
     // After finish we are on staging. Verify main contains the release commit.
-    let main_reachable = cmd!(sh, "git merge-base --is-ancestor {release_sha} main")
+    let main_reachable = cmd!(ctx.sh, "git merge-base --is-ancestor {release_sha} main")
         .run()
         .is_ok();
     assert!(main_reachable, "release commit not reachable from main");
 
     // Verify staging was synced (main commit reachable from staging).
-    let main_sha = branch_sha(&sh, "main");
-    let staging_reachable = cmd!(sh, "git merge-base --is-ancestor {main_sha} staging")
+    let main_sha = branch_sha(&ctx.sh, "main");
+    let staging_reachable = cmd!(ctx.sh, "git merge-base --is-ancestor {main_sha} staging")
         .run()
         .is_ok();
     assert!(

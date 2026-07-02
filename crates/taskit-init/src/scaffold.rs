@@ -127,7 +127,7 @@ pub fn write_git_hooks(force: bool, dry_run: bool) -> Result<(), TaskitError> {
 #!/bin/sh
 # Delegate to taskit pre-commit checks.
 # Install: git config core.hooksPath .githooks
-exec cargo xtask pre-commit
+exec taskit pre-commit
 ",
         dry_run,
     )?;
@@ -142,7 +142,7 @@ exec cargo xtask pre-commit
 #!/bin/sh
 # Delegate to taskit pre-push checks.
 # Install: git config core.hooksPath .githooks
-exec cargo xtask pre-push
+exec taskit pre-push
 ",
         dry_run,
     )?;
@@ -216,7 +216,7 @@ jobs:
         run: cargo install taskit || cargo install --path .
 
       - name: Run CI pipeline
-        run: cargo xtask ci --fail-fast
+        run: taskit ci --fail-fast
 ",
         dry_run,
     )?;
@@ -407,7 +407,7 @@ All configuration lives in `taskit.toml` at the workspace root.
 Run the full pipeline:
 
 ```sh
-cargo xtask ci
+taskit ci
 ```
 
 ## Steps
@@ -543,7 +543,7 @@ mod tests {
 
         write_github_ci(false, false).unwrap();
         let content = std::fs::read_to_string(dir.path().join(".github/workflows/ci.yml")).unwrap();
-        assert!(content.contains("cargo xtask ci"));
+        assert!(content.contains("taskit ci"));
         assert!(content.contains("dtolnay/rust-toolchain"));
 
         std::env::set_current_dir(prev).unwrap();
@@ -620,9 +620,9 @@ mod tests {
 
         write_git_hooks(false, false).unwrap();
         let pre_commit = std::fs::read_to_string(dir.path().join(".githooks/pre-commit")).unwrap();
-        assert!(pre_commit.contains("cargo xtask pre-commit"));
+        assert!(pre_commit.contains("taskit pre-commit"));
         let pre_push = std::fs::read_to_string(dir.path().join(".githooks/pre-push")).unwrap();
-        assert!(pre_push.contains("cargo xtask pre-push"));
+        assert!(pre_push.contains("taskit pre-push"));
 
         std::env::set_current_dir(prev).unwrap();
     }

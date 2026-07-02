@@ -1,16 +1,17 @@
 use taskit_types::error::TaskitError;
 use taskit_types::step::{DiagnosticLevel, DiagnosticRecord};
-use xshell::{Shell, cmd};
+use xshell::cmd;
 
-use crate::{config::WorkspaceConfig, progress::with_spinner, runner::xrun, util};
+use crate::{ctx::Ctx, progress::with_spinner, util};
 
 pub fn run(
-    sh: &Shell,
-    ws: &WorkspaceConfig,
+    ctx: &Ctx,
     crate_name: Option<&str>,
     use_affected: bool,
     continue_on_error: bool,
 ) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    let ws = ctx.ws();
     util::run_per_crate(
         sh,
         ws,
@@ -19,7 +20,7 @@ pub fn run(
         continue_on_error,
         |sh, name| {
             with_spinner(format!("lint {name}"), || {
-                xrun(cmd!(
+                ctx.run(cmd!(
                     sh,
                     "cargo clippy --locked --quiet -p {name} --all-targets -- -D warnings"
                 ))
@@ -27,9 +28,9 @@ pub fn run(
         },
         |sh| {
             with_spinner("lint workspace", || {
-                xrun(cmd!(
+                ctx.run(cmd!(
                     sh,
-                    "cargo clippy --locked --quiet --all-targets --workspace --exclude xtask -- -D warnings"
+                    "cargo clippy --locked --quiet --all-targets --workspace -- -D warnings"
                 ))
             })
         },
@@ -40,21 +41,17 @@ pub fn run(
 ///
 /// Returns `(success, diagnostics)`. The bool indicates whether clippy
 /// exited cleanly (no warnings treated as errors).
-pub fn run_capturing(
-    sh: &Shell,
-    ws: &WorkspaceConfig,
-) -> Result<(bool, Vec<DiagnosticRecord>), TaskitError> {
-    use crate::runner::xrun_capture;
+pub fn run_capturing(ctx: &Ctx) -> Result<(bool, Vec<DiagnosticRecord>), TaskitError> {
+    let sh = &ctx.sh;
 
-    let captured = xrun_capture(cmd!(
+    let captured = ctx.run_capture(cmd!(
         sh,
-        "cargo clippy --locked --quiet --all-targets --workspace --exclude xtask --message-format=json -- -D warnings"
+        "cargo clippy --locked --quiet --all-targets --workspace --message-format=json -- -D warnings"
     ))?;
 
     let diagnostics = parse_clippy_json(&captured.stdout);
     // If affected-crate scoping is configured, filter could happen here.
     // For now we capture workspace-wide.
-    let _ = ws; // used for API consistency
     Ok((captured.success, diagnostics))
 }
 

@@ -3,7 +3,7 @@ use std::{fs, path::Path};
 use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};
 
-use crate::runner::{is_dry_run, xrun};
+use crate::ctx::Ctx;
 
 // ── pre-push hash cache ───────────────────────────────────────────────────────
 
@@ -105,43 +105,42 @@ fn any_rust_file(staged: &str) -> bool {
     staged.lines().any(|l| l.ends_with(".rs"))
 }
 
-pub fn pre_commit(sh: &Shell) -> Result<(), TaskitError> {
-    eprintln!("Running pre-commit checks (Rust only)...");
+pub fn pre_commit(ctx: &Ctx) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    taskit_output::taskit_progress!("Running pre-commit checks (Rust only)...");
     let staged = cmd!(sh, "git diff --cached --name-only --diff-filter=d")
         .read()
         .map_err(TaskitError::other)?;
     if !any_rust_file(&staged) {
-        eprintln!("No Rust files staged, skipping.");
+        taskit_output::taskit_skip!("No Rust files staged, skipping.");
         return Ok(());
     }
 
     let hash = staged_rs_hash(sh, &staged)?;
     let cached = load_pre_commit_cache();
     if !hash.is_empty() && cached.staged_hash == hash {
-        eprintln!("pre-commit: staged tree unchanged since last pass. Skipping.");
+        taskit_output::taskit_skip!("pre-commit: staged tree unchanged since last pass. Skipping.");
         return Ok(());
     }
 
-    xrun(cmd!(sh, "cargo fmt --check --all"))?;
+    ctx.run(cmd!(sh, "cargo fmt --check --all"))?;
 
-    if !is_dry_run() {
+    if !ctx.dry_run {
         save_pre_commit_cache(&PreCommitCache { staged_hash: hash })?;
         crate::cache::update()?;
     }
-    eprintln!("Pre-commit checks passed.");
+    taskit_output::taskit_ok!("Pre-commit checks passed.");
     Ok(())
 }
 
-pub fn pre_push(
-    sh: &Shell,
-    ws: &crate::config::WorkspaceConfig,
-    proto: Option<&crate::config::ProtocolConfig>,
-    cov: Option<&crate::config::CoverageConfig>,
-) -> Result<(), TaskitError> {
-    eprintln!("Running pre-push checks...");
+pub fn pre_push(ctx: &Ctx) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    let ws = ctx.ws();
+    let cov = ctx.cov();
+    taskit_output::taskit_progress!("Running pre-push checks...");
     let affected = crate::affected::detect(sh, ws)?;
     if affected.is_empty() {
-        eprintln!("No affected Rust crates, skipping.");
+        taskit_output::taskit_skip!("No affected Rust crates, skipping.");
         return Ok(());
     }
 
@@ -160,39 +159,40 @@ pub fn pre_push(
                 crates: crate_names.clone(),
             })
     {
-        eprintln!("pre-push: checks already passed for HEAD {sha:.12}. Skipping.");
+        taskit_output::taskit_skip!(
+            "pre-push: checks already passed for HEAD {sha:.12}. Skipping."
+        );
         return Ok(());
     }
 
     for pkg in &crate_names {
-        eprintln!("\n--- {pkg} ---");
-        xrun(cmd!(
+        taskit_output::taskit_progress!("--- {pkg} ---");
+        ctx.run(cmd!(
             sh,
             "cargo clippy --locked --quiet -p {pkg} --all-targets -- -D warnings"
         ))?;
-        xrun(cmd!(
+        ctx.run(cmd!(
             sh,
             "cargo nextest run --locked -p {pkg} --lib --status-level none --final-status-level fail --hide-progress-bar --fail-fast"
         ))?;
         if let Some(c) = cov
             && *pkg == c.crate_name
         {
-            crate::testing::coverage::run(sh, &c.crate_name, c.threshold())?;
+            crate::testing::coverage::run(ctx, &c.crate_name, c.threshold())?;
         }
     }
-    let root = std::env::current_dir()?;
-    if let Err(e) = crate::protocol::drift::run(&root, proto, false, true, false) {
-        eprintln!("[protocol-drift] warning: check could not complete: {e:#}");
+    if let Err(e) = crate::protocol::drift::run(ctx, false, true, false) {
+        taskit_output::taskit_err!("[protocol-drift] warning: check could not complete: {e:#}");
     }
 
-    if !is_dry_run() {
+    if !ctx.dry_run {
         save_pre_push_cache(&PrePushCache {
             head_sha: sha,
             crates: crate_names,
         })?;
         crate::cache::update()?;
     }
-    eprintln!("\nPre-push checks passed.");
+    taskit_output::taskit_ok!("Pre-push checks passed.");
     Ok(())
 }
 
@@ -221,16 +221,16 @@ const PRE_PUSH_HOOK: &str = "#!/usr/bin/env bash\n\
                              fi\n\n\
                              exit $(( TASKIT_EXIT | ORIG_EXIT ))\n";
 
-pub fn install_hooks() -> Result<(), TaskitError> {
+pub fn install_hooks(ctx: &Ctx) -> Result<(), TaskitError> {
     let hooks_dir = ".git/hooks";
 
     let pre_commit = PRE_COMMIT_HOOK;
     let pre_push = PRE_PUSH_HOOK;
 
-    if is_dry_run() {
-        eprintln!("dry-run: create_dir_all {hooks_dir}");
-        eprintln!("dry-run: write {hooks_dir}/pre-commit");
-        eprintln!("dry-run: write {hooks_dir}/pre-push");
+    if ctx.dry_run {
+        taskit_output::taskit_dry!("create_dir_all {hooks_dir}");
+        taskit_output::taskit_dry!("write {hooks_dir}/pre-commit");
+        taskit_output::taskit_dry!("write {hooks_dir}/pre-push");
         return Ok(());
     }
 
@@ -240,9 +240,9 @@ pub fn install_hooks() -> Result<(), TaskitError> {
     fs::write(format!("{hooks_dir}/pre-push"), pre_push)?;
     make_executable(&format!("{hooks_dir}/pre-push"))?;
 
-    eprintln!("Git hooks installed:");
-    eprintln!("  .git/hooks/pre-commit");
-    eprintln!("  .git/hooks/pre-push");
+    taskit_output::taskit_ok!("Git hooks installed:");
+    taskit_output::taskit_ok!(".git/hooks/pre-commit");
+    taskit_output::taskit_ok!(".git/hooks/pre-push");
     Ok(())
 }
 

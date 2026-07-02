@@ -14,7 +14,11 @@ taskit-types = { version = "0.6.0", path = "crates/taskit-types" }
 taskit-engine = { version = "0.6.0", path = "crates/taskit-engine" }
 taskit-init = { version = "0.6.0", path = "crates/taskit-init" }
 taskit-crux = { version = "0.6.0", path = "crates/taskit-crux" }
+taskit-testing = { version = "0.6.0", path = "crates/taskit-testing" }
+taskit-macros = { version = "0.6.0", path = "crates/taskit-macros" }
+taskit-output = { version = "0.6.0", path = "crates/taskit-output" }
 clap = { version = "4", features = ["derive"] }
+tempfile = "3"
 xshell = "0.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -38,14 +42,13 @@ name = "taskit"
 path = "src/main.rs"
 
 [dependencies]
-taskit-core.workspace = true
 taskit-types.workspace = true
 taskit-engine.workspace = true
 taskit-init.workspace = true
-taskit-crux = { workspace = true, optional = true }
+taskit-output.workspace = true
 clap.workspace = true
 miette = { version = "7", features = ["fancy"] }
 xshell.workspace = true
 
 [features]
-crux = ["dep:taskit-crux"]
+crux = ["taskit-output/crux"]

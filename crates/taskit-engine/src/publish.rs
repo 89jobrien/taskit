@@ -1,8 +1,7 @@
 use taskit_types::error::TaskitError;
-use xshell::{Shell, cmd};
+use xshell::cmd;
 
-use crate::output::OutputFormat;
-use crate::runner;
+use crate::ctx::Ctx;
 use crate::step::Pipeline;
 
 /// Crates in publish order: dependencies before dependents.
@@ -14,19 +13,15 @@ const PUBLISH_ORDER: &[&str] = &[
     "taskit",
 ];
 
-pub fn run(
-    sh: &Shell,
-    skip_docs: bool,
-    allow_dirty: bool,
-    fmt: OutputFormat,
-) -> Result<(), TaskitError> {
-    let dry_run = runner::is_dry_run();
+pub fn run(ctx: &Ctx, skip_docs: bool, allow_dirty: bool) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    let dry_run = ctx.dry_run;
     let mut pipeline = Pipeline::new(true);
 
     if !skip_docs {
         pipeline = pipeline.gate("cargo doc", || {
             let doc_cmd = cmd!(sh, "cargo doc --workspace --no-deps");
-            runner::xrun(doc_cmd)
+            ctx.run(doc_cmd)
         });
     }
 
@@ -42,12 +37,12 @@ pub fn run(
                 args.push("--allow-dirty");
             }
             let publish_cmd = cmd!(sh, "cargo {args...}");
-            runner::xrun(publish_cmd)
+            ctx.run(publish_cmd)
         });
     }
 
     let outcome = pipeline.run();
-    Ok(crate::output::write_output(fmt, &outcome)?)
+    Ok(crate::output::write_output(ctx.output, &outcome)?)
 }
 
 #[cfg(test)]

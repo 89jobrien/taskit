@@ -1,9 +1,10 @@
 use taskit_types::error::TaskitError;
-use xshell::{Shell, cmd};
+use xshell::cmd;
 
-use crate::runner::xrun;
+use crate::ctx::Ctx;
 
-pub fn run(sh: &Shell, older_than: Option<&str>) -> Result<(), TaskitError> {
+pub fn run(ctx: &Ctx, older_than: Option<&str>) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
     if let Some(days) = older_than {
         let days_num = days.strip_suffix('d').unwrap_or(days);
         if days_num.parse::<u64>().is_err() {
@@ -11,11 +12,11 @@ pub fn run(sh: &Shell, older_than: Option<&str>) -> Result<(), TaskitError> {
                 "--older-than expects a number of days, optionally suffixed with 'd' (e.g. 7 or 7d), got: {days:?}"
             )));
         }
-        eprintln!("Sweeping artifacts older than {days_num} days...");
-        xrun(cmd!(sh, "cargo sweep --time {days_num}"))?;
+        taskit_output::taskit_progress!("Sweeping artifacts older than {days_num} days...");
+        ctx.run(cmd!(sh, "cargo sweep --time {days_num}"))?;
     } else {
-        eprintln!("Cleaning target directory...");
-        xrun(cmd!(sh, "cargo clean"))?;
+        taskit_output::taskit_progress!("Cleaning target directory...");
+        ctx.run(cmd!(sh, "cargo clean"))?;
     }
 
     prune_artifacts()?;
@@ -30,10 +31,10 @@ fn prune_artifacts() -> Result<(), TaskitError> {
         let p = std::path::Path::new(path);
         if p.is_dir() {
             std::fs::remove_dir_all(p)?;
-            eprintln!("removed {path}/");
+            taskit_output::taskit_ok!("removed {path}/");
         } else if p.is_file() {
             std::fs::remove_file(p)?;
-            eprintln!("removed {path}");
+            taskit_output::taskit_ok!("removed {path}");
         }
     }
     Ok(())

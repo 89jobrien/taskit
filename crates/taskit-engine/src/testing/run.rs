@@ -1,17 +1,18 @@
 use taskit_types::error::TaskitError;
 use taskit_types::step::{DiagnosticLevel, DiagnosticRecord};
-use xshell::{Shell, cmd};
+use xshell::cmd;
 
-use crate::{config::WorkspaceConfig, progress::with_spinner, runner::xrun, util};
+use crate::{ctx::Ctx, progress::with_spinner, util};
 
 pub fn run(
-    sh: &Shell,
-    ws: &WorkspaceConfig,
+    ctx: &Ctx,
     crate_name: Option<&str>,
     use_affected: bool,
     continue_on_error: bool,
     offline: bool,
 ) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    let ws = ctx.ws();
     let mut extra: Vec<String> = vec![
         "--status-level".into(),
         "none".into(),
@@ -36,7 +37,7 @@ pub fn run(
         continue_on_error,
         |sh, name| {
             with_spinner(format!("test {name}"), || {
-                xrun(cmd!(
+                ctx.run(cmd!(
                     sh,
                     "cargo nextest run --locked -p {name} --all-targets {extra...}"
                 ))
@@ -44,7 +45,7 @@ pub fn run(
         },
         |sh| {
             with_spinner("test workspace", || {
-                xrun(cmd!(
+                ctx.run(cmd!(
                     sh,
                     "cargo nextest run --locked --workspace --all-targets {extra...}"
                 ))
@@ -58,12 +59,11 @@ pub fn run(
 /// Returns `(success, diagnostics)` where each failed test becomes a
 /// `DiagnosticRecord`.
 pub fn run_capturing(
-    sh: &Shell,
-    ws: &WorkspaceConfig,
+    ctx: &Ctx,
     offline: bool,
 ) -> Result<(bool, Vec<DiagnosticRecord>), TaskitError> {
-    use crate::runner::xrun_capture;
-
+    let sh = &ctx.sh;
+    let ws = ctx.ws();
     let mut extra: Vec<String> = vec![
         "--status-level".into(),
         "all".into(),
@@ -73,7 +73,7 @@ pub fn run_capturing(
         extra.extend(["-E".into(), expr]);
     }
     let extra_slice = extra.as_slice();
-    let captured = xrun_capture(cmd!(
+    let captured = ctx.run_capture(cmd!(
         sh,
         "cargo nextest run --locked --workspace --all-targets --message-format libtest-json {extra_slice...}"
     ))?;

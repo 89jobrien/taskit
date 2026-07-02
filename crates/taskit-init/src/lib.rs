@@ -56,9 +56,8 @@ pub fn run(force: bool, interactive: bool, dry_run: bool) -> Result<(), TaskitEr
         emit_file(crux_path, &crux_content, dry_run)?;
     }
 
-    // Cargo alias + xtask shim
+    // Cargo alias for `cargo taskit`
     write_cargo_alias(force, dry_run)?;
-    write_xtask_crate(force, dry_run)?;
 
     // Scaffold files (git hooks, CI, deny.toml, .ctx/)
     if init_plan.git_hooks {
@@ -82,346 +81,37 @@ pub fn run(force: bool, interactive: bool, dry_run: bool) -> Result<(), TaskitEr
     eprintln!();
     eprintln!("Next steps:");
     eprintln!("  1. Review taskit.toml — uncomment sections you want to enable");
-    eprintln!("  2. Add \"xtask\" to [workspace] members in Cargo.toml");
-    eprintln!("  3. Run `cargo xtask ci` to verify your pipeline");
+    eprintln!("  2. Run `taskit ci` to verify your pipeline");
 
     Ok(())
 }
 
-/// Generate a full `xtask/` crate with per-command modules delegating to `taskit`.
-fn write_xtask_crate(force: bool, dry_run: bool) -> Result<(), TaskitError> {
-    let xtask_dir = Path::new("xtask");
-    let src_dir = xtask_dir.join("src");
-    let cargo_toml = xtask_dir.join("Cargo.toml");
-
-    if cargo_toml.exists() && !force {
-        eprintln!("xtask/Cargo.toml already exists, skipping");
-        return Ok(());
-    }
-
-    if !dry_run {
-        std::fs::create_dir_all(&src_dir)?;
-    }
-
-    // --- Cargo.toml ---
-    emit_file(
-        &cargo_toml,
-        r#"[package]
-name = "xtask"
-version = "0.1.0"
-edition = "2024"
-publish = false
-
-[dependencies]
-clap = { version = "4", features = ["derive"] }
-"#,
-        dry_run,
-    )?;
-
-    // --- src/main.rs ---
-    emit_file(
-        &src_dir.join("main.rs"),
-        r#"mod book;
-mod ci;
-mod fmt;
-mod lint;
-mod pre_commit;
-mod pre_push;
-mod test;
-
-use clap::{Parser, Subcommand};
-
-#[derive(Parser)]
-#[command(name = "xtask", about = "Workspace task runner (delegates to taskit)")]
-struct Cli {
-    #[command(subcommand)]
-    command: Command,
-}
-
-#[derive(Subcommand)]
-enum Command {
-    /// Build or serve the mdBook documentation.
-    Book(book::Args),
-    /// Run the full CI pipeline.
-    Ci(ci::Args),
-    /// Format all Rust code.
-    Fmt(fmt::Args),
-    /// Run clippy lints.
-    Lint(lint::Args),
-    /// Run tests via nextest.
-    Test(test::Args),
-    /// Pre-commit hook delegate.
-    PreCommit,
-    /// Pre-push hook delegate.
-    PrePush,
-}
-
-fn main() {
-    let cli = Cli::parse();
-    let code = match cli.command {
-        Command::Book(args) => book::run(args),
-        Command::Ci(args) => ci::run(args),
-        Command::Fmt(args) => fmt::run(args),
-        Command::Lint(args) => lint::run(args),
-        Command::Test(args) => test::run(args),
-        Command::PreCommit => pre_commit::run(),
-        Command::PrePush => pre_push::run(),
-    };
-    std::process::exit(code);
-}
-
-/// Run `taskit` with the given args. Installs it automatically if missing.
-pub fn taskit(args: &[&str]) -> i32 {
-    use std::process::Command;
-
-    match Command::new("taskit").args(args).status() {
-        Ok(s) => s.code().unwrap_or(1),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            eprintln!("taskit not found, installing via cargo install...");
-            let install = Command::new("cargo")
-                .args(["install", "taskit"])
-                .status()
-                .expect("failed to run cargo install");
-            if !install.success() {
-                eprintln!("failed to install taskit");
-                return 1;
-            }
-            Command::new("taskit")
-                .args(args)
-                .status()
-                .map(|s| s.code().unwrap_or(1))
-                .unwrap_or(1)
-        }
-        Err(e) => {
-            eprintln!("failed to run taskit: {e}");
-            1
-        }
-    }
-}
-"#,
-        dry_run,
-    )?;
-
-    // --- src/book.rs ---
-    emit_file(
-        &src_dir.join("book.rs"),
-        r#"use clap::Args as ClapArgs;
-use std::process::Command;
-
-#[derive(ClapArgs)]
-pub struct Args {
-    /// Serve the book locally with live reload.
-    #[arg(long)]
-    serve: bool,
-    /// Port for the dev server.
-    #[arg(long, default_value = "3000")]
-    port: u16,
-}
-
-pub fn run(args: Args) -> i32 {
-    let subcmd = if args.serve { "serve" } else { "build" };
-    let mut cmd = Command::new("mdbook");
-    cmd.arg(subcmd).arg("docs/");
-    if args.serve {
-        cmd.args(["--port", &args.port.to_string()]);
-    }
-    match cmd.status() {
-        Ok(s) => s.code().unwrap_or(1),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            eprintln!("mdbook not found — install with: cargo install mdbook");
-            1
-        }
-        Err(e) => {
-            eprintln!("failed to run mdbook: {e}");
-            1
-        }
-    }
-}
-"#,
-        dry_run,
-    )?;
-
-    // --- src/ci.rs ---
-    emit_file(
-        &src_dir.join("ci.rs"),
-        r#"use clap::Args as ClapArgs;
-
-#[derive(ClapArgs)]
-pub struct Args {
-    /// Stop on first failure.
-    #[arg(long)]
-    fail_fast: bool,
-    /// Include network-dependent tests.
-    #[arg(long)]
-    include_network: bool,
-}
-
-pub fn run(args: Args) -> i32 {
-    let mut cmd = vec!["ci"];
-    if args.fail_fast {
-        cmd.push("--fail-fast");
-    }
-    if args.include_network {
-        cmd.push("--include-network");
-    }
-    crate::taskit(&cmd)
-}
-"#,
-        dry_run,
-    )?;
-
-    // --- src/fmt.rs ---
-    emit_file(
-        &src_dir.join("fmt.rs"),
-        r#"use clap::Args as ClapArgs;
-
-#[derive(ClapArgs)]
-pub struct Args {
-    /// Check formatting without writing.
-    #[arg(long)]
-    check: bool,
-    /// Only format affected crates.
-    #[arg(long)]
-    affected: bool,
-}
-
-pub fn run(args: Args) -> i32 {
-    let mut cmd = vec!["fmt"];
-    if args.check {
-        cmd.push("--check");
-    }
-    if args.affected {
-        cmd.push("--affected");
-    }
-    crate::taskit(&cmd)
-}
-"#,
-        dry_run,
-    )?;
-
-    // --- src/lint.rs ---
-    emit_file(
-        &src_dir.join("lint.rs"),
-        r#"use clap::Args as ClapArgs;
-
-#[derive(ClapArgs)]
-pub struct Args {
-    /// Lint a specific crate.
-    #[arg(long)]
-    crate_name: Option<String>,
-    /// Only lint affected crates.
-    #[arg(long)]
-    affected: bool,
-}
-
-pub fn run(args: Args) -> i32 {
-    let mut cmd = vec!["lint"];
-    let crate_flag;
-    if let Some(ref name) = args.crate_name {
-        cmd.push("--crate-name");
-        crate_flag = name.as_str();
-        cmd.push(crate_flag);
-    }
-    if args.affected {
-        cmd.push("--affected");
-    }
-    crate::taskit(&cmd)
-}
-"#,
-        dry_run,
-    )?;
-
-    // --- src/test.rs ---
-    emit_file(
-        &src_dir.join("test.rs"),
-        r#"use clap::Args as ClapArgs;
-
-#[derive(ClapArgs)]
-pub struct Args {
-    /// Test a specific crate.
-    #[arg(long)]
-    crate_name: Option<String>,
-    /// Only test affected crates.
-    #[arg(long)]
-    affected: bool,
-    /// Skip network-dependent tests.
-    #[arg(long)]
-    offline: bool,
-}
-
-pub fn run(args: Args) -> i32 {
-    let mut cmd = vec!["test"];
-    let crate_flag;
-    if let Some(ref name) = args.crate_name {
-        cmd.push("--crate-name");
-        crate_flag = name.as_str();
-        cmd.push(crate_flag);
-    }
-    if args.affected {
-        cmd.push("--affected");
-    }
-    if args.offline {
-        cmd.push("--offline");
-    }
-    crate::taskit(&cmd)
-}
-"#,
-        dry_run,
-    )?;
-
-    // --- src/pre_commit.rs ---
-    emit_file(
-        &src_dir.join("pre_commit.rs"),
-        r#"pub fn run() -> i32 {
-    crate::taskit(&["pre-commit"])
-}
-"#,
-        dry_run,
-    )?;
-
-    // --- src/pre_push.rs ---
-    emit_file(
-        &src_dir.join("pre_push.rs"),
-        r#"pub fn run() -> i32 {
-    crate::taskit(&["pre-push"])
-}
-"#,
-        dry_run,
-    )?;
-
-    let verb = if dry_run { "would write" } else { "wrote" };
-    eprintln!("{verb} xtask/ crate (8 files)");
-    eprintln!("  -> add \"xtask\" to [workspace] members in Cargo.toml");
-
-    Ok(())
-}
-
-/// Write `.cargo/config.toml` with a `cargo xtask` alias pointing to taskit.
+/// Write `.cargo/config.toml` with a `cargo taskit` alias.
 fn write_cargo_alias(force: bool, dry_run: bool) -> Result<(), TaskitError> {
     let dir = Path::new(".cargo");
     let path = dir.join("config.toml");
 
     if path.exists() && !force {
         let existing = std::fs::read_to_string(&path)?;
-        if existing.contains("xtask") {
-            eprintln!(".cargo/config.toml already has xtask alias, skipping");
+        if existing.contains("taskit") {
+            eprintln!(".cargo/config.toml already has taskit alias, skipping");
             return Ok(());
         }
         let mut content = existing;
         if !content.ends_with('\n') {
             content.push('\n');
         }
-        content.push_str("\n[alias]\nxtask = \"run --package xtask --\"\n");
+        content.push_str("\n[alias]\ntaskit = \"run --package taskit --\"\n");
         emit_file(&path, &content, dry_run)?;
         if !dry_run {
-            eprintln!("appended xtask alias to .cargo/config.toml");
+            eprintln!("appended taskit alias to .cargo/config.toml");
         }
         return Ok(());
     }
 
     emit_file(
         &path,
-        "[alias]\nxtask = \"run --package xtask --\"\n",
+        "[alias]\ntaskit = \"run --package taskit --\"\n",
         dry_run,
     )?;
     Ok(())
@@ -468,49 +158,16 @@ mod tests {
     }
 
     #[test]
-    fn write_xtask_crate_creates_files() {
-        let dir = tempfile::tempdir().unwrap();
-        let xtask_dir = dir.path().join("xtask");
-        let src_dir = xtask_dir.join("src");
-        std::fs::create_dir_all(&src_dir).unwrap();
-
-        // Simulate what write_xtask_crate generates
-        let cargo_toml = xtask_dir.join("Cargo.toml");
-        std::fs::write(&cargo_toml, "[package]\nname = \"xtask\"\n").unwrap();
-
-        let modules = [
-            "main.rs",
-            "book.rs",
-            "ci.rs",
-            "fmt.rs",
-            "lint.rs",
-            "test.rs",
-            "pre_commit.rs",
-            "pre_push.rs",
-        ];
-        for m in &modules {
-            std::fs::write(src_dir.join(m), "// generated\n").unwrap();
-        }
-
-        assert!(cargo_toml.exists());
-        for m in &modules {
-            assert!(src_dir.join(m).exists(), "{m} should exist");
-        }
-        let cargo = std::fs::read_to_string(&cargo_toml).unwrap();
-        assert!(cargo.contains("xtask"));
-    }
-
-    #[test]
     fn write_cargo_alias_creates_config() {
         let dir = tempfile::tempdir().unwrap();
         let cargo_dir = dir.path().join(".cargo");
         std::fs::create_dir_all(&cargo_dir).unwrap();
         let config_path = cargo_dir.join("config.toml");
-        let content = "[alias]\nxtask = \"run --package xtask --\"\n";
+        let content = "[alias]\ntaskit = \"run --package taskit --\"\n";
         std::fs::write(&config_path, content).unwrap();
         let written = std::fs::read_to_string(&config_path).unwrap();
-        assert!(written.contains("xtask"));
-        assert!(written.contains("run --package xtask"));
+        assert!(written.contains("taskit"));
+        assert!(written.contains("run --package taskit"));
     }
 
     #[test]
@@ -525,12 +182,12 @@ mod tests {
         if !content.ends_with('\n') {
             content.push('\n');
         }
-        content.push_str("\n[alias]\nxtask = \"run --package xtask --\"\n");
+        content.push_str("\n[alias]\ntaskit = \"run --package taskit --\"\n");
         std::fs::write(&config_path, &content).unwrap();
         let written = std::fs::read_to_string(&config_path).unwrap();
         assert!(written.contains("[build]"));
         assert!(written.contains("[alias]"));
-        assert!(written.contains("run --package xtask"));
+        assert!(written.contains("run --package taskit"));
     }
 
     #[test]

@@ -2,38 +2,23 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use taskit_core::pipeline_runner::PipelineRunner;
-use taskit_types::config::{CiConfig, CoverageConfig, ProtocolConfig, WorkspaceConfig};
 use taskit_types::error::TaskitError;
 use taskit_types::step::{PipelineOutcome, StepResult, StepStatus};
-use xshell::Shell;
+
+use crate::ctx::Ctx;
 
 /// Adapter: runs the built-in pipeline using taskit's native step engine.
+///
+/// Reads pipeline configuration (`[ci]`, `[coverage]`, `[protocol]`) from the
+/// injected [`Ctx`]. `offline` is a per-run flag (not part of the config).
 pub struct BuiltinRunner<'a> {
-    pub(crate) sh: &'a Shell,
-    pub(crate) ws: &'a WorkspaceConfig,
-    pub(crate) proto: Option<&'a ProtocolConfig>,
-    pub(crate) cov: Option<&'a CoverageConfig>,
-    pub(crate) ci: Option<&'a CiConfig>,
+    pub(crate) ctx: &'a Ctx,
     pub(crate) offline: bool,
 }
 
 impl<'a> BuiltinRunner<'a> {
-    pub fn new(
-        sh: &'a Shell,
-        ws: &'a WorkspaceConfig,
-        proto: Option<&'a ProtocolConfig>,
-        cov: Option<&'a CoverageConfig>,
-        ci: Option<&'a CiConfig>,
-        offline: bool,
-    ) -> Self {
-        Self {
-            sh,
-            ws,
-            proto,
-            cov,
-            ci,
-            offline,
-        }
+    pub fn new(ctx: &'a Ctx, offline: bool) -> Self {
+        Self { ctx, offline }
     }
 }
 
@@ -43,28 +28,15 @@ impl PipelineRunner for BuiltinRunner<'_> {
         _config_path: &Path,
         fail_fast: bool,
     ) -> Result<PipelineOutcome, TaskitError> {
-        let outcome = match self.ci {
-            Some(cfg) if !cfg.steps.is_empty() => crate::ci::run_from_config_internal(
-                self.sh,
-                self.ws,
-                self.proto,
-                self.cov,
-                cfg,
-                fail_fast,
-                self.offline,
-            ),
+        let outcome = match self.ctx.ci() {
+            Some(cfg) if !cfg.steps.is_empty() => {
+                crate::ci::run_from_config_internal(self.ctx, cfg, fail_fast, self.offline)
+            }
             Some(_) => {
                 // Explicit [ci] with empty steps = run nothing
                 crate::step::Pipeline::new(fail_fast).run()
             }
-            None => crate::ci::run_default_internal(
-                self.sh,
-                self.ws,
-                self.proto,
-                self.cov,
-                fail_fast,
-                self.offline,
-            ),
+            None => crate::ci::run_default_internal(self.ctx, fail_fast, self.offline),
         };
         Ok(outcome)
     }
@@ -215,24 +187,43 @@ pub(crate) fn assert_pipeline_runner_contract(runner: &dyn PipelineRunner) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use taskit_types::config::{CiConfig, CiStep, Config};
+    use taskit_types::output_format::OutputFormat;
+    use xshell::Shell;
 
-    // ── BuiltinRunner ───────────────────────────────────────────────────
+    /// Build a test context whose `[ci]` section contains a single self-check
+    /// step (fast) to exercise the config-driven path without running full CI.
+    fn ctx_with_ci(ci: CiConfig) -> Ctx {
+        let config = Config {
+            ci: Some(ci),
+            ..Config::default()
+        };
+        Ctx::new(
+            Shell::new().unwrap(),
+            PathBuf::from("."),
+            config,
+            false,
+            OutputFormat::Human,
+        )
+    }
 
-    #[test]
-    fn builtin_runner_implements_trait() {
-        use taskit_types::config::CiStep;
-        let sh = Shell::new().unwrap();
-        let ws = WorkspaceConfig::default();
-        // Use self-check step (fast) to avoid running the full default pipeline
-        let ci = CiConfig {
+    fn self_check_ci() -> CiConfig {
+        CiConfig {
             steps: vec![CiStep {
                 name: "self-check".into(),
                 cmd: "self-check".into(),
                 gate: false,
             }],
             cruxfile: None,
-        };
-        let runner = BuiltinRunner::new(&sh, &ws, None, None, Some(&ci), false);
+        }
+    }
+
+    // ── BuiltinRunner ───────────────────────────────────────────────────
+
+    #[test]
+    fn builtin_runner_implements_trait() {
+        let ctx = ctx_with_ci(self_check_ci());
+        let runner = BuiltinRunner::new(&ctx, false);
         let outcome = runner
             .run_pipeline(Path::new("taskit.toml"), false)
             .unwrap();
@@ -241,18 +232,8 @@ mod tests {
 
     #[test]
     fn builtin_runner_with_config_steps_returns_outcome() {
-        use taskit_types::config::CiStep;
-        let sh = Shell::new().unwrap();
-        let ws = WorkspaceConfig::default();
-        let ci = CiConfig {
-            steps: vec![CiStep {
-                name: "self-check".into(),
-                cmd: "self-check".into(),
-                gate: false,
-            }],
-            cruxfile: None,
-        };
-        let runner = BuiltinRunner::new(&sh, &ws, None, None, Some(&ci), false);
+        let ctx = ctx_with_ci(self_check_ci());
+        let runner = BuiltinRunner::new(&ctx, false);
         // Runs the config-driven path (not the full default pipeline)
         let outcome = runner
             .run_pipeline(Path::new("taskit.toml"), false)

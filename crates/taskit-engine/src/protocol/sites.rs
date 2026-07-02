@@ -1,5 +1,5 @@
 use std::{fs, path::Path};
-use taskit_types::error::TaskitError;
+use taskit_types::error::{TaskitError, TaskitResultExt};
 
 /// Count lines in `content` containing `pattern`, returning `(line_number, line)` pairs.
 fn match_lines<'a>(content: &'a str, pattern: &str) -> Vec<(usize, &'a str)> {
@@ -17,20 +17,22 @@ pub fn run(
     warn_only: bool,
 ) -> Result<(), TaskitError> {
     let content = fs::read_to_string(file)
-        .map_err(|e| TaskitError::other(format!("failed to read {}: {e}", file.display())))?;
+        .err_context_with(|| format!("failed to read {}", file.display()))?;
 
     let matches = match_lines(&content, pattern);
     let count = matches.len();
-    eprintln!(
+    taskit_output::taskit_progress!(
         "check-protocol-sites: found {count} `{pattern}` construction site(s) \
          in {} (expected {expected})",
         file.display()
     );
 
     if count != expected {
-        eprintln!("WARN: construction site count changed: expected {expected}, got {count}.");
+        taskit_output::taskit_err!(
+            "WARN: construction site count changed: expected {expected}, got {count}."
+        );
         for (lineno, line) in &matches {
-            eprintln!("  {}:{}: {}", file.display(), lineno + 1, line.trim());
+            taskit_output::taskit_err!("{}:{}: {}", file.display(), lineno + 1, line.trim());
         }
         if warn_only {
             return Ok(());
@@ -40,9 +42,9 @@ pub fn run(
         )));
     }
 
-    eprintln!("OK: construction site count matches.");
+    taskit_output::taskit_ok!("OK: construction site count matches.");
     for (lineno, line) in &matches {
-        eprintln!("  {}:{}: {}", file.display(), lineno + 1, line.trim());
+        taskit_output::taskit_progress!("{}:{}: {}", file.display(), lineno + 1, line.trim());
     }
     Ok(())
 }

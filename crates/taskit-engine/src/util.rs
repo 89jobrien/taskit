@@ -46,7 +46,7 @@ pub fn run_per_crate(
     if use_affected {
         let crates = affected::detect(sh, ws)?;
         if crates.is_empty() {
-            eprintln!("No affected crates detected, skipping.");
+            taskit_output::taskit_skip!("No affected crates detected, skipping.");
             return Ok(());
         }
         let mut failed: Vec<String> = Vec::new();
@@ -55,7 +55,7 @@ pub fn run_per_crate(
             let result = single_cmd(sh, pkg);
             if let Err(e) = result {
                 if continue_on_error {
-                    eprintln!("FAILED [{pkg}]: {e}");
+                    taskit_output::taskit_err!("FAILED [{pkg}]: {e}");
                     failed.push(pkg.to_string());
                 } else {
                     return Err(e);

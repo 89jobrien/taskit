@@ -1,5 +1,5 @@
 use taskit_types::config::PropagationEntry;
-use taskit_types::error::TaskitError;
+use taskit_types::error::{TaskitError, TaskitResultExt};
 
 /// Intermediate representation of what taskit init will generate.
 #[derive(Debug, Clone)]
@@ -249,7 +249,7 @@ fn cargo_metadata_members() -> Result<Vec<DiscoveredMember>, TaskitError> {
     let metadata = cargo_metadata::MetadataCommand::new()
         .no_deps()
         .exec()
-        .map_err(|e| TaskitError::other(format!("cargo metadata failed: {e}")))?;
+        .err_context("cargo metadata failed")?;
 
     let ws_root = metadata.workspace_root.as_std_path();
     let ws_pkg_names: Vec<String> = metadata
