@@ -11,6 +11,7 @@ pub struct Config {
     pub ci: Option<CiConfig>,
     pub coverage: Option<CoverageConfig>,
     pub flow: Option<FlowConfig>,
+    pub release: Option<ReleaseConfig>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -24,6 +25,7 @@ pub struct WorkspaceConfig {
 }
 
 impl WorkspaceConfig {
+    // TODO(test): unit test for offline_skip_expr() with Some and None values
     pub fn offline_skip_expr(&self) -> Option<String> {
         self.offline_skip.clone()
     }
@@ -41,6 +43,7 @@ impl CrateEntry {
     }
 }
 
+// TODO(test): unit test for PropagationEntry construction
 #[derive(Debug, Clone, Deserialize)]
 pub struct PropagationEntry {
     pub source: String,
@@ -55,11 +58,13 @@ pub struct ProtocolConfig {
 }
 
 impl ProtocolConfig {
+    // TODO(test): unit test for lockfile_path() default and explicit values
     pub fn lockfile_path(&self) -> &str {
         self.lockfile.as_deref().unwrap_or("taskit-protocol.lock")
     }
 }
 
+// TODO(test): unit test for SurfaceEntry construction
 #[derive(Debug, Deserialize)]
 pub struct SurfaceEntry {
     pub name: String,
@@ -74,6 +79,7 @@ pub struct CiConfig {
     pub cruxfile: Option<String>,
 }
 
+// TODO(test): unit test for CiStep (gate default, name/cmd)
 #[derive(Debug, Deserialize)]
 pub struct CiStep {
     pub name: String,
@@ -115,6 +121,23 @@ impl FlowConfig {
     }
 }
 
+// TODO(test): unit + property tests for ReleaseConfig (github_repo getter, empty vs populated)
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct ReleaseConfig {
+    /// GitHub repo in `owner/name` format (e.g. `89jobrien/taskit`).
+    pub github_repo: Option<String>,
+    /// Crate publish order (topological). If omitted, workspace members
+    /// are published in the order listed in `[workspace] crates`.
+    #[serde(default)]
+    pub publish_order: Vec<String>,
+}
+
+impl ReleaseConfig {
+    pub fn github_repo(&self) -> Option<&str> {
+        self.github_repo.as_deref()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,6 +165,7 @@ mod tests {
             prop_assert!(!entry.pkg_name().is_empty());
         }
 
+        // TODO(test): fix latent bug — range includes Some(0.0) but assertion requires t > 0.0
         #[test]
         fn prop_coverage_threshold_positive_finite(
             threshold in proptest::option::of(0.0f64..=100.0f64),
@@ -156,6 +180,7 @@ mod tests {
         }
     }
 
+    // TODO(test): unit test asserting exact default branch names ("main", "staging", "release") for None case
     #[test]
     fn ci_config_cruxfile_defaults_to_none() {
         let cfg: CiConfig = toml::from_str("").unwrap();
@@ -169,6 +194,8 @@ mod tests {
         assert_eq!(cfg.cruxfile.as_deref(), Some("ci.crux"));
     }
 
+    // TODO(test): add conformance suite for TaskitResultExt trait contract
+    // TODO(test): add integration tests using real taskit.toml fixture files (tests/ dir)
     #[test]
     fn coverage_threshold_default() {
         let cfg = CoverageConfig {

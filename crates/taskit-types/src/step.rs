@@ -26,6 +26,7 @@ pub enum DiagnosticLevel {
     Note,
 }
 
+// TODO(test): unit tests for DiagnosticRecord and DiagnosticLevel
 /// A single diagnostic finding from a tool (clippy warning, test failure, etc.).
 #[derive(Debug, Clone)]
 pub struct DiagnosticRecord {
@@ -54,6 +55,7 @@ pub struct StepResult {
     pub diagnostics: Vec<DiagnosticRecord>,
 }
 
+// TODO(test): test PipelineOutcome with passed=false case
 #[derive(Debug)]
 pub struct PipelineOutcome {
     pub results: Vec<StepResult>,

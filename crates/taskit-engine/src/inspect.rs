@@ -81,7 +81,7 @@ pub fn run(ctx: &Ctx, max_warnings: usize, max_todo: Option<usize>) -> Result<()
         ..Default::default()
     };
     let outcome = run_pipeline(sh, &thresholds)?;
-    Ok(crate::output::write_output(ctx.output, &outcome)?)
+    Ok(taskit_output::write_output(ctx.output, &outcome)?)
 }
 
 #[cfg(test)]
@@ -217,7 +217,7 @@ mod tests {
             OutputFormat::Junit,
             OutputFormat::Diagnostic,
         ] {
-            let formatter = crate::output::formatter_for(fmt);
+            let formatter = taskit_output::formatter_for(fmt);
             let rendered = formatter.render(&outcome);
             assert!(!rendered.is_empty(), "empty output for {fmt:?}");
         }

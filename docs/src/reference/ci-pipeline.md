@@ -3,7 +3,7 @@
 Run the full pipeline:
 
 ```sh
-cargo xtask ci
+taskit ci
 ```
 
 ## Steps

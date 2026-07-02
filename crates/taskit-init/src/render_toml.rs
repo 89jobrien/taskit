@@ -14,6 +14,7 @@ pub fn render_toml(plan: &InitPlan) -> String {
     render_coverage(&mut out, plan);
     render_ci(&mut out, plan);
     render_flow(&mut out, plan);
+    render_release(&mut out, plan);
 
     out
 }
@@ -184,10 +185,38 @@ fn render_flow(out: &mut String, plan: &InitPlan) {
     }
 }
 
+fn render_release(out: &mut String, plan: &InitPlan) {
+    out.push('\n');
+    if let Some(ref rel) = plan.release {
+        out.push_str("[release]\n");
+        if let Some(ref repo) = rel.github_repo {
+            out.push_str(&format!("github_repo = \"{repo}\"\n"));
+        } else {
+            out.push_str("# github_repo = \"owner/repo\"  # auto-detected from git remote\n");
+        }
+        if !rel.publish_order.is_empty() {
+            out.push_str("publish_order = [\n");
+            for name in &rel.publish_order {
+                out.push_str(&format!("  \"{name}\",\n"));
+            }
+            out.push_str("]\n");
+        }
+    } else {
+        out.push_str(
+            "\
+# Release configuration for `taskit release`.\n\
+#\n\
+# [release]\n\
+# github_repo = \"owner/repo\"\n\
+# publish_order = [\"my-types\", \"my-core\", \"my-cli\"]\n",
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::plan::{CiStepPlan, CoveragePlan, CratePlan, FlowPlan, SurfacePlan};
+    use crate::plan::{CiStepPlan, CoveragePlan, CratePlan, FlowPlan, ReleasePlan, SurfacePlan};
 
     fn minimal_plan() -> InitPlan {
         InitPlan {
@@ -201,6 +230,7 @@ mod tests {
             ci_steps: vec![],
             offline_skip: None,
             flow: None,
+            release: None,
             git_hooks: false,
             github_ci: false,
             deny_toml: false,
@@ -324,6 +354,39 @@ mod tests {
         let toml = render_toml(&plan);
         assert!(toml.contains("offline_skip = \"test(/.*network.*/)\""));
         assert!(!toml.contains("# offline_skip"));
+    }
+
+    #[test]
+    fn render_commented_release_when_none() {
+        let toml = render_toml(&minimal_plan());
+        assert!(toml.contains("# [release]"));
+    }
+
+    #[test]
+    fn render_with_release_config() {
+        let mut plan = minimal_plan();
+        plan.release = Some(ReleasePlan {
+            github_repo: Some("89jobrien/my-project".into()),
+            publish_order: vec!["my-types".into(), "my-core".into()],
+        });
+        let toml = render_toml(&plan);
+        assert!(toml.contains("[release]"));
+        assert!(toml.contains("github_repo = \"89jobrien/my-project\""));
+        assert!(toml.contains("\"my-types\""));
+        assert!(toml.contains("\"my-core\""));
+    }
+
+    #[test]
+    fn render_release_without_repo() {
+        let mut plan = minimal_plan();
+        plan.release = Some(ReleasePlan {
+            github_repo: None,
+            publish_order: vec!["crate-a".into()],
+        });
+        let toml = render_toml(&plan);
+        assert!(toml.contains("[release]"));
+        assert!(toml.contains("# github_repo"));
+        assert!(toml.contains("\"crate-a\""));
     }
 
     #[test]

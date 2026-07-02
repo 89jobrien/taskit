@@ -77,6 +77,7 @@ pub fn discover_with(
         ci: None,
         coverage: None,
         flow: None,
+        release: None,
     })
 }
 

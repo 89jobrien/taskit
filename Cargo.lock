@@ -835,6 +835,7 @@ dependencies = [
 name = "taskit-core"
 version = "0.7.0"
 dependencies = [
+ "proptest",
  "taskit-types",
 ]
 

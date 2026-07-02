@@ -44,7 +44,7 @@ taskit --dry-run <subcommand>   # print without executing
 | `health [--update]`                                      | Measure health, compare to baseline    |
 | `inspect [--max-warnings N] [--max-todo N]`              | Check metrics against thresholds       |
 | `publish [--skip-docs] [--allow-dirty]`                  | Generate docs and publish to crates.io |
-| `init [--force] [--interactive]`                         | Generate taskit.toml, Cruxfile, xtask/ |
+| `init [--force] [--interactive]`                         | Generate taskit.toml, Cruxfile, hooks  |
 
 ## Architecture
 

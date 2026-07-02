@@ -11,6 +11,7 @@ pub struct InitPlan {
     pub ci_steps: Vec<CiStepPlan>,
     pub offline_skip: Option<String>,
     pub flow: Option<FlowPlan>,
+    pub release: Option<ReleasePlan>,
     pub git_hooks: bool,
     pub github_ci: bool,
     pub deny_toml: bool,
@@ -48,6 +49,12 @@ pub struct FlowPlan {
     pub main: String,
     pub staging: String,
     pub release: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReleasePlan {
+    pub github_repo: Option<String>,
+    pub publish_order: Vec<String>,
 }
 
 impl Default for FlowPlan {
@@ -122,6 +129,13 @@ pub fn plan_from_discovery() -> Result<InitPlan, TaskitError> {
     let propagation = infer_propagation(&metadata);
     let surfaces = detect_surfaces(&metadata);
 
+    let publish_order = topo_sort_members(&metadata);
+    let github_repo = detect_github_repo();
+    let release = Some(ReleasePlan {
+        github_repo,
+        publish_order,
+    });
+
     Ok(InitPlan {
         crates,
         propagation,
@@ -130,6 +144,7 @@ pub fn plan_from_discovery() -> Result<InitPlan, TaskitError> {
         ci_steps: InitPlan::default_steps(),
         offline_skip: None,
         flow: Some(FlowPlan::default()),
+        release,
         git_hooks: true,
         github_ci: true,
         deny_toml: true,
@@ -204,6 +219,37 @@ pub fn plan_interactive() -> Result<InitPlan, TaskitError> {
     } else {
         None
     };
+
+    if Confirm::new()
+        .with_prompt("Configure release settings (crates.io + GitHub)?")
+        .default(true)
+        .interact()
+        .map_err(TaskitError::other)?
+    {
+        let repo: String = Input::new()
+            .with_prompt("GitHub repo (owner/name, empty to auto-detect)")
+            .default(
+                plan.release
+                    .as_ref()
+                    .and_then(|r| r.github_repo.clone())
+                    .unwrap_or_default(),
+            )
+            .interact_text()
+            .map_err(TaskitError::other)?;
+        let github_repo = if repo.is_empty() { None } else { Some(repo) };
+        // Keep the auto-detected publish order
+        let publish_order = plan
+            .release
+            .as_ref()
+            .map(|r| r.publish_order.clone())
+            .unwrap_or_default();
+        plan.release = Some(ReleasePlan {
+            github_repo,
+            publish_order,
+        });
+    } else {
+        plan.release = None;
+    }
 
     plan.git_hooks = Confirm::new()
         .with_prompt("Generate git hooks (.githooks/)?")
@@ -364,6 +410,85 @@ fn detect_surfaces(members: &[DiscoveredMember]) -> Vec<SurfacePlan> {
     surfaces
 }
 
+/// Topologically sort workspace members so dependencies come before dependents.
+fn topo_sort_members(members: &[DiscoveredMember]) -> Vec<String> {
+    use std::collections::{HashMap, HashSet, VecDeque};
+
+    let names: HashSet<&str> = members.iter().map(|m| m.pkg.as_str()).collect();
+    let mut in_degree: HashMap<&str, usize> = HashMap::new();
+    let mut dependents: HashMap<&str, Vec<&str>> = HashMap::new();
+
+    for m in members {
+        in_degree.entry(m.pkg.as_str()).or_insert(0);
+        for dep in &m.deps {
+            if names.contains(dep.as_str()) {
+                *in_degree.entry(m.pkg.as_str()).or_insert(0) += 1;
+                dependents
+                    .entry(dep.as_str())
+                    .or_default()
+                    .push(m.pkg.as_str());
+            }
+        }
+    }
+
+    let mut queue: VecDeque<&str> = in_degree
+        .iter()
+        .filter(|(_, deg)| **deg == 0)
+        .map(|(&name, _)| name)
+        .collect();
+    // Sort the initial queue for deterministic output
+    let mut sorted_queue: Vec<&str> = queue.drain(..).collect();
+    sorted_queue.sort();
+    queue.extend(sorted_queue);
+
+    let mut result = Vec::new();
+    while let Some(name) = queue.pop_front() {
+        result.push(name.to_owned());
+        if let Some(deps) = dependents.get(name) {
+            let mut next: Vec<&str> = Vec::new();
+            for &dep in deps {
+                if let Some(deg) = in_degree.get_mut(dep) {
+                    *deg -= 1;
+                    if *deg == 0 {
+                        next.push(dep);
+                    }
+                }
+            }
+            next.sort();
+            queue.extend(next);
+        }
+    }
+
+    result
+}
+
+/// Detect GitHub repo from the origin remote URL.
+fn detect_github_repo() -> Option<String> {
+    let output = std::process::Command::new("git")
+        .args(["remote", "get-url", "origin"])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let url = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+
+    // SSH: git@github.com:owner/repo.git
+    if let Some(rest) = url.strip_prefix("git@github.com:") {
+        return Some(rest.trim_end_matches(".git").to_owned());
+    }
+    // HTTPS: https://github.com/owner/repo.git
+    if let Some(rest) = url
+        .strip_prefix("https://github.com/")
+        .or_else(|| url.strip_prefix("http://github.com/"))
+    {
+        return Some(rest.trim_end_matches(".git").to_owned());
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -442,6 +567,68 @@ mod tests {
         assert_eq!(f.main, "main");
         assert_eq!(f.staging, "staging");
         assert_eq!(f.release, "release");
+    }
+
+    #[test]
+    fn plan_from_discovery_has_release() {
+        let plan = plan_from_discovery().unwrap();
+        assert!(plan.release.is_some());
+        let release = plan.release.unwrap();
+        // In the taskit workspace, publish order should be non-empty
+        assert!(!release.publish_order.is_empty());
+    }
+
+    #[test]
+    fn topo_sort_respects_dependencies() {
+        let members = vec![
+            DiscoveredMember {
+                dir: "crates/core".into(),
+                pkg: "core".into(),
+                deps: vec![],
+            },
+            DiscoveredMember {
+                dir: "crates/engine".into(),
+                pkg: "engine".into(),
+                deps: vec!["core".into()],
+            },
+            DiscoveredMember {
+                dir: "crates/cli".into(),
+                pkg: "cli".into(),
+                deps: vec!["core".into(), "engine".into()],
+            },
+        ];
+        let order = topo_sort_members(&members);
+        assert_eq!(order.len(), 3);
+        let core_pos = order.iter().position(|s| s == "core").unwrap();
+        let engine_pos = order.iter().position(|s| s == "engine").unwrap();
+        let cli_pos = order.iter().position(|s| s == "cli").unwrap();
+        assert!(core_pos < engine_pos);
+        assert!(engine_pos < cli_pos);
+    }
+
+    #[test]
+    fn topo_sort_leaf_crates_first() {
+        let members = vec![
+            DiscoveredMember {
+                dir: "app".into(),
+                pkg: "app".into(),
+                deps: vec!["lib-a".into(), "lib-b".into()],
+            },
+            DiscoveredMember {
+                dir: "lib-a".into(),
+                pkg: "lib-a".into(),
+                deps: vec![],
+            },
+            DiscoveredMember {
+                dir: "lib-b".into(),
+                pkg: "lib-b".into(),
+                deps: vec![],
+            },
+        ];
+        let order = topo_sort_members(&members);
+        // lib-a and lib-b (leaves) must come before app
+        let app_pos = order.iter().position(|s| s == "app").unwrap();
+        assert_eq!(app_pos, 2);
     }
 
     #[test]

@@ -2,58 +2,31 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging, release]
   pull_request:
     branches: [main]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 env:
-  CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
-  RUST_BACKTRACE: 1
+  RUSTFLAGS: -D warnings
 
 jobs:
-  pipeline:
-    name: crux ci (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
+  ci:
+    name: CI Pipeline
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
+
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-nextest
-      - name: install taskit
-        run: cargo install taskit --locked
-      - name: install crux
-        run: cargo install crux-agentic --locked
-      - name: crux run ci.crux
-        run: crux run ci.crux
+          components: clippy, rustfmt
 
-  ci-ok:
-    name: CI passed
-    runs-on: ubuntu-latest
-    if: always()
-    needs: [pipeline]
-    steps:
-      - name: check job results
-        run: |
-          results=(
-            "${{ needs.pipeline.result }}"
-          )
-          for r in "${results[@]}"; do
-            if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
-              echo "CI failed: $r"
-              exit 1
-            fi
-          done
-          echo "All jobs passed or were skipped"
+      - uses: taiki-e/install-action@nextest
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install taskit
+        run: cargo install taskit || cargo install --path .
+
+      - name: Run CI pipeline
+        run: taskit ci --fail-fast

@@ -452,178 +452,150 @@ fn make_executable(_path: &Path) -> Result<(), TaskitError> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn ctx_scaffold_creates_dirs() {
+    /// Scaffold tests must run serially because they use `set_current_dir`
+    /// which is process-global. A mutex prevents parallel CWD corruption.
+    static CWD_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// Run a closure in a tempdir, restoring CWD even on panic.
+    fn in_tempdir<F: FnOnce(&std::path::Path) + std::panic::UnwindSafe>(f: F) {
+        let _guard = CWD_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let dir = tempfile::tempdir().unwrap();
         let prev = std::env::current_dir().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
-
-        let result = write_ctx_scaffold(false, false);
-        assert!(result.is_ok());
-        assert!(dir.path().join(".ctx/memory-bank").is_dir());
-        assert!(dir.path().join(".ctx/sessions").is_dir());
-        assert!(dir.path().join(".ctx/tasks").is_dir());
-        assert!(dir.path().join(".ctx/review").is_dir());
-        assert!(dir.path().join(".ctx/logs").is_dir());
-        assert!(dir.path().join(".ctx/reports").is_dir());
-        assert!(dir.path().join(".ctx/xcache").is_dir());
-        assert!(dir.path().join(".ctx/.initialized").exists());
-        assert!(dir.path().join(".ctx/HANDOFF.md").exists());
-        assert!(
-            dir.path()
-                .join(".ctx/memory-bank/project-brief.md")
-                .exists()
-        );
-
+        let result = std::panic::catch_unwind(|| f(dir.path()));
         std::env::set_current_dir(prev).unwrap();
+        if let Err(e) = result {
+            std::panic::resume_unwind(e);
+        }
+    }
+
+    #[test]
+    fn ctx_scaffold_creates_dirs() {
+        in_tempdir(|dir| {
+            let result = write_ctx_scaffold(false, false);
+            assert!(result.is_ok());
+            assert!(dir.join(".ctx/memory-bank").is_dir());
+            assert!(dir.join(".ctx/sessions").is_dir());
+            assert!(dir.join(".ctx/tasks").is_dir());
+            assert!(dir.join(".ctx/review").is_dir());
+            assert!(dir.join(".ctx/logs").is_dir());
+            assert!(dir.join(".ctx/reports").is_dir());
+            assert!(dir.join(".ctx/xcache").is_dir());
+            assert!(dir.join(".ctx/.initialized").exists());
+            assert!(dir.join(".ctx/HANDOFF.md").exists());
+            assert!(dir.join(".ctx/memory-bank/project-brief.md").exists());
+        });
     }
 
     #[test]
     fn ctx_scaffold_skips_existing() {
-        let dir = tempfile::tempdir().unwrap();
-        let prev = std::env::current_dir().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-
-        std::fs::create_dir_all(dir.path().join(".ctx")).unwrap();
-        let result = write_ctx_scaffold(false, false);
-        assert!(result.is_ok());
-        // Should not have created subdirs since .ctx existed
-        assert!(!dir.path().join(".ctx/memory-bank").exists());
-
-        std::env::set_current_dir(prev).unwrap();
+        in_tempdir(|dir| {
+            std::fs::create_dir_all(dir.join(".ctx")).unwrap();
+            let result = write_ctx_scaffold(false, false);
+            assert!(result.is_ok());
+            assert!(!dir.join(".ctx/memory-bank").exists());
+        });
     }
 
     #[test]
     fn ctx_scaffold_dry_run_no_files() {
-        let dir = tempfile::tempdir().unwrap();
-        let prev = std::env::current_dir().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-
-        let result = write_ctx_scaffold(false, true);
-        assert!(result.is_ok());
-        assert!(!dir.path().join(".ctx/memory-bank").exists());
-        assert!(!dir.path().join(".ctx/HANDOFF.md").exists());
-
-        std::env::set_current_dir(prev).unwrap();
+        in_tempdir(|dir| {
+            let result = write_ctx_scaffold(false, true);
+            assert!(result.is_ok());
+            assert!(!dir.join(".ctx/memory-bank").exists());
+            assert!(!dir.join(".ctx/HANDOFF.md").exists());
+        });
     }
 
     #[test]
     fn deny_toml_content() {
-        let dir = tempfile::tempdir().unwrap();
-        let prev = std::env::current_dir().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-
-        write_deny_toml(false, false).unwrap();
-        let content = std::fs::read_to_string(dir.path().join("deny.toml")).unwrap();
-        assert!(content.contains("[advisories]"));
-        assert!(content.contains("[licenses]"));
-        assert!(content.contains("[bans]"));
-        assert!(content.contains("[sources]"));
-
-        std::env::set_current_dir(prev).unwrap();
+        in_tempdir(|dir| {
+            write_deny_toml(false, false).unwrap();
+            let content = std::fs::read_to_string(dir.join("deny.toml")).unwrap();
+            assert!(content.contains("[advisories]"));
+            assert!(content.contains("[licenses]"));
+            assert!(content.contains("[bans]"));
+            assert!(content.contains("[sources]"));
+        });
     }
 
     #[test]
     fn deny_toml_dry_run_no_file() {
-        let dir = tempfile::tempdir().unwrap();
-        let prev = std::env::current_dir().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-
-        write_deny_toml(false, true).unwrap();
-        assert!(!dir.path().join("deny.toml").exists());
-
-        std::env::set_current_dir(prev).unwrap();
+        in_tempdir(|dir| {
+            write_deny_toml(false, true).unwrap();
+            assert!(!dir.join("deny.toml").exists());
+        });
     }
 
     #[test]
     fn github_ci_content() {
-        let dir = tempfile::tempdir().unwrap();
-        let prev = std::env::current_dir().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-
-        write_github_ci(false, false).unwrap();
-        let content = std::fs::read_to_string(dir.path().join(".github/workflows/ci.yml")).unwrap();
-        assert!(content.contains("taskit ci"));
-        assert!(content.contains("dtolnay/rust-toolchain"));
-
-        std::env::set_current_dir(prev).unwrap();
+        in_tempdir(|dir| {
+            write_github_ci(false, false).unwrap();
+            let content = std::fs::read_to_string(dir.join(".github/workflows/ci.yml")).unwrap();
+            assert!(content.contains("taskit ci"));
+            assert!(content.contains("dtolnay/rust-toolchain"));
+        });
     }
 
     #[test]
     fn mdbook_scaffold_creates_files() {
-        let dir = tempfile::tempdir().unwrap();
-        let prev = std::env::current_dir().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
+        in_tempdir(|dir| {
+            let plan = InitPlan {
+                crates: vec![
+                    crate::plan::CratePlan {
+                        dir: "crates/core".into(),
+                        pkg: Some("my-core".into()),
+                    },
+                    crate::plan::CratePlan {
+                        dir: "crates/cli".into(),
+                        pkg: None,
+                    },
+                ],
+                propagation: vec![],
+                surfaces: vec![],
+                coverage: None,
+                ci_steps: vec![],
+                offline_skip: None,
+                flow: None,
+                release: None,
+                git_hooks: false,
+                github_ci: false,
+                deny_toml: false,
+                ctx_scaffold: false,
+                mdbook: false,
+            };
+            write_mdbook(&plan, "test-project", false, false).unwrap();
 
-        let plan = InitPlan {
-            crates: vec![
-                crate::plan::CratePlan {
-                    dir: "crates/core".into(),
-                    pkg: Some("my-core".into()),
-                },
-                crate::plan::CratePlan {
-                    dir: "crates/cli".into(),
-                    pkg: None,
-                },
-            ],
-            propagation: vec![],
-            surfaces: vec![],
-            coverage: None,
-            ci_steps: vec![],
-            offline_skip: None,
-            flow: None,
-            git_hooks: false,
-            github_ci: false,
-            deny_toml: false,
-            ctx_scaffold: false,
-            mdbook: false,
-        };
-        write_mdbook(&plan, "test-project", false, false).unwrap();
+            assert!(dir.join("docs/book.toml").exists());
+            assert!(dir.join("docs/src/SUMMARY.md").exists());
+            assert!(dir.join("docs/src/README.md").exists());
+            assert!(dir.join("docs/src/architecture/overview.md").exists());
+            assert!(dir.join("docs/src/reference/configuration.md").exists());
+            assert!(dir.join("docs/src/crates").is_dir());
 
-        assert!(dir.path().join("docs/book.toml").exists());
-        assert!(dir.path().join("docs/src/SUMMARY.md").exists());
-        assert!(dir.path().join("docs/src/README.md").exists());
-        assert!(
-            dir.path()
-                .join("docs/src/architecture/overview.md")
-                .exists()
-        );
-        assert!(
-            dir.path()
-                .join("docs/src/reference/configuration.md")
-                .exists()
-        );
-        assert!(dir.path().join("docs/src/crates").is_dir());
+            let summary = std::fs::read_to_string(dir.join("docs/src/SUMMARY.md")).unwrap();
+            assert!(summary.contains("# Crates"));
+            assert!(summary.contains("test-project"));
 
-        let summary = std::fs::read_to_string(dir.path().join("docs/src/SUMMARY.md")).unwrap();
-        assert!(summary.contains("# Crates"));
-        assert!(summary.contains("test-project"));
-
-        let book = std::fs::read_to_string(dir.path().join("docs/book.toml")).unwrap();
-        assert!(book.contains("title = \"test-project\""));
-
-        std::env::set_current_dir(prev).unwrap();
+            let book = std::fs::read_to_string(dir.join("docs/book.toml")).unwrap();
+            assert!(book.contains("title = \"test-project\""));
+        });
     }
 
     #[test]
     fn git_hooks_content() {
-        let dir = tempfile::tempdir().unwrap();
-        let prev = std::env::current_dir().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
+        in_tempdir(|dir| {
+            std::process::Command::new("git")
+                .args(["init"])
+                .current_dir(dir)
+                .output()
+                .ok();
 
-        // Init a git repo so git config works
-        std::process::Command::new("git")
-            .args(["init"])
-            .current_dir(dir.path())
-            .output()
-            .ok();
-
-        write_git_hooks(false, false).unwrap();
-        let pre_commit = std::fs::read_to_string(dir.path().join(".githooks/pre-commit")).unwrap();
-        assert!(pre_commit.contains("taskit pre-commit"));
-        let pre_push = std::fs::read_to_string(dir.path().join(".githooks/pre-push")).unwrap();
-        assert!(pre_push.contains("taskit pre-push"));
-
-        std::env::set_current_dir(prev).unwrap();
+            write_git_hooks(false, false).unwrap();
+            let pre_commit = std::fs::read_to_string(dir.join(".githooks/pre-commit")).unwrap();
+            assert!(pre_commit.contains("taskit pre-commit"));
+            let pre_push = std::fs::read_to_string(dir.join(".githooks/pre-push")).unwrap();
+            assert!(pre_push.contains("taskit pre-push"));
+        });
     }
 }

@@ -14,6 +14,7 @@ pub enum OutputFormat {
 mod tests {
     use super::*;
 
+    // TODO(test): test clap ValueEnum string round-trip ("json" -> OutputFormat::Json etc.)
     #[test]
     fn default_is_human() {
         assert!(matches!(OutputFormat::default(), OutputFormat::Human));

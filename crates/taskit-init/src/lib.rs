@@ -216,5 +216,8 @@ mod tests {
 
         // Should have coverage (either active or commented)
         assert!(toml.contains("[coverage]") || toml.contains("# [coverage]"));
+
+        // Should have release (either active or commented)
+        assert!(toml.contains("[release]") || toml.contains("# [release]"));
     }
 }

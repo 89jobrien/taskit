@@ -33,6 +33,7 @@ pub enum TaskitError {
 }
 
 impl TaskitError {
+    // TODO(test): unit tests for TaskitError::Other, TaskitError::Io, TaskitError::other() construction
     /// Create an `Other` variant from any display-able message.
     pub fn other(msg: impl std::fmt::Display) -> Self {
         TaskitError::Other(msg.to_string().into())
@@ -113,6 +114,7 @@ pub enum ProtocolError {
     )]
     LockfileMissing { path: String },
 
+    // TODO(test): display test for ProtocolError::Stale
     #[error("lockfile is stale")]
     #[diagnostic(
         code(taskit::protocol::stale),
@@ -131,11 +133,13 @@ pub enum InitError {
     #[diagnostic(code(taskit::init::metadata))]
     CargoMetadata { reason: String },
 
+    // TODO(test): display test for InitError::WriteFile
     #[error("failed to write {file}: {reason}")]
     #[diagnostic(code(taskit::init::write))]
     WriteFile { file: String, reason: String },
 }
 
+// TODO(test): all 5 FlowError variants have zero test coverage (Display, Debug, diagnostic codes)
 #[derive(Debug, Error, Diagnostic)]
 pub enum FlowError {
     #[error("not on expected branch: expected '{expected}', got '{actual}'")]
