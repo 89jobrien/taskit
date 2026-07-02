@@ -177,6 +177,14 @@ enum Cmd {
         #[arg(long)]
         allow_dirty: bool,
     },
+    /// Create a GitHub release for a tagged version
+    Release {
+        /// Git tag for the release (e.g. v0.7.0)
+        tag: String,
+        /// Path to release notes file (uses --generate-notes if omitted)
+        #[arg(long)]
+        notes_file: Option<String>,
+    },
     /// Git branching workflow: main -> staging -> release -> main
     Flow {
         #[command(subcommand)]
@@ -308,6 +316,7 @@ fn to_command(cmd: Cmd) -> Box<dyn Command> {
             skip_docs,
             allow_dirty,
         }),
+        Cmd::Release { tag, notes_file } => Box::new(Release { tag, notes_file }),
         Cmd::Flow { sub } => Box::new(Flow {
             action: match sub {
                 FlowCmd::Status => FlowAction::Status,
