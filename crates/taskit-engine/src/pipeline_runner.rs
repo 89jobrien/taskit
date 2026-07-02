@@ -103,86 +103,13 @@ impl PipelineRunner for SubprocessCruxRunner {
 }
 
 // ── Conformance ─────────────────────────────────────────────────────────────
-
-/// Invariant 1: nonexistent config path must return Err.
+// Conformance helpers live in taskit_core::conformance (behind test-support feature).
+// Re-export for local test use.
 #[cfg(test)]
-pub(crate) fn assert_nonexistent_path_returns_err(runner: &dyn PipelineRunner) {
-    let result = runner.run_pipeline(Path::new("/nonexistent/taskit.toml"), false);
-    assert!(
-        result.is_err(),
-        "run_pipeline with nonexistent path must return Err"
-    );
-}
-
-/// Invariant 2: a successful outcome must have `passed == true`, non-empty
-/// `results`, and every step status must be `Pass`.
-#[cfg(test)]
-pub(crate) fn assert_success_outcome_invariants(outcome: &PipelineOutcome) {
-    assert!(
-        outcome.passed,
-        "successful outcome must have passed == true"
-    );
-    assert!(
-        !outcome.results.is_empty(),
-        "successful outcome must contain at least one StepResult"
-    );
-    for r in &outcome.results {
-        assert_eq!(
-            r.status,
-            StepStatus::Pass,
-            "all steps in a successful outcome must have status Pass (got {:?} for '{}')",
-            r.status,
-            r.name,
-        );
-    }
-}
-
-/// Invariant 3: a failed outcome must have `passed == false` and at least one
-/// step with status `Fail`.
-#[cfg(test)]
-pub(crate) fn assert_failure_outcome_invariants(outcome: &PipelineOutcome) {
-    assert!(!outcome.passed, "failed outcome must have passed == false");
-    let has_fail = outcome.results.iter().any(|r| r.status == StepStatus::Fail);
-    assert!(
-        has_fail,
-        "failed outcome must contain at least one step with status Fail"
-    );
-}
-
-/// Invariant 4: `total` duration must be >= the sum of individual step
-/// durations (tolerates minor timer skew with a small epsilon).
-#[cfg(test)]
-pub(crate) fn assert_duration_invariants(outcome: &PipelineOutcome) {
-    use std::time::Duration;
-    let step_sum: Duration = outcome.results.iter().map(|r| r.duration).sum();
-    // Allow up to 1 ms of measurement noise
-    let epsilon = Duration::from_millis(1);
-    assert!(
-        outcome.total + epsilon >= step_sum,
-        "total duration ({:?}) must be >= sum of step durations ({:?})",
-        outcome.total,
-        step_sum,
-    );
-}
-
-/// Invariant 5: every StepResult name must be non-empty.
-#[cfg(test)]
-pub(crate) fn assert_step_names_nonempty(outcome: &PipelineOutcome) {
-    for (i, r) in outcome.results.iter().enumerate() {
-        assert!(
-            !r.name.is_empty(),
-            "StepResult[{i}] has an empty name — all step names must be non-empty"
-        );
-    }
-}
-
-/// Assert the full trait contract for a runner whose nonexistent path returns Err.
-/// Callers that can also produce a valid outcome should call the individual
-/// `assert_*` helpers directly.
-#[cfg(test)]
-pub(crate) fn assert_pipeline_runner_contract(runner: &dyn PipelineRunner) {
-    assert_nonexistent_path_returns_err(runner);
-}
+pub(crate) use taskit_core::conformance::{
+    assert_duration_invariants, assert_failure_outcome_invariants, assert_pipeline_runner_contract,
+    assert_step_names_nonempty, assert_success_outcome_invariants,
+};
 
 #[cfg(test)]
 mod tests {

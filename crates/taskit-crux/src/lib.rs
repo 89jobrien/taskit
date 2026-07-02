@@ -54,60 +54,10 @@ impl PipelineRunner for EmbeddedCruxRunner {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
-
-    // ── helpers (inline mirrors of taskit-engine conformance helpers) ────
-    // We duplicate these rather than adding a dev-dependency on taskit-engine
-    // to keep the crate graph acyclic.
-
-    fn assert_nonexistent_path_returns_err(runner: &dyn PipelineRunner) {
-        let result = runner.run_pipeline(Path::new("/nonexistent/taskit.toml"), false);
-        assert!(
-            result.is_err(),
-            "run_pipeline with nonexistent path must return Err"
-        );
-    }
-
-    fn assert_success_outcome_invariants(outcome: &PipelineOutcome) {
-        use taskit_types::step::StepStatus;
-        assert!(
-            outcome.passed,
-            "successful outcome must have passed == true"
-        );
-        assert!(
-            !outcome.results.is_empty(),
-            "successful outcome must contain at least one StepResult"
-        );
-        for r in &outcome.results {
-            assert_eq!(
-                r.status,
-                StepStatus::Pass,
-                "all steps in a successful outcome must have status Pass (got {:?} for '{}')",
-                r.status,
-                r.name,
-            );
-        }
-    }
-
-    fn assert_duration_invariants(outcome: &PipelineOutcome) {
-        let step_sum: Duration = outcome.results.iter().map(|r| r.duration).sum();
-        let epsilon = Duration::from_millis(1);
-        assert!(
-            outcome.total + epsilon >= step_sum,
-            "total duration ({:?}) must be >= sum of step durations ({:?})",
-            outcome.total,
-            step_sum,
-        );
-    }
-
-    fn assert_step_names_nonempty(outcome: &PipelineOutcome) {
-        for (i, r) in outcome.results.iter().enumerate() {
-            assert!(
-                !r.name.is_empty(),
-                "StepResult[{i}] has an empty name — all step names must be non-empty"
-            );
-        }
-    }
+    use taskit_core::conformance::{
+        assert_duration_invariants, assert_nonexistent_path_returns_err,
+        assert_step_names_nonempty, assert_success_outcome_invariants,
+    };
 
     // ── EmbeddedCruxRunner ───────────────────────────────────────────────
 
