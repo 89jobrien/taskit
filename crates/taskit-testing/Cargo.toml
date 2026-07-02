@@ -1,6 +1,6 @@
 [package]
 name = "taskit-testing"
-version = "0.6.0"
+version = "0.7.0"
 edition.workspace = true
 license.workspace = true
 description = "Test helpers, declarative macros, and RAII guards for taskit"

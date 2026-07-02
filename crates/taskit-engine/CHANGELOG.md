@@ -4,8 +4,14 @@ All notable changes to taskit-engine will be documented in this file.
 
 ## Unreleased
 
+## [0.7.0] - 2026-06-28
+
 ### Refactoring
 
+- Move output formatters to taskit-output crate (re-exported)
+- Migrate eprintln! to structured output macros
+- Migrate map_err chains to err_context()
+- Remove duplicate print_summary()
 - Replace anyhow::Result with TaskitError at public boundaries
 - Rename .taskit-cache/ (was .xtask-cache/)
 

@@ -820,7 +820,7 @@ dependencies = [
 
 [[package]]
 name = "taskit"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "clap",
  "miette",
@@ -833,14 +833,14 @@ dependencies = [
 
 [[package]]
 name = "taskit-core"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "taskit-types",
 ]
 
 [[package]]
 name = "taskit-crux"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "taskit-core",
  "taskit-testing",
@@ -849,7 +849,7 @@ dependencies = [
 
 [[package]]
 name = "taskit-engine"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "cargo_metadata",
  "hex",
@@ -871,7 +871,7 @@ dependencies = [
 
 [[package]]
 name = "taskit-init"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "cargo_metadata",
  "dialoguer",
@@ -884,7 +884,7 @@ dependencies = [
 
 [[package]]
 name = "taskit-macros"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -896,7 +896,7 @@ dependencies = [
 
 [[package]]
 name = "taskit-output"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "miette",
  "proptest",
@@ -908,7 +908,7 @@ dependencies = [
 
 [[package]]
 name = "taskit-testing"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "proptest",
  "taskit-types",
@@ -917,7 +917,7 @@ dependencies = [
 
 [[package]]
 name = "taskit-types"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "clap",
  "miette",

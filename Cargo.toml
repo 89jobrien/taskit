@@ -9,14 +9,14 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/89jobrien/taskit"
 
 [workspace.dependencies]
-taskit-core = { version = "0.6.0", path = "crates/taskit-core" }
-taskit-types = { version = "0.6.0", path = "crates/taskit-types" }
-taskit-engine = { version = "0.6.0", path = "crates/taskit-engine" }
-taskit-init = { version = "0.6.0", path = "crates/taskit-init" }
-taskit-crux = { version = "0.6.0", path = "crates/taskit-crux" }
-taskit-testing = { version = "0.6.0", path = "crates/taskit-testing" }
-taskit-macros = { version = "0.6.0", path = "crates/taskit-macros" }
-taskit-output = { version = "0.6.0", path = "crates/taskit-output" }
+taskit-core = { version = "0.7.0", path = "crates/taskit-core" }
+taskit-types = { version = "0.7.0", path = "crates/taskit-types" }
+taskit-engine = { version = "0.7.0", path = "crates/taskit-engine" }
+taskit-init = { version = "0.7.0", path = "crates/taskit-init" }
+taskit-crux = { version = "0.7.0", path = "crates/taskit-crux" }
+taskit-testing = { version = "0.7.0", path = "crates/taskit-testing" }
+taskit-macros = { version = "0.7.0", path = "crates/taskit-macros" }
+taskit-output = { version = "0.7.0", path = "crates/taskit-output" }
 clap = { version = "4", features = ["derive"] }
 tempfile = "3"
 xshell = "0.2"
@@ -26,7 +26,7 @@ cargo_metadata = "0.19"
 
 [package]
 name = "taskit"
-version = "0.6.0"
+version = "0.7.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
