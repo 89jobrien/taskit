@@ -173,7 +173,7 @@ pub fn pre_push(ctx: &Ctx) -> Result<(), TaskitError> {
         ))?;
         ctx.run(cmd!(
             sh,
-            "cargo nextest run --locked -p {pkg} --lib --status-level none --final-status-level fail --hide-progress-bar --fail-fast"
+            "cargo nextest run --locked -p {pkg} --lib --no-tests warn --status-level none --final-status-level fail --hide-progress-bar --fail-fast"
         ))?;
         if let Some(c) = cov
             && *pkg == c.crate_name
