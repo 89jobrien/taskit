@@ -284,6 +284,7 @@ pub fn plan_interactive() -> Result<InitPlan, TaskitError> {
     Ok(plan)
 }
 
+#[derive(Debug)]
 struct DiscoveredMember {
     dir: String,
     pkg: String,
@@ -657,5 +658,109 @@ mod tests {
         assert!(prop[0].dependents.contains(&"cli".to_string()));
         assert_eq!(prop[1].source, "engine");
         assert!(prop[1].dependents.contains(&"cli".to_string()));
+    }
+
+    // --- property tests ---
+
+    mod prop_tests {
+        use super::super::*;
+        use proptest::prelude::*;
+
+        /// Generate a list of members with no deps (names are unique via BTreeSet dedup).
+        fn arb_members_no_deps() -> impl Strategy<Value = Vec<DiscoveredMember>> {
+            prop::collection::btree_set("[a-z]{1,5}", 1..8).prop_map(|names| {
+                names
+                    .into_iter()
+                    .map(|pkg| DiscoveredMember {
+                        dir: format!("crates/{pkg}"),
+                        pkg,
+                        deps: vec![],
+                    })
+                    .collect()
+            })
+        }
+
+        proptest! {
+            /// The output is a permutation of the input names (same elements, same count).
+            #[test]
+            fn prop_topo_sort_output_contains_all_input_names(
+                members in arb_members_no_deps()
+            ) {
+                let mut input_names: Vec<String> =
+                    members.iter().map(|m| m.pkg.clone()).collect();
+                let mut output = topo_sort_members(&members);
+                input_names.sort();
+                output.sort();
+                prop_assert_eq!(input_names, output);
+            }
+
+            /// If A depends on B (both in the list), B appears before A in the output.
+            #[test]
+            fn prop_topo_sort_respects_dependency_ordering(
+                b_name in "[a-z]{1,5}",
+                a_name in "[f-z]{1,5}",  // ensure a != b by disjoint range
+            ) {
+                // Skip if names collide (rare but possible given regex overlap).
+                prop_assume!(a_name != b_name);
+
+                let members = vec![
+                    DiscoveredMember {
+                        dir: format!("crates/{b_name}"),
+                        pkg: b_name.clone(),
+                        deps: vec![],
+                    },
+                    DiscoveredMember {
+                        dir: format!("crates/{a_name}"),
+                        pkg: a_name.clone(),
+                        deps: vec![b_name.clone()],
+                    },
+                ];
+                let order = topo_sort_members(&members);
+                let b_pos = order.iter().position(|s| s == &b_name).unwrap();
+                let a_pos = order.iter().position(|s| s == &a_name).unwrap();
+                prop_assert!(b_pos < a_pos, "dependency {b_name} must appear before {a_name}");
+            }
+
+            /// Running topo_sort twice on the same input yields identical results.
+            #[test]
+            fn prop_topo_sort_is_deterministic(members in arb_members_no_deps()) {
+                let first = topo_sort_members(&members);
+                let second = topo_sort_members(&members);
+                prop_assert_eq!(first, second);
+            }
+
+            /// External deps (not in the member list) are ignored — no panic, no extra entries.
+            #[test]
+            fn prop_topo_sort_ignores_external_deps(
+                members in arb_members_no_deps(),
+                external in "[a-z]{6,10}",  // longer names — won't collide with 1-5 char pkg names
+            ) {
+                // Attach the external dep to every member.
+                let members_with_ext: Vec<DiscoveredMember> = members
+                    .iter()
+                    .map(|m| DiscoveredMember {
+                        dir: m.dir.clone(),
+                        pkg: m.pkg.clone(),
+                        deps: vec![external.clone()],
+                    })
+                    .collect();
+
+                let output = topo_sort_members(&members_with_ext);
+                let mut expected: Vec<String> =
+                    members_with_ext.iter().map(|m| m.pkg.clone()).collect();
+                let mut got = output.clone();
+                expected.sort();
+                got.sort();
+                prop_assert_eq!(
+                    expected,
+                    got,
+                    "external dep should not add entries or drop members"
+                );
+                prop_assert!(
+                    !output.contains(&external),
+                    "external dep name must not appear in output"
+                );
+            }
+        }
     }
 }
