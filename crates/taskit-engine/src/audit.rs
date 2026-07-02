@@ -9,3 +9,20 @@ pub fn run(ctx: &Ctx) -> Result<(), TaskitError> {
     ctx.run(cmd!(sh, "cargo deny check"))?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dry_run_audit() {
+        let ctx = Ctx::new(
+            xshell::Shell::new().expect("shell"),
+            std::path::PathBuf::from("."),
+            Default::default(),
+            true,
+            Default::default(),
+        );
+        run(&ctx).expect("dry-run audit should succeed");
+    }
+}

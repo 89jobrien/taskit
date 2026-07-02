@@ -29,3 +29,44 @@ pub fn run(ctx: &Ctx, check: bool, affected: bool) -> Result<(), TaskitError> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use taskit_types::config::Config;
+    use taskit_types::output_format::OutputFormat;
+
+    fn dry_ctx() -> Ctx {
+        Ctx::new(
+            xshell::Shell::new().expect("shell"),
+            std::path::PathBuf::from("."),
+            Config::default(),
+            true,
+            OutputFormat::Human,
+        )
+    }
+
+    #[test]
+    fn dry_run_check_all() {
+        let ctx = dry_ctx();
+        run(&ctx, true, false).expect("dry-run fmt --check should succeed");
+    }
+
+    #[test]
+    fn dry_run_format_all() {
+        let ctx = dry_ctx();
+        run(&ctx, false, false).expect("dry-run fmt should succeed");
+    }
+
+    #[test]
+    fn dry_run_check_affected() {
+        let ctx = dry_ctx();
+        run(&ctx, true, true).expect("dry-run fmt --check --affected should succeed");
+    }
+
+    #[test]
+    fn dry_run_format_affected() {
+        let ctx = dry_ctx();
+        run(&ctx, false, true).expect("dry-run fmt --affected should succeed");
+    }
+}

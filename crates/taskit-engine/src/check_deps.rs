@@ -9,3 +9,20 @@ pub fn run(ctx: &Ctx) -> Result<(), TaskitError> {
     ctx.run(cmd!(sh, "cargo-machete"))?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dry_run_check_deps() {
+        let ctx = Ctx::new(
+            xshell::Shell::new().expect("shell"),
+            std::path::PathBuf::from("."),
+            Default::default(),
+            true,
+            Default::default(),
+        );
+        run(&ctx).expect("dry-run check-deps should succeed");
+    }
+}
