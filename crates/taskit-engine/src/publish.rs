@@ -7,8 +7,8 @@ use crate::step::Pipeline;
 /// Crates in publish order: dependencies before dependents.
 const PUBLISH_ORDER: &[&str] = &[
     "taskit-types",
-    "taskit-macros",
     "taskit-testing",
+    "taskit-macros",
     "taskit-output",
     "taskit-core",
     "taskit-engine",
