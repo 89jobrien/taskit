@@ -632,4 +632,129 @@ mod tests {
     fn write_output_returns_err_for_failing() {
         assert!(write_output(OutputFormat::Human, &sample_outcome()).is_err());
     }
+
+    // -- Conformance tests ---------------------------------------------------
+    //
+    // Each formatter must satisfy five invariants regardless of which concrete
+    // type is under test.  `assert_formatter_contract` encodes those invariants
+    // and is called once per implementation.
+
+    const STEP_NAME: &str = "compile";
+
+    fn one_step_passing() -> PipelineOutcome {
+        PipelineOutcome {
+            results: vec![StepResult {
+                name: STEP_NAME.into(),
+                status: StepStatus::Pass,
+                duration: Duration::from_millis(500),
+                error: None,
+                gate: true,
+                diagnostics: vec![],
+            }],
+            total: Duration::from_millis(500),
+            passed: true,
+        }
+    }
+
+    fn one_step_failing() -> PipelineOutcome {
+        PipelineOutcome {
+            results: vec![StepResult {
+                name: STEP_NAME.into(),
+                status: StepStatus::Fail,
+                duration: Duration::from_millis(200),
+                error: Some("exit code 1".into()),
+                gate: true,
+                diagnostics: vec![],
+            }],
+            total: Duration::from_millis(200),
+            passed: false,
+        }
+    }
+
+    fn empty_outcome() -> PipelineOutcome {
+        PipelineOutcome {
+            results: vec![],
+            total: Duration::ZERO,
+            passed: true,
+        }
+    }
+
+    fn long_name_outcome() -> PipelineOutcome {
+        let name = "x".repeat(1000);
+        PipelineOutcome {
+            results: vec![StepResult {
+                name: name.clone(),
+                status: StepStatus::Pass,
+                duration: Duration::from_millis(1),
+                error: None,
+                gate: false,
+                diagnostics: vec![],
+            }],
+            total: Duration::from_millis(1),
+            passed: true,
+        }
+    }
+
+    /// Assert the five invariants that every `OutputFormatter` implementation must satisfy.
+    ///
+    /// `expected_step_token` is the string that must appear in the render of
+    /// `one_step_passing()`.  For most formatters this is the literal step name
+    /// (`STEP_NAME`); for SARIF the step name is mapped to a derived tool name
+    /// by `sarif_tool_name`, so the expected token differs.
+    fn assert_formatter_contract(formatter: &dyn OutputFormatter, expected_step_token: &str) {
+        // Invariant 1: non-empty output for a passing outcome.
+        let out = formatter.render(&one_step_passing());
+        assert!(!out.is_empty(), "render(passing) must not be empty");
+
+        // Invariant 2: non-empty output for a failing outcome.
+        let out = formatter.render(&one_step_failing());
+        assert!(!out.is_empty(), "render(failing) must not be empty");
+
+        // Invariant 3: non-empty output for an outcome with zero steps.
+        let out = formatter.render(&empty_outcome());
+        assert!(!out.is_empty(), "render(empty) must not be empty");
+
+        // Invariant 4: no panic on a very long step name.
+        let _out = formatter.render(&long_name_outcome());
+
+        // Invariant 5: passing outcome output must contain the expected token
+        // derived from the step name.
+        let out = formatter.render(&one_step_passing());
+        assert!(
+            out.contains(expected_step_token),
+            "render(passing) must contain \"{expected_step_token}\""
+        );
+    }
+
+    #[test]
+    fn human_formatter_contract() {
+        assert_formatter_contract(&HumanFormatter, STEP_NAME);
+    }
+
+    #[test]
+    fn json_formatter_contract() {
+        assert_formatter_contract(&JsonFormatter, STEP_NAME);
+    }
+
+    #[test]
+    fn github_formatter_contract() {
+        assert_formatter_contract(&GithubFormatter, STEP_NAME);
+    }
+
+    #[test]
+    fn junit_formatter_contract() {
+        assert_formatter_contract(&JunitFormatter, STEP_NAME);
+    }
+
+    #[test]
+    fn diagnostic_formatter_contract() {
+        assert_formatter_contract(&DiagnosticFormatter, STEP_NAME);
+    }
+
+    #[test]
+    fn sarif_formatter_contract() {
+        // STEP_NAME ("compile") does not match any keyword in sarif_tool_name,
+        // so the derived tool name is the fallback "taskit".
+        assert_formatter_contract(&SarifFormatter, "taskit");
+    }
 }
