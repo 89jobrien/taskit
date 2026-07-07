@@ -26,7 +26,6 @@ pub enum DiagnosticLevel {
     Note,
 }
 
-// TODO(test): unit tests for DiagnosticRecord and DiagnosticLevel
 /// A single diagnostic finding from a tool (clippy warning, test failure, etc.).
 #[derive(Debug, Clone)]
 pub struct DiagnosticRecord {
@@ -55,7 +54,6 @@ pub struct StepResult {
     pub diagnostics: Vec<DiagnosticRecord>,
 }
 
-// TODO(test): test PipelineOutcome with passed=false case
 #[derive(Debug)]
 pub struct PipelineOutcome {
     pub results: Vec<StepResult>,
@@ -83,6 +81,69 @@ mod tests {
             passed: true,
         };
         assert!(outcome.passed);
+    }
+
+    #[test]
+    fn diagnostic_level_debug_names_are_stable() {
+        assert_eq!(format!("{:?}", DiagnosticLevel::Error), "Error");
+        assert_eq!(format!("{:?}", DiagnosticLevel::Warning), "Warning");
+        assert_eq!(format!("{:?}", DiagnosticLevel::Note), "Note");
+    }
+
+    #[test]
+    fn diagnostic_record_fields_are_preserved() {
+        let record = DiagnosticRecord {
+            rule_id: "clippy::needless_return".into(),
+            message: "unneeded return statement".into(),
+            level: DiagnosticLevel::Warning,
+            file: Some("src/lib.rs".into()),
+            line: Some(10),
+            column: Some(5),
+        };
+
+        assert_eq!(record.rule_id, "clippy::needless_return");
+        assert_eq!(record.message, "unneeded return statement");
+        assert_eq!(record.level, DiagnosticLevel::Warning);
+        assert_eq!(record.file.as_deref(), Some("src/lib.rs"));
+        assert_eq!(record.line, Some(10));
+        assert_eq!(record.column, Some(5));
+    }
+
+    #[test]
+    fn pipeline_outcome_failed_case_preserves_failure_result() {
+        let result = StepResult {
+            name: "lint".into(),
+            status: StepStatus::Fail,
+            duration: Duration::from_millis(25),
+            error: Some("clippy found errors".into()),
+            gate: true,
+            diagnostics: vec![DiagnosticRecord {
+                rule_id: "clippy::dead_code".into(),
+                message: "unused function".into(),
+                level: DiagnosticLevel::Error,
+                file: Some("src/lib.rs".into()),
+                line: Some(42),
+                column: Some(1),
+            }],
+        };
+        let outcome = PipelineOutcome {
+            results: vec![result],
+            total: Duration::from_millis(25),
+            passed: false,
+        };
+
+        assert!(!outcome.passed);
+        assert_eq!(outcome.results.len(), 1);
+        assert_eq!(outcome.results[0].status, StepStatus::Fail);
+        assert_eq!(
+            outcome.results[0].error.as_deref(),
+            Some("clippy found errors")
+        );
+        assert!(outcome.results[0].gate);
+        assert_eq!(
+            outcome.results[0].diagnostics[0].level,
+            DiagnosticLevel::Error
+        );
     }
 
     // --- property tests ---

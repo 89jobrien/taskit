@@ -876,6 +876,7 @@ version = "0.7.0"
 dependencies = [
  "cargo_metadata",
  "dialoguer",
+ "proptest",
  "taskit-macros",
  "taskit-testing",
  "taskit-types",
