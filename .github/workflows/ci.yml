@@ -21,7 +21,9 @@ jobs:
         with:
           components: clippy, rustfmt
 
-      - uses: taiki-e/install-action@nextest
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest,cargo-llvm-cov,cargo-deny,cargo-machete
 
       - uses: Swatinem/rust-cache@v2
 
