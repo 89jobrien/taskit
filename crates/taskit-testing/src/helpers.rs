@@ -21,9 +21,11 @@ pub fn single_step_outcome(
             error,
             gate: false,
             diagnostics: vec![],
+            context: Default::default(),
         }],
         total: duration,
         passed,
+        context: None,
     }
 }
 

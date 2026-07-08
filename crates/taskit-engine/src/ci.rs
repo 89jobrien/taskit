@@ -53,9 +53,11 @@ pub(crate) fn run_from_config_internal(
                         error: Some(e.to_string()),
                         gate: step.gate,
                         diagnostics: vec![],
+                        context: Default::default(),
                     }],
                     total: std::time::Duration::ZERO,
                     passed: false,
+                    context: None,
                 };
             }
         };

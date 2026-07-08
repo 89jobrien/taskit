@@ -44,9 +44,11 @@ impl PipelineRunner for EmbeddedCruxRunner {
                 error: None,
                 gate: false,
                 diagnostics: vec![],
+                context: Default::default(),
             }],
             total: duration,
             passed: true,
+            context: None,
         })
     }
 }

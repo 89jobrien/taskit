@@ -95,9 +95,11 @@ impl PipelineRunner for SubprocessCruxRunner {
                 error,
                 gate: false,
                 diagnostics: vec![],
+                context: Default::default(),
             }],
             total: duration,
             passed,
+            context: None,
         })
     }
 }
@@ -204,11 +206,13 @@ mod tests {
             error: None,
             gate: false,
             diagnostics: vec![],
+            context: Default::default(),
         };
         let outcome = PipelineOutcome {
             results: vec![step],
             total: Duration::from_millis(10),
             passed: true,
+            context: None,
         };
         assert_success_outcome_invariants(&outcome);
         assert_duration_invariants(&outcome);
@@ -226,11 +230,13 @@ mod tests {
             error: Some("clippy found warnings".into()),
             gate: false,
             diagnostics: vec![],
+            context: Default::default(),
         };
         let outcome = PipelineOutcome {
             results: vec![step],
             total: Duration::from_millis(5),
             passed: false,
+            context: None,
         };
         assert_failure_outcome_invariants(&outcome);
         assert_duration_invariants(&outcome);
@@ -249,11 +255,13 @@ mod tests {
             error: None,
             gate: false,
             diagnostics: vec![],
+            context: Default::default(),
         };
         let outcome = PipelineOutcome {
             results: vec![step],
             total: Duration::ZERO,
             passed: true,
+            context: None,
         };
         assert_step_names_nonempty(&outcome);
     }
@@ -270,11 +278,13 @@ mod tests {
             error: None,
             gate: false,
             diagnostics: vec![],
+            context: Default::default(),
         };
         let outcome = PipelineOutcome {
             results: vec![step],
             total: Duration::ZERO,
             passed: true,
+            context: None,
         };
         assert_success_outcome_invariants(&outcome);
     }
@@ -291,11 +301,13 @@ mod tests {
             error: None,
             gate: false,
             diagnostics: vec![],
+            context: Default::default(),
         };
         let outcome = PipelineOutcome {
             results: vec![step],
             total: Duration::ZERO,
             passed: false,
+            context: None,
         };
         assert_failure_outcome_invariants(&outcome);
     }

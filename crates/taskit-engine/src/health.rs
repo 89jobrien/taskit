@@ -204,13 +204,176 @@ fn collect_clippy(sh: &Shell) -> Result<ClippyCounts, TaskitError> {
     Ok(parse_clippy_json(&output))
 }
 
-fn count_todo_fixme(sh: &Shell) -> Result<usize, TaskitError> {
-    // Search .rs files under crates/ and src/ for TODO or FIXME
-    let output = cmd!(sh, "grep -r -c -E TODO|FIXME --include=*.rs crates/ src/")
-        .ignore_status()
-        .read()
-        .map_err(TaskitError::other)?;
-    Ok(parse_grep_counts(&output))
+fn count_todo_fixme(_sh: &Shell) -> Result<usize, TaskitError> {
+    let root = std::env::current_dir().err_context("failed to read current directory")?;
+    count_todo_fixme_in_dir(&root)
+}
+
+fn count_todo_fixme_in_dir(root: &Path) -> Result<usize, TaskitError> {
+    ["crates", "src"].iter().try_fold(0, |total, child| {
+        Ok(total + count_todo_fixme_in_tree(&root.join(child))?)
+    })
+}
+
+fn count_todo_fixme_in_tree(path: &Path) -> Result<usize, TaskitError> {
+    if !path.exists() {
+        return Ok(0);
+    }
+
+    let mut total = 0;
+    for entry in
+        std::fs::read_dir(path).err_context_with(|| format!("failed to read {}", path.display()))?
+    {
+        let entry =
+            entry.err_context_with(|| format!("failed to read entry in {}", path.display()))?;
+        let path = entry.path();
+        let file_type = entry
+            .file_type()
+            .err_context_with(|| format!("failed to inspect {}", path.display()))?;
+        if file_type.is_dir() {
+            total += count_todo_fixme_in_tree(&path)?;
+        } else if path.extension().and_then(|ext| ext.to_str()) == Some("rs") {
+            let content = std::fs::read_to_string(&path)
+                .err_context_with(|| format!("failed to read {}", path.display()))?;
+            total += count_todo_fixme_markers(&content);
+        }
+    }
+    Ok(total)
+}
+
+fn count_todo_fixme_markers(content: &str) -> usize {
+    let mut in_block_comment = false;
+    content
+        .lines()
+        .filter(|line| line_has_todo_fixme_comment(line, &mut in_block_comment))
+        .count()
+}
+
+/// Finds the byte positions of the first `//` and first `/*` in `s` that fall
+/// outside string and character literals.
+fn find_comment_markers(s: &str) -> (Option<usize>, Option<usize>) {
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            // b"..." / b'x' / c"..." — advance past the prefix so the next arm handles the quote
+            b'b' | b'c' if i + 1 < bytes.len() && matches!(bytes[i + 1], b'"' | b'\'') => {
+                i += 1;
+            }
+            // Raw strings: r"...", r#"..."#, and br"..." (after the `b` prefix is consumed above)
+            b'r' if i + 1 < bytes.len() && matches!(bytes[i + 1], b'"' | b'#') => {
+                let hash_start = i + 1;
+                let hash_count = bytes[hash_start..]
+                    .iter()
+                    .take_while(|&&b| b == b'#')
+                    .count();
+                let quote_pos = hash_start + hash_count;
+                if quote_pos < bytes.len() && bytes[quote_pos] == b'"' {
+                    let mut close = String::from('"');
+                    for _ in 0..hash_count {
+                        close.push('#');
+                    }
+                    match s[quote_pos + 1..].find(close.as_str()) {
+                        Some(rel) => i = quote_pos + 1 + rel + close.len(),
+                        None => return (None, None),
+                    }
+                } else {
+                    i += 1;
+                }
+            }
+            // Regular string literal: "..."
+            b'"' => {
+                i += 1;
+                while i < bytes.len() {
+                    match bytes[i] {
+                        b'\\' => i += 2,
+                        b'"' => {
+                            i += 1;
+                            break;
+                        }
+                        _ => i += 1,
+                    }
+                }
+            }
+            // Char literal '\n', 'x', etc. — distinguished from lifetimes like 'a
+            b'\'' => {
+                i += 1;
+                if i < bytes.len() && bytes[i] == b'\\' {
+                    // Escape sequence: '\n', '\u{0041}', etc.
+                    i += 1;
+                    if i + 1 < bytes.len() && bytes[i] == b'u' && bytes[i + 1] == b'{' {
+                        i += 2;
+                        while i < bytes.len() && bytes[i] != b'}' {
+                            i += 1;
+                        }
+                        i += 1; // skip '}'
+                    } else {
+                        i += 1; // skip single-char escape (e.g. 'n', 't', '\\', '\'')
+                    }
+                    if i < bytes.len() && bytes[i] == b'\'' {
+                        i += 1;
+                    }
+                } else if i + 1 < bytes.len() && bytes[i + 1] == b'\'' {
+                    // Single-character literal: 'x'
+                    i += 2;
+                }
+                // else: lifetime like 'a — leave i pointing at the char after '
+            }
+            // Comment markers
+            b'/' if i + 1 < bytes.len() => match bytes[i + 1] {
+                b'/' => return (Some(i), None),
+                b'*' => return (None, Some(i)),
+                _ => i += 1,
+            },
+            _ => i += 1,
+        }
+    }
+    (None, None)
+}
+
+fn line_has_todo_fixme_comment(line: &str, in_block_comment: &mut bool) -> bool {
+    let mut rest = line;
+    loop {
+        if *in_block_comment {
+            if let Some(end) = rest.find("*/") {
+                let comment = &rest[..end];
+                *in_block_comment = false;
+                if contains_todo_fixme(comment) {
+                    return true;
+                }
+                rest = &rest[end + 2..];
+                continue;
+            }
+            return contains_todo_fixme(rest);
+        }
+
+        let (line_comment, block_comment) = find_comment_markers(rest);
+        match (line_comment, block_comment) {
+            (Some(line_start), Some(block_start)) if line_start < block_start => {
+                return contains_todo_fixme(&rest[line_start + 2..]);
+            }
+            (Some(line_start), None) => {
+                return contains_todo_fixme(&rest[line_start + 2..]);
+            }
+            (_, Some(block_start)) => {
+                let comment = &rest[block_start + 2..];
+                if let Some(end) = comment.find("*/") {
+                    if contains_todo_fixme(&comment[..end]) {
+                        return true;
+                    }
+                    rest = &comment[end + 2..];
+                } else {
+                    *in_block_comment = true;
+                    return contains_todo_fixme(comment);
+                }
+            }
+            (None, None) => return false,
+        }
+    }
+}
+
+fn contains_todo_fixme(text: &str) -> bool {
+    text.contains("TODO") || text.contains("FIXME")
 }
 
 fn collect_versions() -> Result<(usize, bool, String), TaskitError> {
@@ -336,17 +499,6 @@ fn parse_clippy_json(output: &str) -> ClippyCounts {
     ClippyCounts { warnings, errors }
 }
 
-fn parse_grep_counts(output: &str) -> usize {
-    output
-        .lines()
-        .filter_map(|line| {
-            // grep -c output: "path:N"
-            line.rsplit_once(':')
-                .and_then(|(_, n)| n.trim().parse::<usize>().ok())
-        })
-        .sum()
-}
-
 // -- Direction for metric comparison ------------------------------------------
 
 #[derive(Clone, Copy)]
@@ -448,17 +600,89 @@ mod tests {
         assert_eq!(counts.errors, 0);
     }
 
-    // -- parse_grep_counts --
+    // -- count_todo_fixme_markers --
+    fn todo_marker() -> String {
+        ["TO", "DO"].concat()
+    }
 
-    #[test]
-    fn parse_grep_counts_sums_lines() {
-        let output = "src/main.rs:2\ncrates/foo/src/lib.rs:3\ncrates/bar/src/lib.rs:0\n";
-        assert_eq!(parse_grep_counts(output), 5);
+    fn fixme_marker() -> String {
+        ["FIX", "ME"].concat()
     }
 
     #[test]
-    fn parse_grep_counts_empty() {
-        assert_eq!(parse_grep_counts(""), 0);
+    fn count_todo_fixme_markers_counts_line_doc_inline_and_block_comments() {
+        let todo = todo_marker();
+        let fixme = fixme_marker();
+        let content = [
+            format!("// {todo}: line comment"),
+            format!("/// {fixme}: doc comment"),
+            format!("let x = 1; // {todo}: inline comment"),
+            "/*".into(),
+            format!(" * {todo}: block comment"),
+            " */".into(),
+        ]
+        .join("\n");
+        assert_eq!(count_todo_fixme_markers(&content), 4);
+    }
+
+    #[test]
+    fn count_todo_fixme_markers_ignores_metric_labels_and_strings() {
+        let todo = todo_marker();
+        let fixme = fixme_marker();
+        let content = [
+            format!("let label = \"{todo}/{fixme}\";"),
+            format!("taskit_output::taskit_progress!(\"{todo}/{fixme}: {{}}\", count);"),
+            format!("let ordinary = \"{fixme} but not a comment\";"),
+        ]
+        .join("\n");
+        assert_eq!(count_todo_fixme_markers(&content), 0);
+    }
+
+    #[test]
+    fn count_todo_fixme_markers_ignores_comment_markers_inside_string_literals() {
+        let todo = todo_marker();
+        let fixme = fixme_marker();
+        let content = [
+            // `//` inside a string literal must not be treated as a comment start
+            format!("let s = \"// {todo} inside string\";"),
+            // `/*` inside a string literal must not be treated as a block comment start
+            format!("let t = \"/* {fixme} inside string */\";"),
+            // raw string with `//` marker
+            format!("let u = r\"// {todo} raw string\";"),
+            // string followed by a real comment with no marker
+            "let v = \"// not a marker\"; // plain comment".into(),
+        ]
+        .join("\n");
+        assert_eq!(count_todo_fixme_markers(&content), 0);
+    }
+
+    #[test]
+    fn count_todo_fixme_in_dir_scans_crates_and_src_rust_files_only() {
+        let dir = tempfile::tempdir().expect("tempdir should be created");
+        let crate_src = dir.path().join("crates/foo/src");
+        let bin_src = dir.path().join("src");
+        std::fs::create_dir_all(&crate_src).expect("crate source dir should be created");
+        std::fs::create_dir_all(&bin_src).expect("binary source dir should be created");
+        std::fs::write(
+            crate_src.join("lib.rs"),
+            format!("// {}: crate marker\n", todo_marker()),
+        )
+        .expect("crate Rust file should be written");
+        std::fs::write(
+            bin_src.join("main.rs"),
+            format!("// {}: binary marker\n", fixme_marker()),
+        )
+        .expect("binary Rust file should be written");
+        std::fs::write(
+            crate_src.join("README.md"),
+            format!("{}: docs marker\n", todo_marker()),
+        )
+        .expect("non-Rust file should be written");
+
+        assert_eq!(
+            count_todo_fixme_in_dir(dir.path()).expect("count should succeed"),
+            2
+        );
     }
 
     // -- check --

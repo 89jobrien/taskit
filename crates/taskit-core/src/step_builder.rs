@@ -81,6 +81,7 @@ impl StepBuilder {
             error: self.error,
             gate: self.gate,
             diagnostics: self.diagnostics,
+            context: Default::default(),
         }
     }
 }

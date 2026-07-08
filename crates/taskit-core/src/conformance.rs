@@ -91,6 +91,7 @@ mod tests {
             results: vec![StepBuilder::new("fmt").duration_ms(10).build()],
             total: Duration::from_millis(10),
             passed: true,
+            context: None,
         };
         assert_success_outcome_invariants(&outcome);
         assert_duration_invariants(&outcome);
@@ -109,6 +110,7 @@ mod tests {
             ],
             total: Duration::from_millis(5),
             passed: false,
+            context: None,
         };
         assert_failure_outcome_invariants(&outcome);
         assert_duration_invariants(&outcome);
@@ -122,6 +124,7 @@ mod tests {
             results: vec![StepBuilder::new("").build()],
             total: Duration::ZERO,
             passed: true,
+            context: None,
         };
         assert_step_names_nonempty(&outcome);
     }
@@ -133,6 +136,7 @@ mod tests {
             results: vec![StepBuilder::new("lint").fail().build()],
             total: Duration::ZERO,
             passed: true,
+            context: None,
         };
         assert_success_outcome_invariants(&outcome);
     }
@@ -144,6 +148,7 @@ mod tests {
             results: vec![StepBuilder::new("fmt").build()],
             total: Duration::ZERO,
             passed: false,
+            context: None,
         };
         assert_failure_outcome_invariants(&outcome);
     }

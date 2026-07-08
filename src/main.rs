@@ -164,7 +164,7 @@ enum Cmd {
         /// Maximum allowed clippy warnings (default: 0)
         #[arg(long, default_value_t = 0)]
         max_warnings: usize,
-        /// Maximum allowed TODO/FIXME comments (unchecked if omitted)
+        /// Maximum allowed unresolved code markers (unchecked if omitted)
         #[arg(long)]
         max_todo: Option<usize>,
     },

@@ -5,7 +5,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use taskit_types::error::TaskitError;
+use taskit_types::error::{TaskitError, TaskitResultExt};
 use xshell::cmd;
 
 use crate::ctx::Ctx;
@@ -23,6 +23,43 @@ struct CompileCache {
     cargo_lock_hash: String,
     /// Per-crate entry keyed by package name.
     crates: BTreeMap<String, CrateEntry>,
+}
+
+fn workspace_member_crates(root: &Path) -> Result<BTreeMap<PathBuf, String>, TaskitError> {
+    let metadata = cargo_metadata::MetadataCommand::new()
+        .current_dir(root)
+        .no_deps()
+        .exec()
+        .err_context("failed to run `cargo metadata`")?;
+
+    let mut crates = BTreeMap::new();
+    for pkg_id in &metadata.workspace_members {
+        let pkg = metadata
+            .packages
+            .iter()
+            .find(|p| &p.id == pkg_id)
+            .ok_or_else(|| TaskitError::other("workspace member not found in packages"))?;
+        let manifest_dir = pkg
+            .manifest_path
+            .parent()
+            .ok_or_else(|| TaskitError::other("manifest_path has no parent"))?;
+        let canonical_dir = manifest_dir
+            .as_std_path()
+            .canonicalize()
+            .err_context_with(|| format!("failed to resolve {}", manifest_dir))?;
+        crates.insert(canonical_dir, pkg.name.clone());
+    }
+    Ok(crates)
+}
+
+fn workspace_member_name(
+    dir: &Path,
+    workspace_members: &BTreeMap<PathBuf, String>,
+) -> Result<Option<String>, TaskitError> {
+    let canonical_dir = dir
+        .canonicalize()
+        .err_context_with(|| format!("failed to resolve {}", dir.display()))?;
+    Ok(workspace_members.get(&canonical_dir).cloned())
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -109,9 +146,13 @@ fn stale_crates(current: &CompileCache, cached: &CompileCache) -> Vec<String> {
 
 fn snapshot(root: &Path) -> Result<CompileCache, TaskitError> {
     let lock_hash = file_hash(&root.join("Cargo.lock")).unwrap_or_default();
+    let workspace_members = workspace_member_crates(root)?;
 
     let mut crate_roots: Vec<(String, PathBuf)> = Vec::new();
-    collect_crate_roots(root, &mut crate_roots)?;
+    if let Some(name) = workspace_member_name(root, &workspace_members)? {
+        crate_roots.push((name, root.to_path_buf()));
+    }
+    collect_crate_roots(root, &workspace_members, &mut crate_roots)?;
 
     let mut crates: BTreeMap<String, CrateEntry> = BTreeMap::new();
     for (name, crate_root) in &crate_roots {
@@ -155,7 +196,11 @@ fn crate_entry(dir: &Path) -> Result<CrateEntry, TaskitError> {
 
 /// Find all crate roots (directories with `Cargo.toml` containing `[package]`),
 /// excluding ignored directories. Does not recurse into a found crate root.
-fn collect_crate_roots(dir: &Path, out: &mut Vec<(String, PathBuf)>) -> Result<(), TaskitError> {
+fn collect_crate_roots(
+    dir: &Path,
+    workspace_members: &BTreeMap<PathBuf, String>,
+    out: &mut Vec<(String, PathBuf)>,
+) -> Result<(), TaskitError> {
     for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
@@ -164,21 +209,23 @@ fn collect_crate_roots(dir: &Path, out: &mut Vec<(String, PathBuf)>) -> Result<(
         }
         let name = entry.file_name();
         let name = name.to_string_lossy();
-        if matches!(
-            name.as_ref(),
-            "target" | ".git" | "node_modules" | ".taskit-cache" | "fuzz"
-        ) {
+        if is_ignored_dir_name(&name) {
             continue;
         }
         let manifest = path.join("Cargo.toml");
-        if manifest.exists()
-            && let Some(pkg_name) = package_name(&manifest)
-        {
-            out.push((pkg_name, path));
-            // Don't recurse further — nested crates are their own roots
-            continue;
+        if manifest.exists() {
+            if let Some(pkg_name) = workspace_member_name(&path, workspace_members)? {
+                out.push((pkg_name, path));
+                // Don't recurse further — nested crates are their own roots
+                continue;
+            }
+            if package_name(&manifest).is_some() {
+                // This is a package manifest, but Cargo says it is not a
+                // workspace member, so it may be excluded by workspace config.
+                continue;
+            }
         }
-        collect_crate_roots(&path, out)?;
+        collect_crate_roots(&path, workspace_members, out)?;
     }
     Ok(())
 }
@@ -194,6 +241,11 @@ fn collect_rs_files(
         let entry = entry?;
         let path = entry.path();
         if path.is_dir() {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if is_ignored_dir_name(&name) {
+                continue;
+            }
             // Stop recursing into nested crate roots
             if path.join("Cargo.toml").exists() && path != root {
                 continue;
@@ -205,9 +257,13 @@ fn collect_rs_files(
             out.insert(path.to_string_lossy().into_owned(), h);
         }
     }
+
     Ok(())
 }
 
+fn is_ignored_dir_name(name: &str) -> bool {
+    matches!(name, "target" | ".git" | "node_modules" | ".taskit-cache")
+}
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 fn file_hash(path: &Path) -> Option<String> {
@@ -299,6 +355,26 @@ mod tests {
                 &format!("{dir}/Cargo.toml"),
                 &format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\n"),
             );
+            self.write(&format!("{dir}/src/lib.rs"), "");
+        }
+
+        fn write_workspace(&self, members: &[&str], exclude: &[&str]) {
+            let members = members
+                .iter()
+                .map(|member| format!("\"{member}\""))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let exclude = exclude
+                .iter()
+                .map(|member| format!("\"{member}\""))
+                .collect::<Vec<_>>()
+                .join(", ");
+            self.write(
+                "Cargo.toml",
+                &format!(
+                    "[workspace]\nresolver = \"2\"\nmembers = [{members}]\nexclude = [{exclude}]\n"
+                ),
+            );
         }
     }
 
@@ -324,6 +400,18 @@ mod tests {
                 })
                 .collect(),
         }
+    }
+
+    fn member_map(ws: &TempWorkspace, members: &[(&str, &str)]) -> BTreeMap<PathBuf, String> {
+        members
+            .iter()
+            .map(|(dir, name)| {
+                (
+                    ws.root.join(dir).canonicalize().unwrap(),
+                    (*name).to_string(),
+                )
+            })
+            .collect()
     }
 
     // ── package_name_from_str ─────────────────────────────────────────────────
@@ -502,7 +590,8 @@ mod tests {
         ws.write("my-crate/src/lib.rs", "");
 
         let mut roots = Vec::new();
-        collect_crate_roots(&ws.root, &mut roots).unwrap();
+        let members = member_map(&ws, &[("my-crate", "my-crate")]);
+        collect_crate_roots(&ws.root, &members, &mut roots).unwrap();
         let names: Vec<_> = roots.iter().map(|(n, _)| n.as_str()).collect();
         assert!(names.contains(&"my-crate"), "should find the crate");
     }
@@ -516,7 +605,8 @@ mod tests {
         ws.write_crate("crate-a", "crate-a");
 
         let mut roots = Vec::new();
-        collect_crate_roots(&ws.root, &mut roots).unwrap();
+        let members = member_map(&ws, &[("crate-a", "crate-a")]);
+        collect_crate_roots(&ws.root, &members, &mut roots).unwrap();
         let names: Vec<_> = roots.iter().map(|(n, _)| n.as_str()).collect();
         assert!(
             !names.contains(&"workspace"),
@@ -536,7 +626,8 @@ mod tests {
         );
 
         let mut roots = Vec::new();
-        collect_crate_roots(&ws.root, &mut roots).unwrap();
+        let members = member_map(&ws, &[("real-crate", "real-crate")]);
+        collect_crate_roots(&ws.root, &members, &mut roots).unwrap();
         let names: Vec<_> = roots.iter().map(|(n, _)| n.as_str()).collect();
         assert!(!names.contains(&"phantom"), "target/ must be excluded");
         assert!(names.contains(&"real-crate"));
@@ -552,7 +643,11 @@ mod tests {
         ws.write_crate("outer/inner", "inner-crate");
 
         let mut roots = Vec::new();
-        collect_crate_roots(&ws.root, &mut roots).unwrap();
+        let members = member_map(
+            &ws,
+            &[("outer", "outer-crate"), ("outer/inner", "inner-crate")],
+        );
+        collect_crate_roots(&ws.root, &members, &mut roots).unwrap();
         let names: Vec<_> = roots.iter().map(|(n, _)| n.as_str()).collect();
         assert!(names.contains(&"outer-crate"));
         assert!(
@@ -589,6 +684,19 @@ mod tests {
             out.keys().all(|k| k.ends_with(".rs")),
             "only .rs files should be collected"
         );
+    }
+
+    #[test]
+    fn collect_rs_files_skips_ignored_directories() {
+        let ws = TempWorkspace::new();
+        ws.write("src/lib.rs", "");
+        ws.write("target/generated.rs", "");
+
+        let mut out = BTreeMap::new();
+        collect_rs_files(&ws.root, &ws.root, &mut out).unwrap();
+
+        assert!(out.keys().any(|k| k.ends_with("src/lib.rs")));
+        assert!(out.keys().all(|k| !k.contains("target/generated.rs")));
     }
 
     #[test]
@@ -686,6 +794,7 @@ mod tests {
         ws.write("Cargo.lock", "# lock");
         ws.write_crate("crate-a", "crate-a");
         ws.write_crate("crate-b", "crate-b");
+        ws.write_workspace(&["crate-a", "crate-b"], &[]);
 
         let snap = snapshot(&ws.root).unwrap();
         assert!(snap.crates.contains_key("crate-a"));
@@ -696,6 +805,8 @@ mod tests {
     fn snapshot_cargo_lock_hash_present_when_file_exists() {
         let ws = TempWorkspace::new();
         ws.write("Cargo.lock", "lock content");
+        ws.write_crate("crate-a", "crate-a");
+        ws.write_workspace(&["crate-a"], &[]);
 
         let snap = snapshot(&ws.root).unwrap();
         assert!(
@@ -707,6 +818,8 @@ mod tests {
     #[test]
     fn snapshot_cargo_lock_hash_empty_when_file_missing() {
         let ws = TempWorkspace::new();
+        ws.write_crate("crate-a", "crate-a");
+        ws.write_workspace(&["crate-a"], &[]);
         // No Cargo.lock written
         let snap = snapshot(&ws.root).unwrap();
         assert!(
@@ -720,6 +833,7 @@ mod tests {
         let ws = TempWorkspace::new();
         ws.write("Cargo.lock", "lock");
         ws.write_crate("crate-a", "crate-a");
+        ws.write_workspace(&["crate-a"], &[]);
         let src = ws.write("crate-a/src/lib.rs", "v1");
 
         let snap1 = snapshot(&ws.root).unwrap();
@@ -758,7 +872,8 @@ mod tests {
         );
 
         let mut roots = Vec::new();
-        collect_crate_roots(&ws.root, &mut roots).unwrap();
+        let members = member_map(&ws, &[("real-crate", "real")]);
+        collect_crate_roots(&ws.root, &members, &mut roots).unwrap();
         let names: Vec<_> = roots.iter().map(|(n, _)| n.as_str()).collect();
         assert!(
             !names.contains(&"phantom"),
@@ -767,20 +882,15 @@ mod tests {
     }
 
     #[test]
-    fn regression_fuzz_dir_excluded_from_crate_roots() {
-        // The cargo-fuzz `fuzz/` crate is excluded from the workspace, so
-        // compile-tests must not try to `cargo nextest -p taskit-fuzz` it.
+    fn snapshot_ignores_workspace_excluded_package() {
         let ws = TempWorkspace::new();
         ws.write_crate("real-crate", "real");
-        ws.write("fuzz/Cargo.toml", "[package]\nname = \"taskit-fuzz\"\n");
+        ws.write_crate("experimental", "not-a-member");
+        ws.write_workspace(&["real-crate"], &["experimental"]);
 
-        let mut roots = Vec::new();
-        collect_crate_roots(&ws.root, &mut roots).unwrap();
-        let names: Vec<_> = roots.iter().map(|(n, _)| n.as_str()).collect();
-        assert!(
-            !names.contains(&"taskit-fuzz"),
-            "fuzz/ must be excluded from crate roots"
-        );
+        let snap = snapshot(&ws.root).unwrap();
+        assert!(snap.crates.contains_key("real"));
+        assert!(!snap.crates.contains_key("not-a-member"));
     }
 
     // ── master hash integration ───────────────────────────────────────────────

@@ -25,7 +25,6 @@ pub struct WorkspaceConfig {
 }
 
 impl WorkspaceConfig {
-    // TODO(test): unit test for offline_skip_expr() with Some and None values
     pub fn offline_skip_expr(&self) -> Option<String> {
         self.offline_skip.clone()
     }
@@ -43,7 +42,6 @@ impl CrateEntry {
     }
 }
 
-// TODO(test): unit test for PropagationEntry construction
 #[derive(Debug, Clone, Deserialize)]
 pub struct PropagationEntry {
     pub source: String,
@@ -58,13 +56,11 @@ pub struct ProtocolConfig {
 }
 
 impl ProtocolConfig {
-    // TODO(test): unit test for lockfile_path() default and explicit values
     pub fn lockfile_path(&self) -> &str {
         self.lockfile.as_deref().unwrap_or("taskit-protocol.lock")
     }
 }
 
-// TODO(test): unit test for SurfaceEntry construction
 #[derive(Debug, Deserialize)]
 pub struct SurfaceEntry {
     pub name: String,
@@ -79,7 +75,6 @@ pub struct CiConfig {
     pub cruxfile: Option<String>,
 }
 
-// TODO(test): unit test for CiStep (gate default, name/cmd)
 #[derive(Debug, Deserialize)]
 pub struct CiStep {
     pub name: String,
@@ -96,7 +91,10 @@ pub struct CoverageConfig {
 
 impl CoverageConfig {
     pub fn threshold(&self) -> f64 {
-        self.threshold.unwrap_or(DEFAULT_COVERAGE_THRESHOLD)
+        match self.threshold {
+            Some(threshold) if threshold.is_finite() && threshold > 0.0 => threshold,
+            _ => DEFAULT_COVERAGE_THRESHOLD,
+        }
     }
 }
 
@@ -121,7 +119,6 @@ impl FlowConfig {
     }
 }
 
-// TODO(test): unit + property tests for ReleaseConfig (github_repo getter, empty vs populated)
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct ReleaseConfig {
     /// GitHub repo in `owner/name` format (e.g. `89jobrien/taskit`).
@@ -165,10 +162,9 @@ mod tests {
             prop_assert!(!entry.pkg_name().is_empty());
         }
 
-        // TODO(test): fix latent bug — range includes Some(0.0) but assertion requires t > 0.0
         #[test]
         fn prop_coverage_threshold_positive_finite(
-            threshold in proptest::option::of(0.0f64..=100.0f64),
+            threshold in proptest::option::of(-100.0f64..=100.0f64),
         ) {
             let cfg = CoverageConfig {
                 crate_name: "test".into(),
@@ -178,9 +174,130 @@ mod tests {
             prop_assert!(t > 0.0);
             prop_assert!(t.is_finite());
         }
+
+        #[test]
+        fn prop_release_config_publish_order_preserved(
+            publish_order in proptest::collection::vec("[a-z][a-z0-9-]{1,20}", 0..=5),
+        ) {
+            let cfg = ReleaseConfig {
+                github_repo: None,
+                publish_order: publish_order.clone(),
+            };
+            prop_assert_eq!(cfg.github_repo(), None);
+            prop_assert_eq!(cfg.publish_order, publish_order);
+        }
     }
 
-    // TODO(test): unit test asserting exact default branch names ("main", "staging", "release") for None case
+    #[test]
+    fn workspace_offline_skip_expr_returns_none_when_unset() {
+        let cfg = WorkspaceConfig::default();
+        assert_eq!(cfg.offline_skip_expr(), None);
+    }
+
+    #[test]
+    fn workspace_offline_skip_expr_returns_configured_value() {
+        let cfg = WorkspaceConfig {
+            offline_skip: Some("not test(network)".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            cfg.offline_skip_expr().as_deref(),
+            Some("not test(network)")
+        );
+    }
+
+    #[test]
+    fn propagation_entry_constructs_source_and_dependents() {
+        let entry = PropagationEntry {
+            source: "taskit-types".into(),
+            dependents: vec!["taskit-engine".into(), "taskit-output".into()],
+        };
+        assert_eq!(entry.source, "taskit-types");
+        assert_eq!(entry.dependents, vec!["taskit-engine", "taskit-output"]);
+    }
+
+    #[test]
+    fn protocol_lockfile_path_defaults_when_unset() {
+        let cfg = ProtocolConfig {
+            surfaces: vec![],
+            lockfile: None,
+        };
+        assert_eq!(cfg.lockfile_path(), "taskit-protocol.lock");
+    }
+
+    #[test]
+    fn protocol_lockfile_path_uses_explicit_value() {
+        let cfg = ProtocolConfig {
+            surfaces: vec![],
+            lockfile: Some("custom.lock".into()),
+        };
+        assert_eq!(cfg.lockfile_path(), "custom.lock");
+    }
+
+    #[test]
+    fn surface_entry_deserializes_name_and_path() {
+        let entry: SurfaceEntry = toml::from_str(
+            r#"
+            name = "core-api"
+            path = "crates/taskit-core/src/lib.rs"
+            "#,
+        )
+        .expect("surface entry TOML should parse");
+        assert_eq!(entry.name, "core-api");
+        assert_eq!(entry.path, "crates/taskit-core/src/lib.rs");
+    }
+
+    #[test]
+    fn ci_step_gate_defaults_to_false() {
+        let step: CiStep = toml::from_str(
+            r#"
+            name = "fmt"
+            cmd = "fmt --check"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(step.name, "fmt");
+        assert_eq!(step.cmd, "fmt --check");
+        assert!(!step.gate);
+    }
+
+    #[test]
+    fn ci_step_parses_explicit_gate() {
+        let step: CiStep = toml::from_str(
+            r#"
+            name = "lint"
+            cmd = "lint"
+            gate = true
+            "#,
+        )
+        .unwrap();
+        assert!(step.gate);
+    }
+
+    #[test]
+    fn release_config_github_repo_returns_none_when_unset() {
+        let cfg = ReleaseConfig::default();
+        assert_eq!(cfg.github_repo(), None);
+        assert!(cfg.publish_order.is_empty());
+    }
+
+    #[test]
+    fn release_config_github_repo_returns_configured_repo() {
+        let cfg = ReleaseConfig {
+            github_repo: Some("89jobrien/taskit".into()),
+            publish_order: vec!["taskit-types".into()],
+        };
+        assert_eq!(cfg.github_repo(), Some("89jobrien/taskit"));
+        assert_eq!(cfg.publish_order, vec!["taskit-types"]);
+    }
+
+    #[test]
+    fn flow_config_default_branch_names_are_exact() {
+        let cfg = FlowConfig::default();
+        assert_eq!(cfg.main_branch(), "main");
+        assert_eq!(cfg.staging_branch(), "staging");
+        assert_eq!(cfg.release_branch(), "release");
+    }
     #[test]
     fn ci_config_cruxfile_defaults_to_none() {
         let cfg: CiConfig = toml::from_str("").unwrap();
@@ -194,8 +311,6 @@ mod tests {
         assert_eq!(cfg.cruxfile.as_deref(), Some("ci.crux"));
     }
 
-    // TODO(test): add conformance suite for TaskitResultExt trait contract
-    // TODO(test): add integration tests using real taskit.toml fixture files (tests/ dir)
     #[test]
     fn coverage_threshold_default() {
         let cfg = CoverageConfig {
@@ -203,5 +318,25 @@ mod tests {
             threshold: None,
         };
         assert_eq!(cfg.threshold(), 80.0);
+    }
+
+    #[test]
+    fn coverage_threshold_preserves_positive_finite_value() {
+        let cfg = CoverageConfig {
+            crate_name: "test".into(),
+            threshold: Some(92.5),
+        };
+        assert_eq!(cfg.threshold(), 92.5);
+    }
+
+    #[test]
+    fn coverage_threshold_defaults_for_zero_negative_and_non_finite_values() {
+        for threshold in [Some(0.0), Some(-1.0), Some(f64::NAN), Some(f64::INFINITY)] {
+            let cfg = CoverageConfig {
+                crate_name: "test".into(),
+                threshold,
+            };
+            assert_eq!(cfg.threshold(), DEFAULT_COVERAGE_THRESHOLD);
+        }
     }
 }

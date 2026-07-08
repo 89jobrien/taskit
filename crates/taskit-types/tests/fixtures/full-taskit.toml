@@ -1,0 +1,45 @@
+[workspace]
+offline_skip = "not test(network)"
+
+[[workspace.crates]]
+dir = "taskit-types"
+
+[[workspace.crates]]
+dir = "taskit-engine"
+pkg = "custom-engine"
+
+[[workspace.propagation]]
+source = "taskit-types"
+dependents = ["taskit-engine"]
+
+[protocol]
+lockfile = "custom-protocol.lock"
+
+[[protocol.surfaces]]
+name = "core-api"
+path = "crates/taskit-core/src/lib.rs"
+
+[ci]
+cruxfile = "ci.crux"
+
+[[ci.steps]]
+name = "fmt"
+cmd = "fmt --check"
+gate = true
+
+[[ci.steps]]
+name = "test"
+cmd = "test"
+
+[coverage]
+crate_name = "taskit-engine"
+threshold = 87.5
+
+[flow]
+main = "production"
+staging = "staging"
+release = "release"
+
+[release]
+github_repo = "89jobrien/taskit"
+publish_order = ["taskit-types", "taskit-engine"]

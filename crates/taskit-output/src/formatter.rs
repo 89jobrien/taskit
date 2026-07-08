@@ -449,6 +449,7 @@ mod tests {
                     error: None,
                     gate: true,
                     diagnostics: vec![],
+                    context: Default::default(),
                 },
                 StepResult {
                     name: "test".into(),
@@ -457,10 +458,12 @@ mod tests {
                     error: Some("3 tests failed".into()),
                     gate: false,
                     diagnostics: vec![],
+                    context: Default::default(),
                 },
             ],
             total: Duration::from_millis(15900),
             passed: false,
+            context: None,
         }
     }
 
@@ -473,9 +476,11 @@ mod tests {
                 error: None,
                 gate: false,
                 diagnostics: vec![],
+                context: Default::default(),
             }],
             total: Duration::from_secs(1),
             passed: true,
+            context: None,
         }
     }
 
@@ -556,9 +561,11 @@ mod tests {
                 error: None,
                 gate: false,
                 diagnostics: vec![],
+                context: Default::default(),
             }],
             total: Duration::ZERO,
             passed: true,
+            context: None,
         };
         let output = JunitFormatter.render(&outcome);
         assert!(output.contains("<skipped/>"));
@@ -650,9 +657,11 @@ mod tests {
                 error: None,
                 gate: true,
                 diagnostics: vec![],
+                context: Default::default(),
             }],
             total: Duration::from_millis(500),
             passed: true,
+            context: None,
         }
     }
 
@@ -665,9 +674,11 @@ mod tests {
                 error: Some("exit code 1".into()),
                 gate: true,
                 diagnostics: vec![],
+                context: Default::default(),
             }],
             total: Duration::from_millis(200),
             passed: false,
+            context: None,
         }
     }
 
@@ -676,6 +687,7 @@ mod tests {
             results: vec![],
             total: Duration::ZERO,
             passed: true,
+            context: None,
         }
     }
 
@@ -689,9 +701,11 @@ mod tests {
                 error: None,
                 gate: false,
                 diagnostics: vec![],
+                context: Default::default(),
             }],
             total: Duration::from_millis(1),
             passed: true,
+            context: None,
         }
     }
 
