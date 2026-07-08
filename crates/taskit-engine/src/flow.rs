@@ -95,7 +95,6 @@ fn ahead_behind(sh: &Shell, local: &str, remote: &str) -> Result<(usize, usize),
 }
 
 /// Parse `git status --porcelain` output for conflict markers (UU, AA, DD, AU, UA).
-#[allow(dead_code)]
 pub(crate) fn parse_conflict_paths(porcelain: &str) -> Vec<String> {
     porcelain
         .lines()
@@ -111,7 +110,6 @@ pub(crate) fn parse_conflict_paths(porcelain: &str) -> Vec<String> {
 }
 
 /// Read both sides of a conflicted file via `git show`.
-#[allow(dead_code)]
 pub(crate) fn read_conflict_file(sh: &Shell, path: &str) -> Result<ConflictFile, TaskitError> {
     let ours = cmd!(sh, "git show HEAD:{path}")
         .quiet()
@@ -131,7 +129,6 @@ pub(crate) fn read_conflict_file(sh: &Shell, path: &str) -> Result<ConflictFile,
 }
 
 /// Attempt a `--no-ff` merge; on conflict invoke `resolver`; on escalation return the error.
-#[allow(dead_code)]
 pub(crate) fn merge_with_resolution(
     ctx: &Ctx,
     branch: &str,
@@ -298,6 +295,80 @@ pub fn guard(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
         }
         .into());
     }
+    Ok(())
+}
+
+/// Run the full promote → CI gate → finish pipeline with LLM-assisted conflict resolution.
+///
+/// Sequence:
+/// 1. Verify staging is clean and release/main exist.
+/// 2. Promote: merge staging → release (with conflict resolution).
+/// 3. CI gate: run default pipeline on release; abort if any step fails.
+/// 4. Finish: merge release → main, sync main → staging (with conflict resolution).
+pub fn auto(
+    ctx: &Ctx,
+    flow: &FlowConfig,
+    resolver: &dyn ConflictResolver,
+) -> Result<(), TaskitError> {
+    use taskit_types::step::StepStatus;
+
+    let sh = &ctx.sh;
+    let staging = flow.staging_branch();
+    let release = flow.release_branch();
+    let main = flow.main_branch();
+
+    require_branch(sh, staging)?;
+    require_clean(sh, staging)?;
+    require_branch_exists(sh, release)?;
+    require_branch_exists(sh, main)?;
+
+    // Step 1: Promote staging → release
+    taskit_output::taskit_progress!("auto: promoting {staging} → {release}");
+    checkout(ctx, release)?;
+    merge_with_resolution(
+        ctx,
+        staging,
+        &format!("flow: promote {staging} into {release}"),
+        resolver,
+    )?;
+
+    // Step 2: CI gate on release
+    taskit_output::taskit_progress!("auto: running CI on {release}");
+    let outcome = crate::ci::run_default_internal(ctx, true, false);
+    if !outcome.passed {
+        let failed: Vec<String> = outcome
+            .results
+            .iter()
+            .filter(|s| s.status == StepStatus::Fail)
+            .map(|s| s.name.clone())
+            .collect();
+        taskit_output::taskit_err!(
+            "auto: CI failed on {release} — staying on {release} for investigation"
+        );
+        return Err(FlowError::CiFailed { failed }.into());
+    }
+    taskit_output::taskit_ok!("auto: CI passed on {release}");
+
+    // Step 3: Finish release → main, sync main → staging
+    taskit_output::taskit_progress!("auto: finishing {release} → {main}");
+    checkout(ctx, main)?;
+    merge_with_resolution(
+        ctx,
+        release,
+        &format!("flow: finish {release} into {main}"),
+        resolver,
+    )?;
+
+    taskit_output::taskit_progress!("auto: syncing {main} → {staging}");
+    checkout(ctx, staging)?;
+    merge_with_resolution(
+        ctx,
+        main,
+        &format!("flow: sync {main} into {staging}"),
+        resolver,
+    )?;
+
+    taskit_output::taskit_ok!("auto: done. {staging} is in sync with {main}.");
     Ok(())
 }
 
