@@ -94,6 +94,93 @@ fn ahead_behind(sh: &Shell, local: &str, remote: &str) -> Result<(usize, usize),
     Ok((ahead, behind))
 }
 
+/// Parse `git status --porcelain` output for conflict markers (UU, AA, DD, AU, UA).
+#[allow(dead_code)]
+pub(crate) fn parse_conflict_paths(porcelain: &str) -> Vec<String> {
+    porcelain
+        .lines()
+        .filter(|l| {
+            l.starts_with("UU ")
+                || l.starts_with("AA ")
+                || l.starts_with("DD ")
+                || l.starts_with("AU ")
+                || l.starts_with("UA ")
+        })
+        .map(|l| l[3..].trim().to_string())
+        .collect()
+}
+
+/// Read both sides of a conflicted file via `git show`.
+#[allow(dead_code)]
+pub(crate) fn read_conflict_file(sh: &Shell, path: &str) -> Result<ConflictFile, TaskitError> {
+    let ours = cmd!(sh, "git show HEAD:{path}")
+        .quiet()
+        .read()
+        .unwrap_or_default();
+    let theirs = cmd!(sh, "git show MERGE_HEAD:{path}")
+        .quiet()
+        .read()
+        .unwrap_or_default();
+    let base = std::fs::read_to_string(path).ok();
+    Ok(ConflictFile {
+        path: path.to_string(),
+        ours,
+        theirs,
+        base,
+    })
+}
+
+/// Attempt a `--no-ff` merge; on conflict invoke `resolver`; on escalation return the error.
+#[allow(dead_code)]
+pub(crate) fn merge_with_resolution(
+    ctx: &Ctx,
+    branch: &str,
+    message: &str,
+    resolver: &dyn ConflictResolver,
+) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    if ctx.dry_run {
+        taskit_output::taskit_dry!("git merge --no-ff {branch} -m \"{message}\"");
+        return Ok(());
+    }
+    let output = cmd!(sh, "git merge --no-ff {branch} -m {message}")
+        .quiet()
+        .output()
+        .map_err(TaskitError::other)?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let porcelain = cmd!(sh, "git status --porcelain")
+        .read()
+        .map_err(TaskitError::other)?;
+    let paths = parse_conflict_paths(&porcelain);
+    if paths.is_empty() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(FlowError::MergeFailed {
+            reason: stderr.trim().to_string(),
+        }
+        .into());
+    }
+    let files: Vec<ConflictFile> = paths
+        .iter()
+        .map(|p| read_conflict_file(sh, p))
+        .collect::<Result<_, _>>()?;
+    let resolved = resolver.resolve(&files)?;
+    for r in &resolved {
+        std::fs::write(&r.path, &r.content).map_err(TaskitError::other)?;
+        let path = &r.path;
+        cmd!(sh, "git add {path}")
+            .run()
+            .map_err(TaskitError::other)?;
+    }
+    cmd!(sh, "git commit --no-edit").run().map_err(|e| {
+        FlowError::MergeFailed {
+            reason: e.to_string(),
+        }
+        .into()
+    })
+}
+
 fn merge_no_ff(ctx: &Ctx, branch: &str, message: &str) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     if ctx.dry_run {
@@ -244,6 +331,19 @@ mod tests {
             }
             .into())
         }
+    }
+
+    #[test]
+    fn parse_conflict_paths_empty_on_clean() {
+        assert!(parse_conflict_paths("").is_empty());
+        assert!(parse_conflict_paths("M  src/lib.rs\n?? new.txt\n").is_empty());
+    }
+
+    #[test]
+    fn parse_conflict_paths_detects_uu_aa_dd() {
+        let porcelain = "UU src/lib.rs\nAA Cargo.toml\nDD old.rs\nM  clean.rs\n";
+        let paths = parse_conflict_paths(porcelain);
+        assert_eq!(paths, vec!["src/lib.rs", "Cargo.toml", "old.rs"]);
     }
 
     #[test]
