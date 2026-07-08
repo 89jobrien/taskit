@@ -249,6 +249,88 @@ fn count_todo_fixme_markers(content: &str) -> usize {
         .count()
 }
 
+/// Finds the byte positions of the first `//` and first `/*` in `s` that fall
+/// outside string and character literals.
+fn find_comment_markers(s: &str) -> (Option<usize>, Option<usize>) {
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            // b"..." / b'x' / c"..." — advance past the prefix so the next arm handles the quote
+            b'b' | b'c' if i + 1 < bytes.len() && matches!(bytes[i + 1], b'"' | b'\'') => {
+                i += 1;
+            }
+            // Raw strings: r"...", r#"..."#, and br"..." (after the `b` prefix is consumed above)
+            b'r' if i + 1 < bytes.len() && matches!(bytes[i + 1], b'"' | b'#') => {
+                let hash_start = i + 1;
+                let hash_count = bytes[hash_start..]
+                    .iter()
+                    .take_while(|&&b| b == b'#')
+                    .count();
+                let quote_pos = hash_start + hash_count;
+                if quote_pos < bytes.len() && bytes[quote_pos] == b'"' {
+                    let mut close = String::from('"');
+                    for _ in 0..hash_count {
+                        close.push('#');
+                    }
+                    match s[quote_pos + 1..].find(close.as_str()) {
+                        Some(rel) => i = quote_pos + 1 + rel + close.len(),
+                        None => return (None, None),
+                    }
+                } else {
+                    i += 1;
+                }
+            }
+            // Regular string literal: "..."
+            b'"' => {
+                i += 1;
+                while i < bytes.len() {
+                    match bytes[i] {
+                        b'\\' => i += 2,
+                        b'"' => {
+                            i += 1;
+                            break;
+                        }
+                        _ => i += 1,
+                    }
+                }
+            }
+            // Char literal '\n', 'x', etc. — distinguished from lifetimes like 'a
+            b'\'' => {
+                i += 1;
+                if i < bytes.len() && bytes[i] == b'\\' {
+                    // Escape sequence: '\n', '\u{0041}', etc.
+                    i += 1;
+                    if i + 1 < bytes.len() && bytes[i] == b'u' && bytes[i + 1] == b'{' {
+                        i += 2;
+                        while i < bytes.len() && bytes[i] != b'}' {
+                            i += 1;
+                        }
+                        i += 1; // skip '}'
+                    } else {
+                        i += 1; // skip single-char escape (e.g. 'n', 't', '\\', '\'')
+                    }
+                    if i < bytes.len() && bytes[i] == b'\'' {
+                        i += 1;
+                    }
+                } else if i + 1 < bytes.len() && bytes[i + 1] == b'\'' {
+                    // Single-character literal: 'x'
+                    i += 2;
+                }
+                // else: lifetime like 'a — leave i pointing at the char after '
+            }
+            // Comment markers
+            b'/' if i + 1 < bytes.len() => match bytes[i + 1] {
+                b'/' => return (Some(i), None),
+                b'*' => return (None, Some(i)),
+                _ => i += 1,
+            },
+            _ => i += 1,
+        }
+    }
+    (None, None)
+}
+
 fn line_has_todo_fixme_comment(line: &str, in_block_comment: &mut bool) -> bool {
     let mut rest = line;
     loop {
@@ -265,8 +347,7 @@ fn line_has_todo_fixme_comment(line: &str, in_block_comment: &mut bool) -> bool 
             return contains_todo_fixme(rest);
         }
 
-        let line_comment = rest.find("//");
-        let block_comment = rest.find("/*");
+        let (line_comment, block_comment) = find_comment_markers(rest);
         match (line_comment, block_comment) {
             (Some(line_start), Some(block_start)) if line_start < block_start => {
                 return contains_todo_fixme(&rest[line_start + 2..]);
@@ -552,6 +633,24 @@ mod tests {
             format!("let label = \"{todo}/{fixme}\";"),
             format!("taskit_output::taskit_progress!(\"{todo}/{fixme}: {{}}\", count);"),
             format!("let ordinary = \"{fixme} but not a comment\";"),
+        ]
+        .join("\n");
+        assert_eq!(count_todo_fixme_markers(&content), 0);
+    }
+
+    #[test]
+    fn count_todo_fixme_markers_ignores_comment_markers_inside_string_literals() {
+        let todo = todo_marker();
+        let fixme = fixme_marker();
+        let content = [
+            // `//` inside a string literal must not be treated as a comment start
+            format!("let s = \"// {todo} inside string\";"),
+            // `/*` inside a string literal must not be treated as a block comment start
+            format!("let t = \"/* {fixme} inside string */\";"),
+            // raw string with `//` marker
+            format!("let u = r\"// {todo} raw string\";"),
+            // string followed by a real comment with no marker
+            "let v = \"// not a marker\"; // plain comment".into(),
         ]
         .join("\n");
         assert_eq!(count_todo_fixme_markers(&content), 0);
