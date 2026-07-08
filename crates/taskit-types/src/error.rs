@@ -136,6 +136,7 @@ pub enum InitError {
     WriteFile { file: String, reason: String },
 }
 
+#[non_exhaustive]
 #[derive(Debug, Error, Diagnostic)]
 pub enum FlowError {
     #[error("not on expected branch: expected '{expected}', got '{actual}'")]
