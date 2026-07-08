@@ -177,3 +177,43 @@ fn flow_finish_merges_release_to_main_and_syncs_staging() {
         "main not yet synced into staging after finish"
     );
 }
+
+#[test]
+fn flow_promote_leaves_user_on_release() {
+    let (_dir, ctx, flow) = setup_flow_repo();
+
+    // Add a commit on staging so promote has something to merge.
+    cmd!(ctx.sh, "git checkout staging")
+        .run()
+        .expect("checkout staging");
+    commit_file(&ctx.sh, "feature.txt", "feature\n", "feat: add feature");
+
+    flow::promote(&ctx, &flow).expect("flow::promote");
+
+    let branch = cmd!(ctx.sh, "git branch --show-current")
+        .read()
+        .expect("branch");
+    assert_eq!(
+        branch.trim(),
+        "release",
+        "promote should leave user on release"
+    );
+}
+
+#[test]
+fn flow_finish_auto_switches_from_staging() {
+    let (_dir, ctx, flow) = setup_flow_repo();
+
+    // Seed release with a commit.
+    cmd!(ctx.sh, "git checkout release")
+        .run()
+        .expect("checkout release");
+    commit_file(&ctx.sh, "hotfix.txt", "hotfix\n", "fix: hotfix");
+
+    // Switch to staging — finish should auto-switch to release.
+    cmd!(ctx.sh, "git checkout staging")
+        .run()
+        .expect("checkout staging");
+
+    flow::finish(&ctx, &flow).expect("flow::finish should succeed from staging");
+}

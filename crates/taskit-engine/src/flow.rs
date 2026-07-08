@@ -142,10 +142,7 @@ pub fn promote(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
         staging,
         &format!("flow: promote {staging} into {release}"),
     )?;
-    checkout(ctx, staging)?;
-    taskit_output::taskit_ok!(
-        "Done. Now on {staging}. Review {release}, then `taskit flow finish`."
-    );
+    taskit_output::taskit_ok!("Done. Now on {release}. Run `taskit flow finish` when ready.");
     Ok(())
 }
 
@@ -155,7 +152,10 @@ pub fn finish(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
     let staging = flow.staging_branch();
     let release = flow.release_branch();
 
-    require_branch(sh, release)?;
+    // Auto-switch to release if not already there.
+    if current_branch(sh)? != release {
+        checkout(ctx, release)?;
+    }
     require_clean(sh, release)?;
     require_branch_exists(sh, main)?;
     require_branch_exists(sh, staging)?;
