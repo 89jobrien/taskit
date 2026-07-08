@@ -1,3 +1,5 @@
+mod flow_resolver;
+
 use clap::{Parser, Subcommand};
 use std::env;
 use taskit_engine::command::{self, Command};
@@ -211,6 +213,8 @@ enum FlowCmd {
     Finish,
     /// Validate current branch is not protected (for pre-commit hooks)
     Guard,
+    /// Run full promote → CI → finish pipeline with LLM conflict resolution
+    Auto,
 }
 
 /// Map a parsed CLI subcommand to its [`Command`] implementation.
@@ -323,6 +327,9 @@ fn to_command(cmd: Cmd) -> Box<dyn Command> {
                 FlowCmd::Promote => FlowAction::Promote,
                 FlowCmd::Finish => FlowAction::Finish,
                 FlowCmd::Guard => FlowAction::Guard,
+                FlowCmd::Auto => FlowAction::Auto {
+                    resolver: Box::new(flow_resolver::BamlConflictResolver),
+                },
             },
         }),
         Cmd::Init { .. } => unreachable!("Init is handled before dispatch"),

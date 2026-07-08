@@ -326,6 +326,9 @@ pub enum FlowAction {
     Promote,
     Finish,
     Guard,
+    Auto {
+        resolver: Box<dyn flow::ConflictResolver>,
+    },
 }
 
 pub struct Flow {
@@ -334,11 +337,12 @@ pub struct Flow {
 impl Command for Flow {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
         let cfg = ctx.flow();
-        match self.action {
+        match &self.action {
             FlowAction::Status => flow::status(ctx, &cfg),
             FlowAction::Promote => flow::promote(ctx, &cfg),
             FlowAction::Finish => flow::finish(ctx, &cfg),
             FlowAction::Guard => flow::guard(ctx, &cfg),
+            FlowAction::Auto { resolver } => flow::auto(ctx, &cfg, resolver.as_ref()),
         }
     }
 }
