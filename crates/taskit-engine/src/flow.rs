@@ -665,9 +665,7 @@ release = "rc"
                 diagnostics: vec![],
                 context: taskit_types::step::StepDiagnosticContext::default(),
             }],
-            passed: false,
-            total: std::time::Duration::ZERO,
-            context: None,
+            ..Default::default()
         };
 
         let result = auto_with_ci(&ctx, &flow, &AlwaysResolve, failing_ci);
@@ -707,8 +705,7 @@ release = "rc"
                 context: taskit_types::step::StepDiagnosticContext::default(),
             }],
             passed: true,
-            total: std::time::Duration::ZERO,
-            context: None,
+            ..Default::default()
         };
 
         let result = auto_with_ci(&ctx, &flow, &AlwaysResolve, passing_ci);
