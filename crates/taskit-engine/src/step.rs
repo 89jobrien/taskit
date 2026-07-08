@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use crate::progress::Spinner;
+use crate::progress::fmt_elapsed;
 use taskit_types::error::TaskitError;
 use taskit_types::step::{DiagnosticRecord, PipelineRunContext, StepDiagnosticContext};
 
@@ -163,19 +163,18 @@ impl<'a> Pipeline<'a> {
                 continue;
             }
 
-            let sp = Spinner::new(&ps.name);
             let start = Instant::now();
             let outcome = (ps.f)();
             let duration = start.elapsed();
+            let elapsed = fmt_elapsed(duration);
             let (status, error) = match &outcome {
                 Ok(_) => {
-                    sp.finish_ok();
+                    taskit_output::taskit_ok!("✓ {} [{elapsed}]", ps.name);
                     (StepStatus::Pass, None)
                 }
                 Err(e) => {
-                    sp.finish_err();
                     let msg = e.to_string();
-                    taskit_output::taskit_err!("{msg}");
+                    taskit_output::taskit_err!("✗ {} [{elapsed}]: {msg}", ps.name);
                     any_failed = true;
                     if ps.is_gate {
                         gate_failed = true;

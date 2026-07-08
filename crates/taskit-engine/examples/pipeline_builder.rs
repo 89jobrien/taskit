@@ -9,14 +9,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use taskit_engine::step::{Pipeline, StepContextSink, StepStatus};
-use taskit_output::{BufferSink, set_sink};
 use taskit_types::error::TaskitError;
 use taskit_types::step::{PipelineRunContext, StepDiagnosticContext};
 
 fn main() {
-    // Silence the progress spinner so it doesn't interleave with println! output.
-    set_sink(Box::new(BufferSink::new()));
-
     println!("=== fail_fast=false: all steps run ===\n");
     run_demo(false);
 

@@ -2,7 +2,7 @@ use taskit_types::error::TaskitError;
 use taskit_types::step::{DiagnosticLevel, DiagnosticRecord};
 use xshell::cmd;
 
-use crate::{ctx::Ctx, progress::with_spinner, util};
+use crate::{ctx::Ctx, util};
 
 pub fn run(
     ctx: &Ctx,
@@ -36,20 +36,16 @@ pub fn run(
         use_affected,
         continue_on_error,
         |sh, name| {
-            with_spinner(format!("test {name}"), || {
-                ctx.run(cmd!(
-                    sh,
-                    "cargo nextest run --locked -p {name} --all-targets {extra...}"
-                ))
-            })
+            ctx.run(cmd!(
+                sh,
+                "cargo nextest run --locked -p {name} --all-targets {extra...}"
+            ))
         },
         |sh| {
-            with_spinner("test workspace", || {
-                ctx.run(cmd!(
-                    sh,
-                    "cargo nextest run --locked --workspace --all-targets {extra...}"
-                ))
-            })
+            ctx.run(cmd!(
+                sh,
+                "cargo nextest run --locked --workspace --all-targets {extra...}"
+            ))
         },
     )
 }

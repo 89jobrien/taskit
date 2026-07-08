@@ -2,7 +2,7 @@ use taskit_types::error::TaskitError;
 use taskit_types::step::{DiagnosticLevel, DiagnosticRecord};
 use xshell::cmd;
 
-use crate::{ctx::Ctx, progress::with_spinner, util};
+use crate::{ctx::Ctx, util};
 
 pub fn run(
     ctx: &Ctx,
@@ -19,20 +19,16 @@ pub fn run(
         use_affected,
         continue_on_error,
         |sh, name| {
-            with_spinner(format!("lint {name}"), || {
-                ctx.run(cmd!(
-                    sh,
-                    "cargo clippy --locked --quiet -p {name} --all-targets -- -D warnings"
-                ))
-            })
+            ctx.run(cmd!(
+                sh,
+                "cargo clippy --locked --quiet -p {name} --all-targets -- -D warnings"
+            ))
         },
         |sh| {
-            with_spinner("lint workspace", || {
-                ctx.run(cmd!(
-                    sh,
-                    "cargo clippy --locked --quiet --all-targets --workspace -- -D warnings"
-                ))
-            })
+            ctx.run(cmd!(
+                sh,
+                "cargo clippy --locked --quiet --all-targets --workspace -- -D warnings"
+            ))
         },
     )
 }
