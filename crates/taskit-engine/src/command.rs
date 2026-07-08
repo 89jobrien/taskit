@@ -321,6 +321,7 @@ impl Command for Release {
 
 // ── flow ───────────────────────────────────────────────────────────────────
 
+#[non_exhaustive]
 pub enum FlowAction {
     Status,
     Promote,

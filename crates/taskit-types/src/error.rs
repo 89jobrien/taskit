@@ -137,6 +137,7 @@ pub enum InitError {
 }
 
 #[derive(Debug, Error, Diagnostic)]
+#[non_exhaustive]
 pub enum FlowError {
     #[error("not on expected branch: expected '{expected}', got '{actual}'")]
     #[diagnostic(
