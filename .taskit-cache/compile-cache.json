@@ -1,0 +1,142 @@
+{
+  "cargo_lock_hash": "dd8237e6d3ff048add10901692157d12d7a1d510b21899e4eb4534e41830bcac",
+  "crates": {
+    "taskit": {
+      "hash": "acaee644a6ab5617b808db28eeda6acab267c63a835ed930aff7bed41d0bc448",
+      "modules": {
+        "./Cargo.toml": "799565fe6a04ffe0f3d335b0266714fa0ca4d78e16ba8a7f41cdc7bc0f8f5aec",
+        "./src/main.rs": "e144a3f0644bf6ee79288154d16c9b0083249bdbf927def2ca96b707710ef66e"
+      }
+    },
+    "taskit-core": {
+      "hash": "085a7b5a6c31220a3410235f4180305fd0b3f01f91645ed47d5bea5f624e0aa1",
+      "modules": {
+        "./crates/taskit-core/Cargo.toml": "145b7f98cbbd3087c4f048e60ee953ad990d32feeaf3792b55d779122e68be15",
+        "./crates/taskit-core/src/conformance.rs": "51ee7dd545bdfd6752427341a07afa91a497857298431c9eb8a9210a2790316d",
+        "./crates/taskit-core/src/lib.rs": "07f9f57a3170b797744f81ad9bf2772cc49107e56d934b28c151ecee954f6aef",
+        "./crates/taskit-core/src/pipeline_runner.rs": "0563622f80030689cb2a73998c2d3340cb08ab5b5bfa2debe4846923a7cf36eb",
+        "./crates/taskit-core/src/step_builder.rs": "6e513f292f6b17e2d64ff46d9027fabaea0d197b07647060142f9486996ed5ae"
+      }
+    },
+    "taskit-crux": {
+      "hash": "3885e66dda8fe4514cbc0e82eb9c0d4700afbf3633f554034b7e563bf27bde2b",
+      "modules": {
+        "./crates/taskit-crux/Cargo.toml": "4f28e7b45944024e31941c774cf3d466ae5d246596991faf4e6a20d208caa6d7",
+        "./crates/taskit-crux/src/lib.rs": "79dc5e92f65daf6431d5fbb63c48957666a6e82deb8009adcd36e210969ccab8"
+      }
+    },
+    "taskit-engine": {
+      "hash": "0bc2ab6cf1ac315292dfc50233f6dee5efd5832c79682cab2a3f6b5401e57cf5",
+      "modules": {
+        "./crates/taskit-engine/Cargo.toml": "ad0e957f6ae0eb69833d56cb669b2c67f4f7095d585b55bf64255ec35b795c33",
+        "./crates/taskit-engine/src/affected.rs": "b0e1fbd1b518392abacd1257a381d285fb89ef2992300fe0534b7d9b75e6cd33",
+        "./crates/taskit-engine/src/audit.rs": "2b1626a042ca20b604342b0b4022f6988ebe1e664cdcaab491d962eed4e15c6a",
+        "./crates/taskit-engine/src/cache/mod.rs": "eb102c38b0c5e470d61a21fbbaa1f9547dc6fe0109ad96355afbc2ea8ba06737",
+        "./crates/taskit-engine/src/check_deps.rs": "41c12d424bb75f730f0443f4629ada69bed968a88e7db0c3ff1a72785e694b5b",
+        "./crates/taskit-engine/src/check_freshness.rs": "fb09884c69d66b65d1525f2fbd1f7af349e28c09745efe0dab7258ced54c1835",
+        "./crates/taskit-engine/src/ci.rs": "69bac2334ccedda7a77b0f72529e9920254387bfbcd2f3439d066427b59a5b53",
+        "./crates/taskit-engine/src/clean.rs": "5e0a6010131e045d18d5193a1b41e98bad687eec6cc3a79b9b426f5e9d80b126",
+        "./crates/taskit-engine/src/command.rs": "6c10a5befbce805633d799bc1145d259d36b3dc8d17e0d6c72ece8aab93adcc6",
+        "./crates/taskit-engine/src/config.rs": "883d51ba52db0b703fae85b5db88f18ea90b1d452bc6094bf7178165ddc25c01",
+        "./crates/taskit-engine/src/ctx.rs": "3501f386897473a55d62f9d31fb210d185d2e68e3158df43c896db7e25e4fe42",
+        "./crates/taskit-engine/src/dev_setup.rs": "938a296a6e512af5c5b8404425ff9427413bfb86a8b90e5d7e388dac373a150c",
+        "./crates/taskit-engine/src/discovery.rs": "2868b30e7c897057af8489f7912aa918e0823b7ed276bef97af3c01070b1e4c1",
+        "./crates/taskit-engine/src/flow.rs": "c906a916844e67294cfcdf72d10e2fc6282fcd5370e019a2e2e47507f229bf26",
+        "./crates/taskit-engine/src/fmt.rs": "9d1859921f79f81b17aad83be7d14953c66a02c312f5d7c0bd3149a9e1972c8f",
+        "./crates/taskit-engine/src/health.rs": "0bfc4197d2b104f4c40812b6d40535abf793a6cd288a09d9276903066ca2dfd4",
+        "./crates/taskit-engine/src/hooks.rs": "2f8333e26bb493ecc910dd0455a12e6b02319a7886a378ddeac6024dc9010f64",
+        "./crates/taskit-engine/src/inspect.rs": "87407bcaec1c7adbc04837ba562e6e8c8bb5156a7bd2103167a57aae68338af0",
+        "./crates/taskit-engine/src/lib.rs": "28ca8c083d1461c9f7f366fab55652d106ee1327fcc8dace9c1726f991a0225e",
+        "./crates/taskit-engine/src/lint.rs": "e27e3e049a67f4365b2ffc267c063232f4fd6f5ea036d3c7dda673b2dac8997d",
+        "./crates/taskit-engine/src/pipeline_runner.rs": "dcda2cba277e0121770ccbfba2cdd2772be8ad5583b2a2bbd5cb801982770742",
+        "./crates/taskit-engine/src/progress.rs": "2b4d4ad5ab6f5822071104308551bf9d99cf98587b8344c8948cc2e672d71d85",
+        "./crates/taskit-engine/src/protocol/contract_hash.rs": "9213fe56ed4638becbb5ad2005b94fcf23f48d80753727813e70e79e37d045df",
+        "./crates/taskit-engine/src/protocol/drift.rs": "3139586f4bf9a2c2c20d42e8236a6d90d32624c433699fafd9bfd6eb3e349c0a",
+        "./crates/taskit-engine/src/protocol/mod.rs": "99eaac5ad51d1fafcc933e82d080bbfe6b1be799fa940eadf3defc8b811577fb",
+        "./crates/taskit-engine/src/protocol/sites.rs": "b28b2d3d7b90ab35715686cd39d729367f00e3e8c76676d1a4b4d20b3702dbdb",
+        "./crates/taskit-engine/src/publish.rs": "2e6c06d8a2ee9d7ee2bbc3f7574f61208759e344537ff84832115f2368af84f5",
+        "./crates/taskit-engine/src/quick.rs": "8956f52fd6a502d0e2859c23b406801e8deb7972503b7ac9dc587f00794384b0",
+        "./crates/taskit-engine/src/release/gh.rs": "cc31ddd49e74692bdda8ac5199663544ba867354cf7a64126c28b67a456622d2",
+        "./crates/taskit-engine/src/release/mod.rs": "49c8e95a78a31f43c862983a537a9fbe6db1be8c3316bd959dd246aefb7b65cc",
+        "./crates/taskit-engine/src/step.rs": "e378d8f8170c547bac524a21cd4d5b5ec6a2d8efb4945e60f8d6db789e45d34d",
+        "./crates/taskit-engine/src/testing/bench.rs": "140a4bb8c0437dcaf12cc6c88609c6884b151343e71f71bf4b1ced3c6547e485",
+        "./crates/taskit-engine/src/testing/compile.rs": "0aca669a9125d4a553e49bbbdb58dde8b976045439aec90a863fb2ac54c2bb80",
+        "./crates/taskit-engine/src/testing/coverage.rs": "cef0179c1274a3071128a3d2d64258b717572c11063962876e9c196b9be940c6",
+        "./crates/taskit-engine/src/testing/fuzz.rs": "cb040db805e5c0ee58d2ec2152381d928f0aebafce7351a433a958b2b669a4a2",
+        "./crates/taskit-engine/src/testing/mod.rs": "b0c02e1f4fa7db6584cbc62fd05edb0b36c097531e67c5f24fd053744185ddf6",
+        "./crates/taskit-engine/src/testing/proptest.rs": "b3bf6d0f393a80ee7ee35dc155f232c28b19b3b5301629ea7b69be3445dd472d",
+        "./crates/taskit-engine/src/testing/report.rs": "995372bd9b4f100b350f9a23e107f2a5721e4410bc8454f6c04d0d723ca69938",
+        "./crates/taskit-engine/src/testing/run.rs": "8e3290b0035176d72a15f5f21986d8d1e2f2ebdf695b973d728552603ec178f7",
+        "./crates/taskit-engine/src/testing/self_test.rs": "3a5211c29259a78281e79f5f42a787d826c027741175d6ec0369dd63aab401f6",
+        "./crates/taskit-engine/src/testing/snapshot.rs": "389767cade56a0b5b3c915e471ca02ec310dd1668bf9b0e6b274870d71602640",
+        "./crates/taskit-engine/src/update_claude.rs": "03522e1373386c3c0fc58c7348e21e024407143e8f50f7c0576dda19f5479df7",
+        "./crates/taskit-engine/src/util.rs": "23e4844310dddbbe6d4ee932e019c7a56ff8e925105216cce2dde783c2e93534",
+        "./crates/taskit-engine/src/version.rs": "29d2a6f368d962b2baeaf67897ca7e650f7462e59badac7b78ec781ac1a0e53f",
+        "./crates/taskit-engine/tests/flow_integration.rs": "77b1cafe3e1ee9e93e04a94b8e59f3bbdfb47e22be3c5bde2e332b95b58b2fe7"
+      }
+    },
+    "taskit-init": {
+      "hash": "1f2177ddae1fc62da126a0e8b421cafecd5796dc183714935ca36c4f08e372fa",
+      "modules": {
+        "./crates/taskit-init/Cargo.toml": "1a35a641f08ad596f0b27cb70128bafaa951e0254023b7c886437bacf74b9467",
+        "./crates/taskit-init/src/lib.rs": "14f7e4440f34d5103bf824f6a8f865388520b120f8043008f09f8025d90d6b01",
+        "./crates/taskit-init/src/plan.rs": "ec01ba917f8a8f3a76bf8530fdf1d624e985375da053bf047fd8673ebb26ec3d",
+        "./crates/taskit-init/src/render_cruxfile.rs": "fe321f38d64b2e2f00d634dc05682a4cec8dc43e6a486b14ff3b83765e5b0cfe",
+        "./crates/taskit-init/src/render_toml.rs": "5da9eaabe4694b03034f6f1fdb5d0117470a8d6ef7e7e0e2ce82929316f0032b",
+        "./crates/taskit-init/src/scaffold.rs": "e91085d9777c1aa91cfdecbddd7637701e3bca86a50c15f9752db1c0bac6ea51",
+        "./crates/taskit-init/tests/init_integration.rs": "899a8e57d608da7454b15ce925f5ebd2e564eefa1335d2ca1369b834c09bc981"
+      }
+    },
+    "taskit-macros": {
+      "hash": "0730fa18616cce811ea2f3f2acdc6705a7f2e4652e84dd33c71e521f79b091de",
+      "modules": {
+        "./crates/taskit-macros/Cargo.toml": "fe8383ec7f8bd2f57265582a4e287fb96405473f72885a1b7b08113e9653b5c3",
+        "./crates/taskit-macros/src/config_defaults.rs": "b1230a5dc9c987e9fb5d82a26244a9507d0569c9339f61bbe7c69b071f14b863",
+        "./crates/taskit-macros/src/lib.rs": "62f244c674addd6257f9eebcbdf77c362ae1b4615d8d596f9bbc0bb5fb313a62",
+        "./crates/taskit-macros/src/taskit_test.rs": "77facc488a3a1279a9e36ef5ba67fb4a1d76ea24e58e2957fffe1e09b1a73df3",
+        "./crates/taskit-macros/tests/bare_taskit_test.rs": "acd962bea39fd99e11e30ba5067a82239df4167cb7d80a1a29e4620148d99c85",
+        "./crates/taskit-macros/tests/config_defaults.rs": "26876aefeeb1c1eca19d6c011f5edc073c5c4f6e50bdfcc724de4e6302322f5a",
+        "./crates/taskit-macros/tests/taskit_test_offline.rs": "ff4db7939b3574b0fb2ed65afcade607909de3685864362becc4270d31a76003",
+        "./crates/taskit-macros/tests/taskit_test_tempdir.rs": "ad5fd7d96e521064dcc0f8407e39aca25f9becff8e5b56c696198e4565a3b683"
+      }
+    },
+    "taskit-output": {
+      "hash": "4768588255dbf8992546debd6a9fe2e58f9709e0b1de1431675011a26ae2fbad",
+      "modules": {
+        "./crates/taskit-output/Cargo.toml": "955c2d905e0951a8dac3f3ab3d25120f3de93ec46f8909d3e3b414b0a6e38d9b",
+        "./crates/taskit-output/src/formatter.rs": "e57c6533ce14c2b290d76ac7660f2803f5798ab9db10970bd4f92a7981856586",
+        "./crates/taskit-output/src/lib.rs": "b7c02e5df589843a77dfca27c29e2f44bd5b93faca7d346a2c2f4a97d2a59c98",
+        "./crates/taskit-output/src/macros.rs": "7080083915b7d3e0d2fb250fbff24f840281c98b96b7d09c25667f9457c7958f",
+        "./crates/taskit-output/src/message.rs": "966757b9fa755f060c88830cd54cc2f1c84e8519da664e47a350bc1c0cdc8c31",
+        "./crates/taskit-output/src/sink.rs": "df969231ef52d742243fdbacf0f47824cf1e142c9d4c80fec21438fa98f67e76",
+        "./crates/taskit-output/src/sinks/buffer.rs": "10cde0f7267057448107caadb3c2a0d2f6dbafa481a88261e5407bf5f0df38ff",
+        "./crates/taskit-output/src/sinks/mod.rs": "fce882ee64903a0ac3128318f29c33256c3e9b56342ba3b125cde1fa83489b0f",
+        "./crates/taskit-output/src/sinks/stderr.rs": "f6ded0299d122d27f118384cdca2994df920c7e1d86e23f9a90b2f3d3f48350b",
+        "./crates/taskit-output/src/sinks/tee.rs": "437b08131408af75c79ac57667a3f6dd6d7da86813729ea200f3187c796f5302",
+        "./crates/taskit-output/src/thread_sink.rs": "47a6399479fa8a7869829e88e7d3c2d1a6b02cedc7cb1753fec6cf59a73c2cd6"
+      }
+    },
+    "taskit-testing": {
+      "hash": "c773059e9973783e507edba5b24a6b15d83f59e7ae968b365e73ae731f8304cf",
+      "modules": {
+        "./crates/taskit-testing/Cargo.toml": "5eb5b579ae78139941a297f202a44bdee8bf609d8feae7208f6467ff5010ccb8",
+        "./crates/taskit-testing/src/helpers.rs": "24ac5994ea3e866b1a3a73d4fb764472fed2d101726d5d5c195390b0caa8dbd8",
+        "./crates/taskit-testing/src/lib.rs": "b2f3931ab4b58c82ed0026c4510f97c563497df5ff34c3c764bbc011b4d23ac0",
+        "./crates/taskit-testing/src/macros.rs": "27196da4fb067e33734b77ea4cf6d2e5d3189c8ddb8679d1fcfc4c17e5c32a6e",
+        "./crates/taskit-testing/src/temp_dir.rs": "52d995392565493764a8bf6b24a74c4a0f21b87d8284749c0dbe0767bb69a6c6"
+      }
+    },
+    "taskit-types": {
+      "hash": "62649f30d434b7e41fa29896c33d7b3b772eff544b06389978b155177bf6b76c",
+      "modules": {
+        "./crates/taskit-types/Cargo.toml": "d903ab618109c2cde656fdb4a10fae75c73e9d101357a2b59906aba9412e0a88",
+        "./crates/taskit-types/src/config.rs": "59737d3a3fc32bbbbb9577fd14ea6f0adb0dd1023845e1b96924f90b010aa96b",
+        "./crates/taskit-types/src/error.rs": "d6746527f75ce32891d781f9788681ed7602a00bec164bb2bf4b98d679c1cf50",
+        "./crates/taskit-types/src/lib.rs": "bb9ec6d0490ee1e130bf94c1f914236a8355f3bea922cda79189b56d255e3782",
+        "./crates/taskit-types/src/output_format.rs": "e2adad3775f784208b8a1f80036e4672d0c5e11c658c127c114920ae54c53f3c",
+        "./crates/taskit-types/src/step.rs": "b46fd8e0eb88de236846db0b50275e6f4d8a4dda9ff767eea2a95a1c92f3502a",
+        "./crates/taskit-types/tests/config_fixtures.rs": "e9eadcf05a765f3a01d0b3de797085ef468c878e61fd938b18bce6f908c8d81a"
+      }
+    }
+  }
+}
