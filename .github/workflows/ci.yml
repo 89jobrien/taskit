@@ -28,7 +28,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Install taskit
-        run: cargo install taskit || cargo install --path .
+        run: cargo install --path . --locked
 
       - name: Run CI pipeline
         run: taskit ci --fail-fast
