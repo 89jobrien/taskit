@@ -90,7 +90,6 @@ impl<'a> Pipeline<'a> {
         self
     }
 
-    #[allow(dead_code)]
     pub(crate) fn step_with_diagnostics_and_context_sink(
         mut self,
         name: &str,

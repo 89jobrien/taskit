@@ -1,14 +1,51 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use taskit_types::error::TaskitError;
 use taskit_types::output_format::OutputFormat;
+use taskit_types::step::StepDiagnosticContext;
 
 use crate::{
     check_deps,
     config::CiConfig,
     ctx::Ctx,
     dev_setup, fmt, lint, protocol,
-    step::{Pipeline, PipelineOutcome},
+    step::{Pipeline, PipelineOutcome, StepContextSink},
     testing,
 };
+
+/// Map a command string to its `taskit <cmd>` reproduction form.
+fn reproduction_for_cmd(cmd: &str) -> String {
+    format!("taskit {cmd}")
+}
+
+/// Create a pre-loaded `StepContextSink` and wrap `f` to bracket Ctx command capture.
+///
+/// The returned sink is pre-populated with `reproduction`. When the wrapper runs, it
+/// brackets `f` with `ctx.command_capture_start/finish` and drains the recorded commands
+/// into the sink.
+fn with_capture<'a>(
+    ctx: &'a Ctx,
+    reproduction: String,
+    f: impl FnOnce() -> Result<(), TaskitError> + 'a,
+) -> (
+    StepContextSink,
+    impl FnOnce() -> Result<(), TaskitError> + 'a,
+) {
+    let sink: StepContextSink = Rc::new(RefCell::new(StepDiagnosticContext {
+        reproduction: Some(reproduction),
+        ..StepDiagnosticContext::default()
+    }));
+    let sink_clone = sink.clone();
+    let wrapped = move || {
+        let start = ctx.command_capture_start();
+        let result = f();
+        let commands = ctx.command_capture_finish(start);
+        sink_clone.borrow_mut().commands = commands;
+        result
+    };
+    (sink, wrapped)
+}
 
 /// Run the CI pipeline.
 ///
@@ -40,7 +77,7 @@ pub(crate) fn run_from_config_internal(
     offline: bool,
 ) -> PipelineOutcome {
     // Build pipeline; if dispatch fails, return a single-step failure outcome.
-    let mut pipeline = Pipeline::new(fail_fast);
+    let mut pipeline = Pipeline::new(fail_fast).with_context(ctx.pipeline_run_context());
     for step in &cfg.steps {
         let f = match dispatch_cmd(&step.cmd, ctx, offline) {
             Ok(f) => f,
@@ -61,10 +98,11 @@ pub(crate) fn run_from_config_internal(
                 };
             }
         };
+        let (sink, wrapped) = with_capture(ctx, reproduction_for_cmd(&step.cmd), f);
         if step.gate {
-            pipeline = pipeline.gate(&step.name, f);
+            pipeline = pipeline.gate_with_context_sink(&step.name, sink, wrapped);
         } else {
-            pipeline = pipeline.step(&step.name, f);
+            pipeline = pipeline.step_with_context_sink(&step.name, sink, wrapped);
         }
     }
     pipeline.run()
@@ -123,61 +161,114 @@ fn run_default_pipeline(
     capture_diagnostics: bool,
 ) -> PipelineOutcome {
     use crate::step::DiagnosticSink;
-    use std::cell::RefCell;
-    use std::rc::Rc;
 
-    let mut pipeline = Pipeline::new(fail_fast)
-        .gate("self-check", dev_setup::self_check)
-        .step("fmt --check", || fmt::run(ctx, true, false));
+    let mut pipeline = Pipeline::new(fail_fast).with_context(ctx.pipeline_run_context());
 
+    // self-check gate
+    {
+        let (sink, wrapped) = with_capture(
+            ctx,
+            reproduction_for_cmd("self-check"),
+            dev_setup::self_check,
+        );
+        pipeline = pipeline.gate_with_context_sink("self-check", sink, wrapped);
+    }
+
+    // fmt --check
+    {
+        let (sink, wrapped) = with_capture(ctx, reproduction_for_cmd("fmt --check"), || {
+            fmt::run(ctx, true, false)
+        });
+        pipeline = pipeline.step_with_context_sink("fmt --check", sink, wrapped);
+    }
+
+    // lint
     if capture_diagnostics {
-        let lint_sink: DiagnosticSink = Rc::new(RefCell::new(Vec::new()));
-        let lint_sink_clone = lint_sink.clone();
-        pipeline = pipeline.step_with_diagnostics("lint", lint_sink, move || {
+        let lint_diag_sink: DiagnosticSink = Rc::new(RefCell::new(Vec::new()));
+        let lint_diag_clone = lint_diag_sink.clone();
+        let (ctx_sink, wrapped) = with_capture(ctx, reproduction_for_cmd("lint"), move || {
             let (success, diags) = lint::run_capturing(ctx)?;
-            lint_sink_clone.borrow_mut().extend(diags);
+            lint_diag_clone.borrow_mut().extend(diags);
             if success {
                 Ok(())
             } else {
                 Err(TaskitError::other("clippy found errors"))
             }
         });
+        pipeline = pipeline.step_with_diagnostics_and_context_sink(
+            "lint",
+            lint_diag_sink,
+            ctx_sink,
+            wrapped,
+        );
     } else {
-        pipeline = pipeline.step("lint", || lint::run(ctx, None, false, false));
+        let (sink, wrapped) = with_capture(ctx, reproduction_for_cmd("lint"), || {
+            lint::run(ctx, None, false, false)
+        });
+        pipeline = pipeline.step_with_context_sink("lint", sink, wrapped);
     }
 
-    pipeline = pipeline.step("compile-tests", || testing::compile::run(ctx));
+    // compile-tests
+    {
+        let (sink, wrapped) = with_capture(ctx, reproduction_for_cmd("compile-tests"), || {
+            testing::compile::run(ctx)
+        });
+        pipeline = pipeline.step_with_context_sink("compile-tests", sink, wrapped);
+    }
 
+    // test
     if capture_diagnostics {
-        let test_sink: DiagnosticSink = Rc::new(RefCell::new(Vec::new()));
-        let test_sink_clone = test_sink.clone();
-        pipeline = pipeline.step_with_diagnostics("test", test_sink, move || {
+        let test_diag_sink: DiagnosticSink = Rc::new(RefCell::new(Vec::new()));
+        let test_diag_clone = test_diag_sink.clone();
+        let (ctx_sink, wrapped) = with_capture(ctx, reproduction_for_cmd("test"), move || {
             let (success, diags) = testing::run::run_capturing(ctx, offline)?;
-            test_sink_clone.borrow_mut().extend(diags);
+            test_diag_clone.borrow_mut().extend(diags);
             if success {
                 Ok(())
             } else {
                 Err(TaskitError::other("tests failed"))
             }
         });
+        pipeline = pipeline.step_with_diagnostics_and_context_sink(
+            "test",
+            test_diag_sink,
+            ctx_sink,
+            wrapped,
+        );
     } else {
-        pipeline = pipeline.step("test", || {
+        let (sink, wrapped) = with_capture(ctx, reproduction_for_cmd("test"), || {
             testing::run::run(ctx, None, false, false, offline)
         });
+        pipeline = pipeline.step_with_context_sink("test", sink, wrapped);
     }
 
-    pipeline = pipeline
-        .step("check-deps", || check_deps::run(ctx))
-        .step("check-protocol-drift", || {
-            protocol::drift::run(ctx, false, false, false)
+    // check-deps
+    {
+        let (sink, wrapped) = with_capture(ctx, reproduction_for_cmd("check-deps"), || {
+            check_deps::run(ctx)
         });
+        pipeline = pipeline.step_with_context_sink("check-deps", sink, wrapped);
+    }
 
+    // check-protocol-drift
+    {
+        let (sink, wrapped) =
+            with_capture(ctx, reproduction_for_cmd("check-protocol-drift"), || {
+                protocol::drift::run(ctx, false, false, false)
+            });
+        pipeline = pipeline.step_with_context_sink("check-protocol-drift", sink, wrapped);
+    }
+
+    // coverage (optional)
     if let Some(c) = ctx.cov() {
         let crate_name = c.crate_name.clone();
         let threshold = c.threshold();
-        pipeline = pipeline.step(&format!("coverage ({crate_name})"), move || {
+        let step_name = format!("coverage ({crate_name})");
+        let repro = format!("taskit coverage --crate-name {crate_name}");
+        let (sink, wrapped) = with_capture(ctx, repro, move || {
             testing::coverage::run(ctx, &crate_name, threshold)
         });
+        pipeline = pipeline.step_with_context_sink(&step_name, sink, wrapped);
     }
 
     pipeline.run()
