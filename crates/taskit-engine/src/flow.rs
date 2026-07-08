@@ -23,6 +23,15 @@ pub struct ResolvedFile {
     pub content: String,
 }
 
+impl ResolvedFile {
+    pub fn new(path: impl Into<String>, content: impl Into<String>) -> Self {
+        Self {
+            path: path.into(),
+            content: content.into(),
+        }
+    }
+}
+
 /// Port for resolving merge conflicts — implemented by `BamlConflictResolver` in the binary.
 pub trait ConflictResolver {
     fn resolve(&self, files: &[ConflictFile]) -> Result<Vec<ResolvedFile>, TaskitError>;
@@ -133,7 +142,7 @@ pub(crate) fn read_conflict_file(sh: &Shell, path: &str) -> Result<ConflictFile,
 /// Attempt a `--no-ff` merge; on conflict invoke `resolver`; on escalation return the error.
 /// On successful resolution, stages all resolved files and completes the merge via
 /// `git commit --no-edit`.
-pub(crate) fn merge_with_resolution(
+pub fn merge_with_resolution(
     ctx: &Ctx,
     branch: &str,
     message: &str,
@@ -146,6 +155,7 @@ pub(crate) fn merge_with_resolution(
     }
     let output = cmd!(sh, "git merge --no-ff {branch} -m {message}")
         .quiet()
+        .ignore_status()
         .output()
         .map_err(TaskitError::other)?;
     if output.status.success() {
@@ -168,7 +178,8 @@ pub(crate) fn merge_with_resolution(
         .collect::<Result<_, _>>()?;
     let resolved = resolver.resolve(&files)?;
     for r in &resolved {
-        std::fs::write(&r.path, &r.content).map_err(TaskitError::other)?;
+        let abs_path = ctx.root.join(&r.path);
+        std::fs::write(&abs_path, &r.content).map_err(TaskitError::other)?;
         let path = &r.path;
         cmd!(sh, "git add {path}")
             .run()
