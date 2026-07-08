@@ -31,10 +31,11 @@ fuzz_target!(|data: &[u8]| {
 
 /// Derive an `InitPlan` from raw bytes without panicking.
 ///
-/// Strings are extracted as 0-32 byte UTF-8-safe windows from `data`.
-/// Non-UTF-8 bytes are replaced with `?`. All string fields are sanitised
-/// so they contain no TOML-breaking characters (double-quotes, backslashes,
-/// newlines) before being embedded into key-value pairs by `render_toml`.
+/// Strings are extracted as 0-32 byte windows from `data`.
+/// Any byte outside `[A-Za-z0-9_./-]` is replaced with `x`.
+/// All string fields are sanitised so they contain no TOML-breaking characters
+/// (double-quotes, backslashes, newlines) before being embedded into key-value
+/// pairs by `render_toml`.
 fn build_plan_from_bytes(data: &[u8]) -> InitPlan {
     // Build a safe ASCII string from the input by keeping only printable
     // non-special bytes. This is intentionally lossy — we want render_toml
