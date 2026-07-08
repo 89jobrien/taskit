@@ -170,13 +170,6 @@ pub enum FlowError {
     #[diagnostic(code(taskit::flow::merge_failed))]
     MergeFailed { reason: String },
 
-    #[error("merge conflict could not be resolved automatically: {path}")]
-    #[diagnostic(
-        code(taskit::flow::conflict_unresolved),
-        help("resolve manually, then run `taskit flow finish`")
-    )]
-    ConflictUnresolved { path: String },
-
     #[error("merge conflict needs human review: {path} — {reason}")]
     #[diagnostic(
         code(taskit::flow::needs_human),
@@ -444,17 +437,6 @@ mod tests {
             let code = err.code().expect("should have diagnostic code");
             assert_eq!(code.to_string(), expected_code);
         }
-    }
-
-    #[test]
-    fn flow_conflict_unresolved_display_and_code() {
-        let err = FlowError::ConflictUnresolved {
-            path: "Cargo.toml".into(),
-        };
-        assert!(err.to_string().contains("Cargo.toml"));
-        assert!(err.to_string().contains("could not be resolved"));
-        let code = err.code().expect("diagnostic code");
-        assert_eq!(code.to_string(), "taskit::flow::conflict_unresolved");
     }
 
     #[test]
