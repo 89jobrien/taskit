@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "quality_score": 0.8397766548540925,
+  "iosp_score": 0.9692982456140351,
+  "violations": 7,
+  "total": 401,
+  "complexity_warnings": 1,
+  "magic_number_warnings": 4,
+  "nesting_depth_warnings": 1,
+  "function_length_warnings": 3,
+  "unsafe_warnings": 0,
+  "error_handling_warnings": 1,
+  "duplicate_groups": 0,
+  "dead_code_warnings": 0,
+  "fragment_groups": 2,
+  "boilerplate_warnings": 1,
+  "srp_struct_warnings": 0,
+  "srp_module_warnings": 0,
+  "wildcard_import_warnings": 0,
+  "sdp_violations": 0,
+  "coupling_warnings": 0,
+  "coupling_cycles": 0,
+  "tq_no_assertion_warnings": 1,
+  "tq_no_sut_warnings": 25,
+  "tq_untested_warnings": 15,
+  "tq_uncovered_warnings": 0,
+  "tq_untested_logic_warnings": 0,
+  "structural_srp_warnings": 0,
+  "structural_coupling_warnings": 0,
+  "total_findings": 62,
+  "violation_details": [
+    {
+      "name": "crate_entry",
+      "file": "src/testing/compile.rs",
+      "line": 128
+    },
+    {
+      "name": "collect_crate_roots",
+      "file": "src/testing/compile.rs",
+      "line": 157
+    },
+    {
+      "name": "collect_rs_files",
+      "file": "src/testing/compile.rs",
+      "line": 187
+    },
+    {
+      "name": "run",
+      "file": "src/testing/self_test.rs",
+      "line": 19
+    },
+    {
+      "name": "compute_source_hash",
+      "file": "src/testing/self_test.rs",
+      "line": 55
+    },
+    {
+      "name": "collect_rs_files",
+      "file": "src/testing/self_test.rs",
+      "line": 76
+    },
+    {
+      "name": "main",
+      "file": "src/main.rs",
+      "line": 240
+    }
+  ]
+}

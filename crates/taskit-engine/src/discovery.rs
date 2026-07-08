@@ -1,7 +1,6 @@
-use anyhow::Context;
 use cargo_metadata::MetadataCommand;
 use std::path::{Path, PathBuf};
-use taskit_types::error::TaskitError;
+use taskit_types::error::{TaskitError, TaskitResultExt};
 
 use crate::config::PropagationEntry;
 
@@ -147,7 +146,7 @@ impl MetadataSource for CargoMetadataSource {
             .current_dir(&self.workspace_root)
             .no_deps()
             .exec()
-            .context("failed to run `cargo metadata`")?;
+            .err_context("failed to run `cargo metadata`")?;
 
         let ws_root = metadata.workspace_root.as_std_path();
         let mut crates = Vec::new();
@@ -156,11 +155,11 @@ impl MetadataSource for CargoMetadataSource {
                 .packages
                 .iter()
                 .find(|p| &p.id == pkg_id)
-                .context("workspace member not found in packages")?;
+                .ok_or_else(|| TaskitError::other("workspace member not found in packages"))?;
             let manifest_dir = pkg
                 .manifest_path
                 .parent()
-                .context("manifest_path has no parent")?;
+                .ok_or_else(|| TaskitError::other("manifest_path has no parent"))?;
             let dir = manifest_dir
                 .strip_prefix(ws_root)
                 .unwrap_or(manifest_dir)
@@ -183,7 +182,7 @@ impl MetadataSource for CargoMetadataSource {
         let metadata = MetadataCommand::new()
             .current_dir(&self.workspace_root)
             .exec()
-            .context("failed to run `cargo metadata`")?;
+            .err_context("failed to run `cargo metadata`")?;
 
         let member_names: std::collections::HashSet<String> = metadata
             .workspace_members

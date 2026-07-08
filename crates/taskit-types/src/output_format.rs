@@ -7,11 +7,13 @@ pub enum OutputFormat {
     Github,
     Junit,
     Diagnostic,
+    Sarif,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::ValueEnum;
 
     #[test]
     fn default_is_human() {
@@ -26,10 +28,23 @@ mod tests {
             OutputFormat::Github,
             OutputFormat::Junit,
             OutputFormat::Diagnostic,
+            OutputFormat::Sarif,
         ];
         // Verify each variant has a distinct debug representation
         let names: Vec<String> = variants.iter().map(|v| format!("{v:?}")).collect();
         let unique: std::collections::HashSet<&String> = names.iter().collect();
         assert_eq!(names.len(), unique.len(), "all variants should be distinct");
+    }
+
+    #[test]
+    fn value_enum_string_round_trips() {
+        for name in ["human", "json", "github", "junit", "diagnostic", "sarif"] {
+            let parsed =
+                OutputFormat::from_str(name, true).expect("known output format should parse");
+            let possible = parsed
+                .to_possible_value()
+                .expect("output format should have a clap possible value");
+            assert_eq!(possible.get_name(), name);
+        }
     }
 }

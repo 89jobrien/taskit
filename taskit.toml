@@ -1,0 +1,125 @@
+[workspace]
+crates = [
+  { dir = "crates/taskit-core", pkg = "taskit-core" },
+  { dir = "crates/taskit-types", pkg = "taskit-types" },
+  { dir = "crates/taskit-crux", pkg = "taskit-crux" },
+  { dir = "crates/taskit-testing", pkg = "taskit-testing" },
+  { dir = "crates/taskit-engine", pkg = "taskit-engine" },
+  { dir = "crates/taskit-output", pkg = "taskit-output" },
+  { dir = "crates/taskit-macros", pkg = "taskit-macros" },
+  { dir = "crates/taskit-init", pkg = "taskit-init" },
+  { dir = "", pkg = "taskit" },
+]
+# offline_skip = "test(/.*network.*/)"
+
+
+[[workspace.propagation]]
+source = "taskit-core"
+dependents = ["taskit-crux", "taskit-engine"]
+
+[[workspace.propagation]]
+source = "taskit-engine"
+dependents = ["taskit"]
+
+[[workspace.propagation]]
+source = "taskit-init"
+dependents = ["taskit"]
+
+[[workspace.propagation]]
+source = "taskit-macros"
+dependents = ["taskit-engine", "taskit-init"]
+
+[[workspace.propagation]]
+source = "taskit-output"
+dependents = ["taskit-engine", "taskit"]
+
+[[workspace.propagation]]
+source = "taskit-testing"
+dependents = ["taskit-crux", "taskit-engine", "taskit-output", "taskit-macros", "taskit-init"]
+
+[[workspace.propagation]]
+source = "taskit-types"
+dependents = ["taskit-core", "taskit-crux", "taskit-testing", "taskit-engine", "taskit-output", "taskit-macros", "taskit-init", "taskit"]
+
+[protocol]
+# lockfile = "taskit-protocol.lock"
+
+[[protocol.surfaces]]
+name = "taskit-core-pipeline_runner"
+path = "crates/taskit-core/src/pipeline_runner.rs"
+
+[[protocol.surfaces]]
+name = "taskit-types-error"
+path = "crates/taskit-types/src/error.rs"
+
+[[protocol.surfaces]]
+name = "taskit-engine-command"
+path = "crates/taskit-engine/src/command.rs"
+
+[[protocol.surfaces]]
+name = "taskit-engine-discovery"
+path = "crates/taskit-engine/src/discovery.rs"
+
+[[protocol.surfaces]]
+name = "taskit-output-sink"
+path = "crates/taskit-output/src/sink.rs"
+
+[[protocol.surfaces]]
+name = "taskit-output-formatter"
+path = "crates/taskit-output/src/formatter.rs"
+
+[[protocol.surfaces]]
+name = "taskit-init-plan"
+path = "crates/taskit-init/src/plan.rs"
+
+# Coverage enforcement: run `taskit coverage` to check.
+#
+# [coverage]
+# crate_name = "my-crate"
+# threshold = 80.0
+
+[ci]
+# cruxfile = "Cruxfile"
+
+[[ci.steps]]
+name = "self-check"
+cmd = "self-check"
+gate = true
+
+[[ci.steps]]
+name = "fmt --check"
+cmd = "fmt --check"
+gate = false
+
+[[ci.steps]]
+name = "lint"
+cmd = "lint"
+gate = false
+
+[[ci.steps]]
+name = "compile-tests"
+cmd = "compile-tests"
+gate = false
+
+[[ci.steps]]
+name = "test"
+cmd = "test"
+gate = false
+
+[[ci.steps]]
+name = "check-deps"
+cmd = "check-deps"
+gate = false
+
+[[ci.steps]]
+name = "check-protocol-drift"
+cmd = "check-protocol-drift"
+gate = false
+
+# Git flow: main (stable) -> staging (work) -> release (publish) -> main
+# These are the defaults; uncomment to customize branch names.
+#
+# [flow]
+# main = "main"
+# staging = "staging"
+# release = "release"

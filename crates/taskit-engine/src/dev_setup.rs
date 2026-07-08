@@ -1,8 +1,8 @@
 use taskit_types::error::TaskitError;
-use xshell::{Shell, cmd};
+use xshell::cmd;
 
 use crate::{
-    runner::xrun,
+    ctx::Ctx,
     util::{tool_exists, tool_exists_cmd},
 };
 
@@ -42,37 +42,40 @@ fn confirm(prompt: &str) -> bool {
 
 /// Ensure `cargo-binstall` is available, bootstrapping via `cargo install` if
 /// the user consents. Returns an error if it is absent and the user declines.
-fn ensure_binstall(sh: &Shell) -> Result<(), TaskitError> {
+fn ensure_binstall(ctx: &Ctx) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
     if tool_exists("cargo-binstall") {
         return Ok(());
     }
-    eprintln!("  cargo-binstall is not installed (required to install other tools).");
-    if crate::runner::is_dry_run() {
-        eprintln!("dry-run: cargo install cargo-binstall");
+    taskit_output::taskit_err!(
+        "cargo-binstall is not installed (required to install other tools)."
+    );
+    if ctx.dry_run {
+        taskit_output::taskit_dry!("cargo install cargo-binstall");
         return Ok(());
     }
     if !confirm("  Install cargo-binstall now via `cargo install cargo-binstall`?") {
-        return Err(anyhow::anyhow!(
-            "cargo-binstall is required. Install it manually and re-run `cargo xtask dev-setup`."
-        )
-        .into());
+        return Err(TaskitError::other(
+            "cargo-binstall is required. Install it manually and re-run `taskit dev-setup`.",
+        ));
     }
-    xrun(cmd!(sh, "cargo install cargo-binstall"))
+    ctx.run(cmd!(sh, "cargo install cargo-binstall"))
 }
 
-pub fn setup(sh: &Shell) -> Result<(), TaskitError> {
-    eprintln!("Installing development tools...");
-    ensure_binstall(sh)?;
+pub fn setup(ctx: &Ctx) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    taskit_output::taskit_progress!("Installing development tools...");
+    ensure_binstall(ctx)?;
     for (name, install_name) in REQUIRED_TOOLS {
         if check_tool_exists(name) {
-            eprintln!("  {name}: already installed");
+            taskit_output::taskit_ok!("{name}: already installed");
         } else {
-            eprintln!("  Installing {name}...");
-            xrun(cmd!(sh, "cargo binstall -y {install_name}"))?;
+            taskit_output::taskit_progress!("Installing {name}...");
+            ctx.run(cmd!(sh, "cargo binstall -y {install_name}"))?;
         }
     }
-    eprintln!(
-        "\nOptional tools (not installed automatically):\n{}",
+    taskit_output::taskit_progress!(
+        "Optional tools (not installed automatically):\n{}",
         OPTIONAL_TOOLS
             .iter()
             .map(|(name, install)| format!("  {name} — `cargo binstall {install}`"))
@@ -91,8 +94,8 @@ fn check_label(name: &str) -> &str {
 }
 
 pub fn self_check() -> Result<(), TaskitError> {
-    eprintln!("{:<COL_TOOL$} {:<COL_STATUS$} Notes", "Tool", "Status");
-    eprintln!("{}", "-".repeat(SEPARATOR_WIDTH));
+    taskit_output::taskit_progress!("{:<COL_TOOL$} {:<COL_STATUS$} Notes", "Tool", "Status");
+    taskit_output::taskit_progress!("{}", "-".repeat(SEPARATOR_WIDTH));
     let binstall_status = if tool_exists("cargo-binstall") {
         "OK"
     } else {
@@ -101,9 +104,10 @@ pub fn self_check() -> Result<(), TaskitError> {
     // cargo-binstall is only needed for `dev-setup`, not for running CI steps.
     // Do not count it as a required tool for self-check purposes.
     let mut missing = false;
-    eprintln!(
+    taskit_output::taskit_progress!(
         "{:<COL_TOOL$} {:<COL_STATUS$} optional (installer)",
-        "cargo-binstall", binstall_status
+        "cargo-binstall",
+        binstall_status
     );
     for (name, _) in REQUIRED_TOOLS {
         let status = if check_tool_exists(name) {
@@ -114,7 +118,7 @@ pub fn self_check() -> Result<(), TaskitError> {
         if status == "MISSING" {
             missing = true;
         }
-        eprintln!("{:<COL_TOOL$} {:<COL_STATUS$} required", name, status);
+        taskit_output::taskit_progress!("{:<COL_TOOL$} {:<COL_STATUS$} required", name, status);
     }
     for (name, _) in OPTIONAL_TOOLS {
         let status = if check_tool_exists(name) {
@@ -122,21 +126,22 @@ pub fn self_check() -> Result<(), TaskitError> {
         } else {
             "MISSING"
         };
-        eprintln!("{:<COL_TOOL$} {:<COL_STATUS$} optional", name, status);
+        taskit_output::taskit_progress!("{:<COL_TOOL$} {:<COL_STATUS$} optional", name, status);
     }
     if missing {
-        return Err(anyhow::anyhow!(
-            "Required tools missing. Run `cargo xtask dev-setup` to install."
-        )
-        .into());
+        return Err(TaskitError::other(
+            "Required tools missing. Run `taskit dev-setup` to install.",
+        ));
     }
     match crate::cache::verify() {
-        Ok(true) => eprintln!("{:<COL_TOOL$} OK      cache integrity", ".xtask-cache"),
-        Ok(false) => eprintln!(
-            "{:<COL_TOOL$} DRIFT   run any xtask command to rebuild",
-            ".xtask-cache"
+        Ok(true) => {
+            taskit_output::taskit_ok!("{:<COL_TOOL$} OK      cache integrity", ".taskit-cache")
+        }
+        Ok(false) => taskit_output::taskit_progress!(
+            "{:<COL_TOOL$} DRIFT   run any taskit command to rebuild",
+            ".taskit-cache"
         ),
-        Err(e) => eprintln!("{:<COL_TOOL$} ERROR   {e}", ".xtask-cache"),
+        Err(e) => taskit_output::taskit_err!("{:<COL_TOOL$} ERROR   {e}", ".taskit-cache"),
     }
     Ok(())
 }

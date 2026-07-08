@@ -1,8 +1,8 @@
 use taskit_types::error::TaskitError;
 use xshell::Shell;
 
+use crate::ctx::Ctx;
 use crate::health::{self, HealthBaseline};
-use crate::output::OutputFormat;
 use crate::step::{Pipeline, PipelineOutcome};
 
 #[derive(Debug, Clone, Default)]
@@ -37,26 +37,26 @@ fn build_pipeline(baseline: &HealthBaseline, thresholds: &Thresholds) -> Pipelin
 
     let mut pipeline = Pipeline::new(false)
         .step(&format!("test failures <= {max_failures}"), move || {
-            threshold_check("test failures", failed, max_failures).map_err(anyhow::Error::from)
+            threshold_check("test failures", failed, max_failures)
         })
         .step(&format!("clippy errors <= {max_errors}"), move || {
-            threshold_check("clippy errors", errors, max_errors).map_err(anyhow::Error::from)
+            threshold_check("clippy errors", errors, max_errors)
         })
         .step(&format!("clippy warnings <= {max_warnings}"), move || {
-            threshold_check("clippy warnings", warnings, max_warnings).map_err(anyhow::Error::from)
+            threshold_check("clippy warnings", warnings, max_warnings)
         })
         .step("version consistency", move || {
             if consistent {
                 Ok(())
             } else {
-                Err(anyhow::anyhow!("workspace versions are inconsistent"))
+                Err(TaskitError::other("workspace versions are inconsistent"))
             }
         });
 
     if let Some(max_todo) = thresholds.max_todo_fixme {
         let todo_count = baseline.todo_fixme;
         pipeline = pipeline.step(&format!("TODO/FIXME <= {max_todo}"), move || {
-            threshold_check("TODO/FIXME", todo_count, max_todo).map_err(anyhow::Error::from)
+            threshold_check("TODO/FIXME", todo_count, max_todo)
         });
     }
 
@@ -67,23 +67,21 @@ fn threshold_check(name: &str, value: usize, limit: usize) -> Result<(), TaskitE
     if value <= limit {
         Ok(())
     } else {
-        Err(anyhow::anyhow!("{name}: {value} exceeds limit {limit}").into())
+        Err(TaskitError::other(format!(
+            "{name}: {value} exceeds limit {limit}"
+        )))
     }
 }
 
-pub fn run(
-    sh: &Shell,
-    max_warnings: usize,
-    max_todo: Option<usize>,
-    fmt: OutputFormat,
-) -> Result<(), TaskitError> {
+pub fn run(ctx: &Ctx, max_warnings: usize, max_todo: Option<usize>) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
     let thresholds = Thresholds {
         max_clippy_warnings: max_warnings,
         max_todo_fixme: max_todo,
         ..Default::default()
     };
     let outcome = run_pipeline(sh, &thresholds)?;
-    Ok(crate::output::write_output(fmt, &outcome)?)
+    Ok(taskit_output::write_output(ctx.output, &outcome)?)
 }
 
 #[cfg(test)]
@@ -91,6 +89,7 @@ mod tests {
     use super::*;
     use crate::health::{ClippyCounts, HealthBaseline, TestCounts};
     use crate::step::StepStatus;
+    use taskit_types::output_format::OutputFormat;
 
     fn baseline(
         failed: usize,
@@ -218,7 +217,7 @@ mod tests {
             OutputFormat::Junit,
             OutputFormat::Diagnostic,
         ] {
-            let formatter = crate::output::formatter_for(fmt);
+            let formatter = taskit_output::formatter_for(fmt);
             let rendered = formatter.render(&outcome);
             assert!(!rendered.is_empty(), "empty output for {fmt:?}");
         }

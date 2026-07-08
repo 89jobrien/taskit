@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "algorithm": "sha256-normalized-core-contract-v1",
+  "surfaces": [
+    {
+      "name": "taskit-core-pipeline_runner",
+      "path": "crates/taskit-core/src/pipeline_runner.rs",
+      "hash": "454c0f6689096009749183fc6cbcb9ce22c28454ba32c0f15fc2583fac78fcb2"
+    },
+    {
+      "name": "taskit-types-error",
+      "path": "crates/taskit-types/src/error.rs",
+      "hash": "5ff7086f11d426bc92ae8ed97a113e0b67cb1bf640972be3d20b7d7d85dcd2fa"
+    },
+    {
+      "name": "taskit-engine-command",
+      "path": "crates/taskit-engine/src/command.rs",
+      "hash": "81670de6de16d4d51f547c6ace8d31943059ca0885faff65dd03f3440e89fe70"
+    },
+    {
+      "name": "taskit-engine-discovery",
+      "path": "crates/taskit-engine/src/discovery.rs",
+      "hash": "f466d8740e10692fd912fe846c1ac8b01ba13c162b5601967f0c38160c63e015"
+    },
+    {
+      "name": "taskit-output-sink",
+      "path": "crates/taskit-output/src/sink.rs",
+      "hash": "4f7de239fc22f44979ce8be332fc830dfbd5ea2616c0aecac7f379f73abbde23"
+    },
+    {
+      "name": "taskit-output-formatter",
+      "path": "crates/taskit-output/src/formatter.rs",
+      "hash": "f0f0abf35b1684c83dd77991455c00efcd2978096e6fd3c86a2cf33f5f784db6"
+    },
+    {
+      "name": "taskit-init-plan",
+      "path": "crates/taskit-init/src/plan.rs",
+      "hash": "0cb90d2ae0b161d6e2a8b18a7adbc359a72b70e916bd3592944a0eb68397475f"
+    }
+  ]
+}

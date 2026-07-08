@@ -1,23 +1,35 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use crate::progress::Spinner;
+use crate::progress::fmt_elapsed;
+use taskit_types::error::TaskitError;
+use taskit_types::step::{DiagnosticRecord, PipelineRunContext, StepDiagnosticContext};
 
 // Re-export core types for convenience.
 pub use taskit_types::step::{PipelineOutcome, StepResult, StepStatus};
 
-const COL_NAME: usize = 30;
-const COL_STATUS: usize = 10;
-const SEPARATOR_WIDTH: usize = 55;
+/// Shared buffer for collecting diagnostics from within a step closure.
+///
+/// Pass a clone into your step closure and push diagnostics into it.
+/// After the step runs, the pipeline extracts the diagnostics and attaches
+/// them to the `StepResult`.
+pub type DiagnosticSink = Rc<RefCell<Vec<DiagnosticRecord>>>;
+/// Shared buffer for collecting diagnostic context from a step wrapper.
+pub type StepContextSink = Rc<RefCell<StepDiagnosticContext>>;
 
 struct PipelineStep<'a> {
     name: String,
     is_gate: bool,
-    f: Box<dyn FnOnce() -> anyhow::Result<()> + 'a>,
+    f: Box<dyn FnOnce() -> Result<(), TaskitError> + 'a>,
+    diagnostics: Option<DiagnosticSink>,
+    context: Option<StepContextSink>,
 }
 
 pub struct Pipeline<'a> {
     steps: Vec<PipelineStep<'a>>,
     fail_fast: bool,
+    context: Option<PipelineRunContext>,
 }
 
 impl<'a> Pipeline<'a> {
@@ -25,25 +37,104 @@ impl<'a> Pipeline<'a> {
         Self {
             steps: Vec::new(),
             fail_fast,
+            context: None,
         }
     }
 
+    pub fn with_context(mut self, context: PipelineRunContext) -> Self {
+        self.context = Some(context);
+        self
+    }
+
     /// Normal step. Skipped if a gate above failed, or if fail_fast and any prior step failed.
-    pub fn step(mut self, name: &str, f: impl FnOnce() -> anyhow::Result<()> + 'a) -> Self {
+    pub fn step(mut self, name: &str, f: impl FnOnce() -> Result<(), TaskitError> + 'a) -> Self {
         self.steps.push(PipelineStep {
             name: name.to_string(),
             is_gate: false,
             f: Box::new(f),
+            diagnostics: None,
+            context: None,
+        });
+        self
+    }
+
+    pub fn step_with_context_sink(
+        mut self,
+        name: &str,
+        sink: StepContextSink,
+        f: impl FnOnce() -> Result<(), TaskitError> + 'a,
+    ) -> Self {
+        self.steps.push(PipelineStep {
+            name: name.to_string(),
+            is_gate: false,
+            f: Box::new(f),
+            diagnostics: None,
+            context: Some(sink),
+        });
+        self
+    }
+
+    pub fn gate_with_context_sink(
+        mut self,
+        name: &str,
+        sink: StepContextSink,
+        f: impl FnOnce() -> Result<(), TaskitError> + 'a,
+    ) -> Self {
+        self.steps.push(PipelineStep {
+            name: name.to_string(),
+            is_gate: true,
+            f: Box::new(f),
+            diagnostics: None,
+            context: Some(sink),
+        });
+        self
+    }
+
+    pub(crate) fn step_with_diagnostics_and_context_sink(
+        mut self,
+        name: &str,
+        diagnostics: DiagnosticSink,
+        context: StepContextSink,
+        f: impl FnOnce() -> Result<(), TaskitError> + 'a,
+    ) -> Self {
+        self.steps.push(PipelineStep {
+            name: name.to_string(),
+            is_gate: false,
+            f: Box::new(f),
+            diagnostics: Some(diagnostics),
+            context: Some(context),
         });
         self
     }
 
     /// Hard gate. If this fails, all subsequent steps are skipped regardless of fail_fast.
-    pub fn gate(mut self, name: &str, f: impl FnOnce() -> anyhow::Result<()> + 'a) -> Self {
+    pub fn gate(mut self, name: &str, f: impl FnOnce() -> Result<(), TaskitError> + 'a) -> Self {
         self.steps.push(PipelineStep {
             name: name.to_string(),
             is_gate: true,
             f: Box::new(f),
+            diagnostics: None,
+            context: None,
+        });
+        self
+    }
+
+    /// Step with a diagnostic sink for capturing per-finding data (SARIF output).
+    ///
+    /// The closure should push `DiagnosticRecord`s into the sink. After the step
+    /// runs, the pipeline drains the sink into `StepResult.diagnostics`.
+    pub fn step_with_diagnostics(
+        mut self,
+        name: &str,
+        sink: DiagnosticSink,
+        f: impl FnOnce() -> Result<(), TaskitError> + 'a,
+    ) -> Self {
+        self.steps.push(PipelineStep {
+            name: name.to_string(),
+            is_gate: false,
+            f: Box::new(f),
+            diagnostics: Some(sink),
+            context: None,
         });
         self
     }
@@ -58,30 +149,32 @@ impl<'a> Pipeline<'a> {
         for ps in self.steps {
             let should_skip = gate_failed || (self.fail_fast && any_failed);
             if should_skip {
-                eprintln!("  - {} (skipped)", ps.name);
+                let step_context = drain_step_context(ps.context);
+                taskit_output::taskit_skip!("{} (skipped)", ps.name);
                 results.push(StepResult {
                     name: ps.name,
                     status: StepStatus::Skipped,
                     duration: Duration::ZERO,
                     error: None,
                     gate: ps.is_gate,
+                    diagnostics: vec![],
+                    context: step_context,
                 });
                 continue;
             }
 
-            let sp = Spinner::new(&ps.name);
             let start = Instant::now();
             let outcome = (ps.f)();
             let duration = start.elapsed();
+            let elapsed = fmt_elapsed(duration);
             let (status, error) = match &outcome {
                 Ok(_) => {
-                    sp.finish_ok();
+                    taskit_output::taskit_ok!("✓ {} [{elapsed}]", ps.name);
                     (StepStatus::Pass, None)
                 }
                 Err(e) => {
-                    sp.finish_err();
                     let msg = e.to_string();
-                    eprintln!("  error: {msg}");
+                    taskit_output::taskit_err!("✗ {} [{elapsed}]: {msg}", ps.name);
                     any_failed = true;
                     if ps.is_gate {
                         gate_failed = true;
@@ -89,12 +182,19 @@ impl<'a> Pipeline<'a> {
                     (StepStatus::Fail, Some(msg))
                 }
             };
+            let step_diagnostics = ps
+                .diagnostics
+                .map(|sink| sink.borrow_mut().drain(..).collect())
+                .unwrap_or_default();
+            let step_context = drain_step_context(ps.context);
             results.push(StepResult {
                 name: ps.name,
                 status,
                 duration,
                 error,
                 gate: ps.is_gate,
+                diagnostics: step_diagnostics,
+                context: step_context,
             });
         }
 
@@ -102,29 +202,15 @@ impl<'a> Pipeline<'a> {
             total: pipeline_start.elapsed(),
             passed: !any_failed,
             results,
+            context: self.context,
         }
     }
 }
 
-pub fn print_summary(outcome: &PipelineOutcome) {
-    eprintln!();
-    eprintln!("{:<COL_NAME$} {:<COL_STATUS$} Duration", "Step", "Status");
-    eprintln!("{}", "-".repeat(SEPARATOR_WIDTH));
-    for s in &outcome.results {
-        eprintln!(
-            "{:<COL_NAME$} {:<COL_STATUS$} {:.1}s",
-            s.name,
-            s.status,
-            s.duration.as_secs_f64()
-        );
-    }
-    eprintln!("{}", "-".repeat(SEPARATOR_WIDTH));
-    eprintln!(
-        "{:<COL_NAME$} {:<COL_STATUS$} {:.1}s",
-        "Total",
-        "",
-        outcome.total.as_secs_f64()
-    );
+fn drain_step_context(context: Option<StepContextSink>) -> StepDiagnosticContext {
+    context
+        .map(|sink| std::mem::take(&mut *sink.borrow_mut()))
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -156,7 +242,7 @@ mod tests {
         let ran_c2 = ran_c.clone();
         let outcome = Pipeline::new(true)
             .step("a", || Ok(()))
-            .step("b", || anyhow::bail!("b failed"))
+            .step("b", || Err(TaskitError::other("b failed")))
             .step("c", move || {
                 ran_c2.set(true);
                 Ok(())
@@ -173,7 +259,7 @@ mod tests {
         let ran_b = Rc::new(Cell::new(false));
         let ran_b2 = ran_b.clone();
         let outcome = Pipeline::new(false)
-            .gate("preflight", || anyhow::bail!("tools missing"))
+            .gate("preflight", || Err(TaskitError::other("tools missing")))
             .step("b", move || {
                 ran_b2.set(true);
                 Ok(())
@@ -208,7 +294,7 @@ mod tests {
         let ran_c2 = ran_c.clone();
         let outcome = Pipeline::new(false)
             .step("a", || Ok(()))
-            .step("b", || anyhow::bail!("b failed"))
+            .step("b", || Err(TaskitError::other("b failed")))
             .step("c", move || {
                 ran_c2.set(true);
                 Ok(())
@@ -231,7 +317,7 @@ mod tests {
         let ran_b = Rc::new(Cell::new(false));
         let ran_b2 = ran_b.clone();
         let outcome = Pipeline::new(false)
-            .step("a", || anyhow::bail!("a failed"))
+            .step("a", || Err(TaskitError::other("a failed")))
             .step("b", move || {
                 ran_b2.set(true);
                 Ok(())
@@ -244,8 +330,8 @@ mod tests {
     #[test]
     fn pipeline_multiple_failures_all_recorded_fail_fast_false() {
         let outcome = Pipeline::new(false)
-            .step("a", || anyhow::bail!("a"))
-            .step("b", || anyhow::bail!("b"))
+            .step("a", || Err(TaskitError::other("a")))
+            .step("b", || Err(TaskitError::other("b")))
             .step("c", || Ok(()))
             .run();
         assert!(!outcome.passed);
@@ -255,7 +341,7 @@ mod tests {
     #[test]
     fn pipeline_run_returns_outcome_with_error_and_gate() {
         let outcome = Pipeline::new(false)
-            .gate("g", || anyhow::bail!("gate failed"))
+            .gate("g", || Err(TaskitError::other("gate failed")))
             .step("s", || Ok(()))
             .run();
         assert!(!outcome.passed);
@@ -267,5 +353,36 @@ mod tests {
     #[test]
     fn step_status_skipped_display() {
         assert_eq!(format!("{}", StepStatus::Skipped), "SKIP");
+    }
+
+    #[test]
+    fn pipeline_attaches_run_context() {
+        let context = PipelineRunContext {
+            taskit_version: "0.7.0".into(),
+            workspace_root: ".".into(),
+            ..PipelineRunContext::default()
+        };
+        let outcome = Pipeline::new(false)
+            .with_context(context.clone())
+            .step("a", || Ok(()))
+            .run();
+
+        assert_eq!(outcome.context, Some(context));
+    }
+
+    #[test]
+    fn pipeline_attaches_step_context_from_sink() {
+        let sink = Rc::new(RefCell::new(StepDiagnosticContext {
+            reproduction: Some("taskit lint".into()),
+            ..StepDiagnosticContext::default()
+        }));
+        let outcome = Pipeline::new(false)
+            .step_with_context_sink("lint", sink, || Ok(()))
+            .run();
+
+        assert_eq!(
+            outcome.results[0].context.reproduction.as_deref(),
+            Some("taskit lint")
+        );
     }
 }

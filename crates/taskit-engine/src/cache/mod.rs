@@ -1,26 +1,25 @@
 //! Master cache integrity hash.
 //!
-//! Every time any individual cache file under `.xtask-cache/` is written,
+//! Every time any individual cache file under `.taskit-cache/` is written,
 //! `update()` should be called to recompute and persist the master hash.
 //!
-//! On startup (or on demand via `cargo xtask self-check`), `verify()` can
+//! On startup (or on demand via `taskit self-check`), `verify()` can
 //! confirm that none of the cache files have drifted since the last write.
 //!
 //! The master hash is stored separately from the cache directory it covers
-//! (`xtask/master-hash`) so it is never included in its own digest.
+//! (`.taskit-cache/master-hash`) so it is never included in its own digest.
 
-use anyhow;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, fs, path::Path};
 use taskit_types::error::TaskitError;
 
-const CACHE_DIR: &str = ".xtask-cache";
-pub const MASTER_FILE: &str = "xtask/master-hash";
+const CACHE_DIR: &str = ".taskit-cache";
+pub const MASTER_FILE: &str = ".taskit-cache/master-hash";
 
 #[derive(Serialize, Deserialize, Default, PartialEq, Debug)]
 pub struct MasterHash {
-    /// SHA-256 over all `.json` files in `.xtask-cache/` sorted by path.
+    /// SHA-256 over all `.json` files in `.taskit-cache/` sorted by path.
     pub hash: String,
 }
 
@@ -55,8 +54,8 @@ pub fn verify_dirs(cache_dir: &Path, master_file: &Path) -> Result<bool, TaskitE
     if !master_file.exists() {
         return Ok(true);
     }
-    let stored: MasterHash = serde_json::from_str(&fs::read_to_string(master_file)?)
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+    let stored: MasterHash =
+        serde_json::from_str(&fs::read_to_string(master_file)?).map_err(TaskitError::other)?;
     if stored.hash.is_empty() {
         return Ok(true);
     }
@@ -106,8 +105,7 @@ fn save(master_file: &Path, cache: &MasterHash) -> Result<(), TaskitError> {
     }
     fs::write(
         master_file,
-        serde_json::to_string_pretty(cache)
-            .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?,
+        serde_json::to_string_pretty(cache).map_err(TaskitError::other)?,
     )?;
     Ok(())
 }
@@ -121,7 +119,7 @@ mod tests {
 
     fn tmpdir() -> std::path::PathBuf {
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir().join(format!("xtask-cache-{}-{}", std::process::id(), n));
+        let dir = std::env::temp_dir().join(format!("taskit-cache-{}-{}", std::process::id(), n));
         fs::create_dir_all(&dir).expect("create tmpdir");
         dir
     }
@@ -161,7 +159,7 @@ mod tests {
 
     #[test]
     fn file_hash_none_for_missing_file() {
-        assert!(file_hash(Path::new("/tmp/__xtask_cache_no_such__.json")).is_none());
+        assert!(file_hash(Path::new("/tmp/__taskit_cache_no_such__.json")).is_none());
     }
 
     #[test]
@@ -197,7 +195,7 @@ mod tests {
 
     #[test]
     fn compute_returns_empty_string_for_missing_dir() {
-        let result = compute(Path::new("/tmp/__xtask_no_such_cache_dir__")).unwrap();
+        let result = compute(Path::new("/tmp/__taskit_no_such_cache_dir__")).unwrap();
         assert!(result.is_empty());
     }
 

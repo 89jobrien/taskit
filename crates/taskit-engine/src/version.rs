@@ -1,8 +1,7 @@
 use taskit_types::error::TaskitError;
-use xshell::{Shell, cmd};
+use xshell::cmd;
 
-use crate::config::WorkspaceConfig;
-use crate::runner::is_dry_run;
+use crate::ctx::Ctx;
 
 /// Look up `name` in a cargo metadata `packages` array and return its version string,
 /// or `"unknown"` if not found.
@@ -14,45 +13,46 @@ fn find_package_version<'a>(packages: &'a [serde_json::Value], name: &str) -> &'
         .unwrap_or("unknown")
 }
 
-pub fn run(sh: &Shell, ws: &WorkspaceConfig) -> Result<(), TaskitError> {
-    if is_dry_run() {
-        eprintln!("dry-run: cargo metadata --no-deps --format-version 1");
-        eprintln!("dry-run: rustc --version");
+pub fn run(ctx: &Ctx) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    let ws = ctx.ws();
+    if ctx.dry_run {
+        taskit_output::taskit_dry!("cargo metadata --no-deps --format-version 1");
+        taskit_output::taskit_dry!("rustc --version");
         return Ok(());
     }
 
     let meta_json = cmd!(sh, "cargo metadata --no-deps --format-version 1")
         .read()
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
-    let meta: serde_json::Value =
-        serde_json::from_str(&meta_json).map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
-    let packages = meta["packages"].as_array().ok_or_else(|| {
-        TaskitError::from(anyhow::anyhow!("no packages in cargo metadata output"))
-    })?;
+        .map_err(TaskitError::other)?;
+    let meta: serde_json::Value = serde_json::from_str(&meta_json).map_err(TaskitError::other)?;
+    let packages = meta["packages"]
+        .as_array()
+        .ok_or_else(|| TaskitError::other("no packages in cargo metadata output"))?;
 
-    eprintln!("Workspace Versions:");
+    taskit_output::taskit_progress!("Workspace Versions:");
     if ws.crates.is_empty() {
         // Zero-config: show all packages from cargo metadata
         for pkg in packages {
             if let (Some(name), Some(ver)) = (pkg["name"].as_str(), pkg["version"].as_str()) {
-                eprintln!("  {name}: {ver}");
+                taskit_output::taskit_progress!("{name}: {ver}");
             }
         }
     } else {
         for entry in &ws.crates {
             let pkg_name = entry.pkg_name();
-            eprintln!(
-                "  {}: {}",
+            taskit_output::taskit_progress!(
+                "{}: {}",
                 entry.dir,
                 find_package_version(packages, pkg_name)
             );
         }
     }
-    eprintln!();
+    taskit_output::taskit_progress!("");
     let rustc = cmd!(sh, "rustc --version")
         .read()
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
-    eprintln!("  rustc: {rustc}");
+        .map_err(TaskitError::other)?;
+    taskit_output::taskit_progress!("rustc: {rustc}");
     Ok(())
 }
 

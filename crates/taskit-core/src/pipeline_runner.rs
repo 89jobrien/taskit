@@ -42,9 +42,12 @@ mod tests {
                     duration: Duration::from_millis(10),
                     error: None,
                     gate: false,
+                    diagnostics: vec![],
+                    context: Default::default(),
                 }],
                 total: Duration::from_millis(10),
                 passed: self.passed,
+                context: None,
             })
         }
     }
@@ -64,5 +67,33 @@ mod tests {
         let runner = FakeRunner { passed: false };
         let outcome = runner.run_pipeline(Path::new("taskit.toml"), true).unwrap();
         assert!(!outcome.passed);
+    }
+
+    mod proptests {
+        use super::*;
+        use proptest::prelude::*;
+
+        proptest! {
+            #[test]
+            fn fake_runner_passed_consistent_with_status(passed: bool) {
+                let runner = FakeRunner { passed };
+                let outcome = runner.run_pipeline(Path::new("t.toml"), false).unwrap();
+                prop_assert_eq!(outcome.passed, passed);
+                let status = outcome.results[0].status;
+                if passed {
+                    prop_assert_eq!(status, StepStatus::Pass);
+                } else {
+                    prop_assert_eq!(status, StepStatus::Fail);
+                }
+            }
+
+            #[test]
+            fn fake_runner_always_has_one_result(passed: bool) {
+                let runner = FakeRunner { passed };
+                let outcome = runner.run_pipeline(Path::new("t.toml"), false).unwrap();
+                prop_assert_eq!(outcome.results.len(), 1);
+                prop_assert!(!outcome.results[0].name.is_empty());
+            }
+        }
     }
 }

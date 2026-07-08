@@ -1,5 +1,5 @@
 use std::{fs, path::Path};
-use taskit_types::error::TaskitError;
+use taskit_types::error::{TaskitError, TaskitResultExt};
 
 /// Count lines in `content` containing `pattern`, returning `(line_number, line)` pairs.
 fn match_lines<'a>(content: &'a str, pattern: &str) -> Vec<(usize, &'a str)> {
@@ -16,34 +16,35 @@ pub fn run(
     expected: usize,
     warn_only: bool,
 ) -> Result<(), TaskitError> {
-    let content = fs::read_to_string(file).map_err(|e| {
-        TaskitError::from(anyhow::anyhow!("failed to read {}: {e}", file.display()))
-    })?;
+    let content = fs::read_to_string(file)
+        .err_context_with(|| format!("failed to read {}", file.display()))?;
 
     let matches = match_lines(&content, pattern);
     let count = matches.len();
-    eprintln!(
+    taskit_output::taskit_progress!(
         "check-protocol-sites: found {count} `{pattern}` construction site(s) \
          in {} (expected {expected})",
         file.display()
     );
 
     if count != expected {
-        eprintln!("WARN: construction site count changed: expected {expected}, got {count}.");
+        taskit_output::taskit_err!(
+            "WARN: construction site count changed: expected {expected}, got {count}."
+        );
         for (lineno, line) in &matches {
-            eprintln!("  {}:{}: {}", file.display(), lineno + 1, line.trim());
+            taskit_output::taskit_err!("{}:{}: {}", file.display(), lineno + 1, line.trim());
         }
         if warn_only {
             return Ok(());
         }
-        return Err(
-            anyhow::anyhow!("construction site count mismatch ({count} != {expected})").into(),
-        );
+        return Err(TaskitError::other(format!(
+            "construction site count mismatch ({count} != {expected})"
+        )));
     }
 
-    eprintln!("OK: construction site count matches.");
+    taskit_output::taskit_ok!("OK: construction site count matches.");
     for (lineno, line) in &matches {
-        eprintln!("  {}:{}: {}", file.display(), lineno + 1, line.trim());
+        taskit_output::taskit_progress!("{}:{}: {}", file.display(), lineno + 1, line.trim());
     }
     Ok(())
 }
@@ -58,7 +59,7 @@ mod tests {
     fn tmp_file(content: &str) -> std::path::PathBuf {
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
         let pid = std::process::id();
-        let path = std::env::temp_dir().join(format!("xtask_psites_{pid}_{n}.rs"));
+        let path = std::env::temp_dir().join(format!("taskit_psites_{pid}_{n}.rs"));
         std::fs::write(&path, content).expect("write tmp file");
         path
     }
@@ -139,7 +140,7 @@ mod tests {
 
     #[test]
     fn run_returns_error_for_missing_file() {
-        let p = std::path::Path::new("/tmp/__xtask_nonexistent_file_xyz__.rs");
+        let p = std::path::Path::new("/tmp/__taskit_nonexistent_file_xyz__.rs");
         assert!(run(p, "pattern", 0, false).is_err());
     }
 }
