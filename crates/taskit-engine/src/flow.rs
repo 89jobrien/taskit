@@ -325,6 +325,18 @@ pub fn auto(
     flow: &FlowConfig,
     resolver: &dyn ConflictResolver,
 ) -> Result<(), TaskitError> {
+    auto_with_ci(ctx, flow, resolver, |c| {
+        crate::ci::run_default_internal(c, true, false)
+    })
+}
+
+/// Internal entry point for `flow auto`, injectable CI function for testing.
+pub(crate) fn auto_with_ci(
+    ctx: &Ctx,
+    flow: &FlowConfig,
+    resolver: &dyn ConflictResolver,
+    run_ci: impl Fn(&Ctx) -> taskit_types::step::PipelineOutcome,
+) -> Result<(), TaskitError> {
     use taskit_types::step::StepStatus;
 
     let sh = &ctx.sh;
@@ -349,7 +361,7 @@ pub fn auto(
 
     // 2. CI gate on release
     taskit_output::taskit_progress!("auto: running CI on {release}");
-    let outcome = crate::ci::run_default_internal(ctx, true, false);
+    let outcome = run_ci(ctx);
     if !outcome.passed {
         let failed: Vec<String> = outcome
             .results
@@ -590,5 +602,129 @@ release = "rc"
         assert_eq!(cfg.main_branch(), "main");
         assert_eq!(cfg.staging_branch(), "dev");
         assert_eq!(cfg.release_branch(), "release");
+    }
+
+    // ── auto_with_ci tests (CI gate path) ─────────────────────────────────────
+
+    fn setup_auto_repo() -> (tempfile::TempDir, Ctx, FlowConfig) {
+        use taskit_types::config::Config;
+        use taskit_types::output_format::OutputFormat;
+        let dir = tempfile::tempdir().expect("tempdir");
+        let sh = xshell::Shell::new().expect("shell");
+        sh.change_dir(dir.path());
+        cmd!(sh, "git init -b main").run().expect("git init");
+        cmd!(sh, "git config user.email test@example.com")
+            .run()
+            .expect("email");
+        cmd!(sh, "git config user.name Test").run().expect("name");
+        cmd!(sh, "git config core.hooksPath /dev/null")
+            .run()
+            .expect("disable hooks");
+        sh.write_file("README.md", "# test\n").expect("write");
+        cmd!(sh, "git add README.md").run().expect("add");
+        cmd!(sh, "git commit -m init").run().expect("commit");
+        cmd!(sh, "git branch staging")
+            .run()
+            .expect("branch staging");
+        cmd!(sh, "git branch release")
+            .run()
+            .expect("branch release");
+        cmd!(sh, "git checkout staging")
+            .run()
+            .expect("checkout staging");
+        // Add a commit so promote has something to merge.
+        sh.write_file("feature.txt", "feature\n").expect("write");
+        cmd!(sh, "git add feature.txt").run().expect("add");
+        cmd!(sh, "git commit -m feature").run().expect("commit");
+        let flow = FlowConfig::default();
+        let ctx = Ctx::new(
+            sh,
+            dir.path().to_path_buf(),
+            Config::default(),
+            false,
+            OutputFormat::Human,
+        );
+        (dir, ctx, flow)
+    }
+
+    #[test]
+    fn auto_ci_failure_returns_ci_failed_and_stays_on_release() {
+        use taskit_types::error::FlowError;
+        use taskit_types::step::{PipelineOutcome, StepResult, StepStatus};
+
+        let (_dir, ctx, flow) = setup_auto_repo();
+
+        // Inject a CI function that always reports a failed step.
+        let failing_ci = |_: &Ctx| PipelineOutcome {
+            results: vec![StepResult {
+                name: "fmt".into(),
+                status: StepStatus::Fail,
+                duration: std::time::Duration::ZERO,
+                error: Some("formatting errors".into()),
+                gate: false,
+                diagnostics: vec![],
+                context: taskit_types::step::StepDiagnosticContext::default(),
+            }],
+            passed: false,
+            total: std::time::Duration::ZERO,
+            context: None,
+        };
+
+        let result = auto_with_ci(&ctx, &flow, &AlwaysResolve, failing_ci);
+
+        match result {
+            Err(taskit_types::error::TaskitError::Flow(FlowError::CiFailed { failed })) => {
+                assert_eq!(failed, vec!["fmt".to_string()]);
+            }
+            other => panic!("expected CiFailed, got {other:?}"),
+        }
+
+        // After CI failure, we should still be on release (not main).
+        let branch = cmd!(ctx.sh, "git branch --show-current")
+            .read()
+            .expect("branch");
+        assert_eq!(
+            branch.trim(),
+            "release",
+            "should stay on release after CI failure"
+        );
+    }
+
+    #[test]
+    fn auto_ci_pass_completes_finish() {
+        use taskit_types::step::{PipelineOutcome, StepResult, StepStatus};
+
+        let (_dir, ctx, flow) = setup_auto_repo();
+
+        let passing_ci = |_: &Ctx| PipelineOutcome {
+            results: vec![StepResult {
+                name: "fmt".into(),
+                status: StepStatus::Pass,
+                duration: std::time::Duration::ZERO,
+                error: None,
+                gate: false,
+                diagnostics: vec![],
+                context: taskit_types::step::StepDiagnosticContext::default(),
+            }],
+            passed: true,
+            total: std::time::Duration::ZERO,
+            context: None,
+        };
+
+        let result = auto_with_ci(&ctx, &flow, &AlwaysResolve, passing_ci);
+        assert!(
+            result.is_ok(),
+            "auto should complete when CI passes: {result:?}"
+        );
+
+        // After success we should be on staging.
+        let branch = cmd!(ctx.sh, "git branch --show-current")
+            .read()
+            .expect("branch");
+        assert_eq!(
+            branch.trim(),
+            "staging",
+            "should land on staging after auto completes"
+        );
     }
 }
