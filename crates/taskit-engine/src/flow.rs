@@ -4,6 +4,28 @@ use xshell::{Shell, cmd};
 
 use crate::ctx::Ctx;
 
+/// A file with merge conflicts, with both sides captured for resolution.
+#[derive(Debug)]
+pub struct ConflictFile {
+    pub path: String,
+    pub ours: String,
+    pub theirs: String,
+    /// The raw file content including conflict markers (base context).
+    pub base: Option<String>,
+}
+
+/// A file with its conflict resolved to a final content string.
+#[derive(Debug)]
+pub struct ResolvedFile {
+    pub path: String,
+    pub content: String,
+}
+
+/// Port for resolving merge conflicts — implemented by `BamlConflictResolver` in the binary.
+pub trait ConflictResolver {
+    fn resolve(&self, files: &[ConflictFile]) -> Result<Vec<ResolvedFile>, TaskitError>;
+}
+
 fn current_branch(sh: &Shell) -> Result<String, TaskitError> {
     Ok(cmd!(sh, "git branch --show-current")
         .read()
@@ -198,6 +220,55 @@ mod tests {
 
     fn default_flow() -> FlowConfig {
         FlowConfig::default()
+    }
+
+    struct AlwaysResolve;
+    impl ConflictResolver for AlwaysResolve {
+        fn resolve(&self, files: &[ConflictFile]) -> Result<Vec<ResolvedFile>, TaskitError> {
+            Ok(files
+                .iter()
+                .map(|f| ResolvedFile {
+                    path: f.path.clone(),
+                    content: "resolved\n".into(),
+                })
+                .collect())
+        }
+    }
+
+    struct AlwaysEscalate;
+    impl ConflictResolver for AlwaysEscalate {
+        fn resolve(&self, files: &[ConflictFile]) -> Result<Vec<ResolvedFile>, TaskitError> {
+            Err(FlowError::NeedsHuman {
+                path: files.first().map(|f| f.path.clone()).unwrap_or_default(),
+                reason: "too complex".into(),
+            }
+            .into())
+        }
+    }
+
+    #[test]
+    fn conflict_resolver_fake_resolves() {
+        let result = AlwaysResolve.resolve(&[ConflictFile {
+            path: "src/lib.rs".into(),
+            ours: "ours".into(),
+            theirs: "theirs".into(),
+            base: None,
+        }]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap()[0].content, "resolved\n");
+    }
+
+    #[test]
+    fn conflict_resolver_fake_escalates() {
+        let result = AlwaysEscalate.resolve(&[ConflictFile {
+            path: "src/lib.rs".into(),
+            ours: "a".into(),
+            theirs: "b".into(),
+            base: None,
+        }]);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("src/lib.rs"), "got: {msg}");
     }
 
     #[test]
