@@ -1,8 +1,128 @@
+use std::path::PathBuf;
+
 use taskit_types::config::FlowConfig;
 use taskit_types::error::{FlowError, TaskitError};
 use xshell::{Shell, cmd};
 
 use crate::ctx::Ctx;
+
+/// A file that has a merge conflict and needs resolution.
+#[derive(Debug, Clone)]
+pub struct ConflictFile {
+    /// Relative path within the repository.
+    pub path: PathBuf,
+    /// Raw file content including conflict markers.
+    pub content: String,
+}
+
+/// A file whose conflict has been resolved.
+#[derive(Debug, Clone)]
+pub struct ResolvedFile {
+    /// Same path as the originating [`ConflictFile`].
+    pub path: PathBuf,
+    /// Resolved content, free of conflict markers.
+    pub content: String,
+}
+
+/// A function or closure that attempts to resolve merge conflicts.
+///
+/// Receives the list of conflicted files.  Returns:
+/// - `Ok(Vec<ResolvedFile>)` when all conflicts are resolved automatically.
+/// - `Err(TaskitError::Flow(FlowError::NeedsHuman { .. }))` when the resolver
+///   cannot resolve one or more conflicts and human intervention is required.
+pub type ConflictResolver =
+    Box<dyn Fn(Vec<ConflictFile>) -> Result<Vec<ResolvedFile>, TaskitError> + Send + Sync>;
+
+/// Attempt to merge `branch` into the current HEAD.
+///
+/// Behaviour:
+/// 1. **Fast-path**: merge succeeds cleanly → `Ok(())`.
+/// 2. **Non-conflict failure**: merge fails for a reason unrelated to conflicts
+///    (e.g. nothing to merge, bad ref) → `Err(FlowError::MergeFailed)`.
+/// 3. **Conflict, resolver returns `Err`**: propagate the resolver's error.
+/// 4. **Conflict, resolver returns `Ok`**: write resolved content, stage all
+///    conflicted paths, run `git commit --no-edit`, return `Ok(())`.
+///
+/// `dry_run` on the [`Ctx`] is respected; when set the merge is skipped and
+/// `Ok(())` is returned immediately.
+pub fn merge_with_resolution(
+    ctx: &Ctx,
+    branch: &str,
+    resolver: &ConflictResolver,
+) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    if ctx.dry_run {
+        taskit_output::taskit_dry!("git merge --no-ff {branch}");
+        return Ok(());
+    }
+
+    let output = cmd!(sh, "git merge --no-ff {branch}")
+        .quiet()
+        .ignore_status()
+        .output()
+        .map_err(TaskitError::other)?;
+
+    if output.status.success() {
+        return Ok(());
+    }
+
+    // Determine whether the failure left conflict markers or was a hard error.
+    let conflicted = conflicted_files(sh)?;
+    if conflicted.is_empty() {
+        // Non-conflict failure — abort the merge attempt and return an error.
+        let _ = cmd!(sh, "git merge --abort").quiet().run();
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(FlowError::MergeFailed {
+            reason: stderr.trim().to_string(),
+        }
+        .into());
+    }
+
+    // Load each conflicted file's content and hand off to the resolver.
+    let conflict_files: Vec<ConflictFile> = conflicted
+        .iter()
+        .map(|p| {
+            let content = std::fs::read_to_string(sh.current_dir().join(p)).unwrap_or_default();
+            ConflictFile {
+                path: PathBuf::from(p),
+                content,
+            }
+        })
+        .collect();
+
+    let resolved = resolver(conflict_files)?;
+
+    // Write resolved content and stage.
+    for rf in &resolved {
+        let abs = sh.current_dir().join(&rf.path);
+        std::fs::write(&abs, &rf.content).map_err(TaskitError::other)?;
+        let path_str = rf.path.to_string_lossy().to_string();
+        cmd!(sh, "git add {path_str}")
+            .quiet()
+            .run()
+            .map_err(TaskitError::other)?;
+    }
+
+    // Commit with the auto-generated merge commit message.
+    cmd!(sh, "git commit --no-edit")
+        .quiet()
+        .run()
+        .map_err(TaskitError::other)?;
+
+    Ok(())
+}
+
+/// Return the list of paths that currently have conflict markers.
+fn conflicted_files(sh: &Shell) -> Result<Vec<String>, TaskitError> {
+    let output = cmd!(sh, "git diff --name-only --diff-filter=U")
+        .read()
+        .map_err(TaskitError::other)?;
+    Ok(output
+        .lines()
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .collect())
+}
 
 fn current_branch(sh: &Shell) -> Result<String, TaskitError> {
     Ok(cmd!(sh, "git branch --show-current")

@@ -1,5 +1,6 @@
 use taskit_engine::ctx::Ctx;
 use taskit_engine::flow;
+use taskit_engine::flow::{ConflictFile, ConflictResolver, ResolvedFile, merge_with_resolution};
 use taskit_types::config::{Config, FlowConfig};
 use taskit_types::error::{FlowError, TaskitError};
 use taskit_types::output_format::OutputFormat;
@@ -176,4 +177,148 @@ fn flow_finish_merges_release_to_main_and_syncs_staging() {
         staging_reachable,
         "main not yet synced into staging after finish"
     );
+}
+
+// ── merge_with_resolution tests ──────────────────────────────────────────────
+
+fn no_op_resolver() -> ConflictResolver {
+    Box::new(
+        |_files: Vec<ConflictFile>| -> Result<Vec<ResolvedFile>, TaskitError> {
+            panic!("resolver should not be called on a clean merge");
+        },
+    )
+}
+
+/// Branch A adds one file; merge into main is clean.
+/// Expected: `Ok(())`, resolver never called.
+#[test]
+fn merge_with_resolution_fast_path_clean_merge() {
+    let (_dir, ctx, _flow) = setup_flow_repo();
+    let sh = &ctx.sh;
+
+    // Create branch-a with a new file.
+    cmd!(sh, "git checkout -b branch-a")
+        .run()
+        .expect("checkout branch-a");
+    commit_file(sh, "a.txt", "content from a\n", "feat: add a.txt");
+
+    cmd!(sh, "git checkout main").run().expect("checkout main");
+
+    let result = merge_with_resolution(&ctx, "branch-a", &no_op_resolver());
+    assert!(result.is_ok(), "expected Ok(()), got {result:?}");
+}
+
+/// Attempt to merge a non-existent branch — git fails for a non-conflict reason.
+/// Expected: `Err(TaskitError::Flow(FlowError::MergeFailed { .. }))`.
+#[test]
+fn merge_with_resolution_non_conflict_failure() {
+    let (_dir, ctx, _flow) = setup_flow_repo();
+
+    let result = merge_with_resolution(&ctx, "branch-does-not-exist", &no_op_resolver());
+    match result {
+        Err(TaskitError::Flow(FlowError::MergeFailed { .. })) => {}
+        other => panic!("expected MergeFailed, got {other:?}"),
+    }
+}
+
+/// Both main and branch-b edit the same line in README.md, producing a conflict.
+/// The resolver returns `Err(NeedsHuman)`.
+/// Expected: that error propagates unchanged.
+#[test]
+fn merge_with_resolution_conflict_resolver_needs_human() {
+    let (_dir, ctx, _flow) = setup_flow_repo();
+    let sh = &ctx.sh;
+
+    // branch-b: edit line 1 of README.md.
+    cmd!(sh, "git checkout -b branch-b")
+        .run()
+        .expect("checkout branch-b");
+    commit_file(
+        sh,
+        "README.md",
+        "# from branch-b\n",
+        "chore: edit readme in b",
+    );
+
+    // main: edit the same line differently.
+    cmd!(sh, "git checkout main").run().expect("checkout main");
+    commit_file(
+        sh,
+        "README.md",
+        "# from main\n",
+        "chore: edit readme in main",
+    );
+
+    let resolver: ConflictResolver = Box::new(|files: Vec<ConflictFile>| {
+        let paths: Vec<String> = files
+            .iter()
+            .map(|f| f.path.to_string_lossy().into())
+            .collect();
+        Err(FlowError::NeedsHuman { files: paths }.into())
+    });
+
+    let result = merge_with_resolution(&ctx, "branch-b", &resolver);
+    match result {
+        Err(TaskitError::Flow(FlowError::NeedsHuman { .. })) => {}
+        other => panic!("expected NeedsHuman, got {other:?}"),
+    }
+}
+
+/// Both main and branch-c edit the same line — conflict — but the resolver
+/// resolves it by writing known content. After the round-trip, `git log`
+/// should show a merge commit and the working tree should be clean.
+/// Expected: `Ok(())`.
+#[test]
+fn merge_with_resolution_conflict_resolver_round_trip() {
+    let (_dir, ctx, _flow) = setup_flow_repo();
+    let sh = &ctx.sh;
+
+    // branch-c: edit README.md.
+    cmd!(sh, "git checkout -b branch-c")
+        .run()
+        .expect("checkout branch-c");
+    commit_file(
+        sh,
+        "README.md",
+        "# from branch-c\n",
+        "chore: edit readme in c",
+    );
+
+    // main: edit the same file differently.
+    cmd!(sh, "git checkout main").run().expect("checkout main");
+    commit_file(
+        sh,
+        "README.md",
+        "# from main\n",
+        "chore: edit readme in main",
+    );
+
+    let resolver: ConflictResolver = Box::new(|files: Vec<ConflictFile>| {
+        // Accept all files and write a known resolved value.
+        let resolved = files
+            .into_iter()
+            .map(|f| ResolvedFile {
+                path: f.path,
+                content: "# resolved\n".to_string(),
+            })
+            .collect();
+        Ok(resolved)
+    });
+
+    let result = merge_with_resolution(&ctx, "branch-c", &resolver);
+    assert!(result.is_ok(), "expected Ok(()), got {result:?}");
+
+    // Working tree must be clean.
+    let status = cmd!(sh, "git status --porcelain")
+        .read()
+        .expect("git status");
+    assert!(
+        status.trim().is_empty(),
+        "working tree dirty after resolution: {status}"
+    );
+
+    // The resolved README must have the resolver's content.
+    let readme =
+        std::fs::read_to_string(sh.current_dir().join("README.md")).expect("read README.md");
+    assert_eq!(readme, "# resolved\n");
 }

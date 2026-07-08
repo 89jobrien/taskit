@@ -169,6 +169,13 @@ pub enum FlowError {
     #[error("merge failed: {reason}")]
     #[diagnostic(code(taskit::flow::merge_failed))]
     MergeFailed { reason: String },
+
+    #[error("conflict requires human resolution: {files:?}")]
+    #[diagnostic(
+        code(taskit::flow::needs_human),
+        help("resolve conflicts manually, then commit")
+    )]
+    NeedsHuman { files: Vec<String> },
 }
 
 #[derive(Debug, Error, Diagnostic)]
