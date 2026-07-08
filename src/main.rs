@@ -213,7 +213,7 @@ enum FlowCmd {
     Finish,
     /// Validate current branch is not protected (for pre-commit hooks)
     Guard,
-    /// Run full promote → CI → finish pipeline with LLM conflict resolution
+    /// Run full promote → CI → finish pipeline (conflict resolution requires BAML — see fa7)
     Auto,
 }
 

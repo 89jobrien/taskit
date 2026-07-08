@@ -6,6 +6,7 @@ use crate::ctx::Ctx;
 
 /// A file with merge conflicts, with both sides captured for resolution.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct ConflictFile {
     pub path: String,
     pub ours: String,
@@ -16,6 +17,7 @@ pub struct ConflictFile {
 
 /// A file with its conflict resolved to a final content string.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct ResolvedFile {
     pub path: String,
     pub content: String,
@@ -129,6 +131,8 @@ pub(crate) fn read_conflict_file(sh: &Shell, path: &str) -> Result<ConflictFile,
 }
 
 /// Attempt a `--no-ff` merge; on conflict invoke `resolver`; on escalation return the error.
+/// On successful resolution, stages all resolved files and completes the merge via
+/// `git commit --no-edit`.
 pub(crate) fn merge_with_resolution(
     ctx: &Ctx,
     branch: &str,
@@ -322,7 +326,7 @@ pub fn auto(
     require_branch_exists(sh, release)?;
     require_branch_exists(sh, main)?;
 
-    // Step 1: Promote staging → release
+    // 1. Promote staging → release
     taskit_output::taskit_progress!("auto: promoting {staging} → {release}");
     checkout(ctx, release)?;
     merge_with_resolution(
@@ -332,7 +336,7 @@ pub fn auto(
         resolver,
     )?;
 
-    // Step 2: CI gate on release
+    // 2. CI gate on release
     taskit_output::taskit_progress!("auto: running CI on {release}");
     let outcome = crate::ci::run_default_internal(ctx, true, false);
     if !outcome.passed {
@@ -349,7 +353,7 @@ pub fn auto(
     }
     taskit_output::taskit_ok!("auto: CI passed on {release}");
 
-    // Step 3: Finish release → main, sync main → staging
+    // 3. Finish release → main, sync main → staging
     taskit_output::taskit_progress!("auto: finishing {release} → {main}");
     checkout(ctx, main)?;
     merge_with_resolution(
@@ -415,6 +419,13 @@ mod tests {
         let porcelain = "UU src/lib.rs\nAA Cargo.toml\nDD old.rs\nM  clean.rs\n";
         let paths = parse_conflict_paths(porcelain);
         assert_eq!(paths, vec!["src/lib.rs", "Cargo.toml", "old.rs"]);
+    }
+
+    #[test]
+    fn parse_conflict_paths_detects_au_ua() {
+        let porcelain = "AU src/main.rs\nUA Cargo.lock\nM  clean.rs\n";
+        let paths = parse_conflict_paths(porcelain);
+        assert_eq!(paths, vec!["src/main.rs", "Cargo.lock"]);
     }
 
     #[test]
