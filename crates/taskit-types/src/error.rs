@@ -169,6 +169,27 @@ pub enum FlowError {
     #[error("merge failed: {reason}")]
     #[diagnostic(code(taskit::flow::merge_failed))]
     MergeFailed { reason: String },
+
+    #[error("merge conflict could not be resolved automatically: {path}")]
+    #[diagnostic(
+        code(taskit::flow::conflict_unresolved),
+        help("resolve manually, then run `taskit flow finish`")
+    )]
+    ConflictUnresolved { path: String },
+
+    #[error("merge conflict needs human review: {path} — {reason}")]
+    #[diagnostic(
+        code(taskit::flow::needs_human),
+        help("resolve manually, then run `taskit flow finish`")
+    )]
+    NeedsHuman { path: String, reason: String },
+
+    #[error("CI failed on release: {}", failed.join(", "))]
+    #[diagnostic(
+        code(taskit::flow::ci_failed),
+        help("fix the failing steps, then re-run `taskit flow auto`")
+    )]
+    CiFailed { failed: Vec<String> },
 }
 
 #[derive(Debug, Error, Diagnostic)]
@@ -423,6 +444,40 @@ mod tests {
             let code = err.code().expect("should have diagnostic code");
             assert_eq!(code.to_string(), expected_code);
         }
+    }
+
+    #[test]
+    fn flow_conflict_unresolved_display_and_code() {
+        let err = FlowError::ConflictUnresolved {
+            path: "Cargo.toml".into(),
+        };
+        assert!(err.to_string().contains("Cargo.toml"));
+        assert!(err.to_string().contains("could not be resolved"));
+        let code = err.code().expect("diagnostic code");
+        assert_eq!(code.to_string(), "taskit::flow::conflict_unresolved");
+    }
+
+    #[test]
+    fn flow_needs_human_display_and_code() {
+        let err = FlowError::NeedsHuman {
+            path: "src/lib.rs".into(),
+            reason: "too complex".into(),
+        };
+        assert!(err.to_string().contains("src/lib.rs"));
+        assert!(err.to_string().contains("too complex"));
+        let code = err.code().expect("diagnostic code");
+        assert_eq!(code.to_string(), "taskit::flow::needs_human");
+    }
+
+    #[test]
+    fn flow_ci_failed_display_and_code() {
+        let err = FlowError::CiFailed {
+            failed: vec!["lint".into(), "test".into()],
+        };
+        assert!(err.to_string().contains("lint"));
+        assert!(err.to_string().contains("test"));
+        let code = err.code().expect("diagnostic code");
+        assert_eq!(code.to_string(), "taskit::flow::ci_failed");
     }
 
     #[test]
