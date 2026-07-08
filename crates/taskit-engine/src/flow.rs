@@ -192,6 +192,22 @@ pub fn guard(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
     Ok(())
 }
 
+/// Parse `git status --porcelain` output for conflict markers (UU, AA, DD, AU, UA).
+#[allow(dead_code)]
+pub(crate) fn parse_conflict_paths(porcelain: &str) -> Vec<String> {
+    porcelain
+        .lines()
+        .filter(|l| {
+            l.starts_with("UU ")
+                || l.starts_with("AA ")
+                || l.starts_with("DD ")
+                || l.starts_with("AU ")
+                || l.starts_with("UA ")
+        })
+        .map(|l| l[3..].trim().to_string())
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -326,5 +342,12 @@ release = "rc"
         assert_eq!(cfg.main_branch(), "main");
         assert_eq!(cfg.staging_branch(), "dev");
         assert_eq!(cfg.release_branch(), "release");
+    }
+
+    #[test]
+    fn parse_conflict_paths_detects_au_ua() {
+        let porcelain = "AU src/main.rs\nUA Cargo.lock\n";
+        let paths = parse_conflict_paths(porcelain);
+        assert_eq!(paths, vec!["src/main.rs", "Cargo.lock"]);
     }
 }
