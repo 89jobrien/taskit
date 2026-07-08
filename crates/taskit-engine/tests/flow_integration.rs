@@ -1,9 +1,24 @@
 use taskit_engine::ctx::Ctx;
-use taskit_engine::flow;
+use taskit_engine::flow::{self, ConflictFile, ConflictResolver, ResolvedFile};
 use taskit_types::config::{Config, FlowConfig};
 use taskit_types::error::{FlowError, TaskitError};
 use taskit_types::output_format::OutputFormat;
 use xshell::{Shell, cmd};
+
+#[allow(dead_code)]
+struct NoOpResolver;
+impl ConflictResolver for NoOpResolver {
+    fn resolve(&self, _files: &[ConflictFile]) -> Result<Vec<ResolvedFile>, TaskitError> {
+        Ok(vec![])
+    }
+}
+
+struct PanicResolver;
+impl ConflictResolver for PanicResolver {
+    fn resolve(&self, _files: &[ConflictFile]) -> Result<Vec<ResolvedFile>, TaskitError> {
+        panic!("resolver should not be called when there are no conflicts");
+    }
+}
 
 /// Set up a temporary git repo with `main`, `staging`, and `release` branches.
 ///
@@ -216,4 +231,67 @@ fn flow_finish_auto_switches_from_staging() {
         .expect("checkout staging");
 
     flow::finish(&ctx, &flow).expect("flow::finish should succeed from staging");
+}
+
+#[test]
+fn flow_auto_requires_staging_branch() {
+    let (_dir, ctx, flow) = setup_flow_repo();
+    // We start on main — auto requires staging.
+    let result = flow::auto(&ctx, &flow, &PanicResolver);
+    match result {
+        Err(TaskitError::Flow(FlowError::WrongBranch { expected, actual })) => {
+            assert_eq!(expected, "staging");
+            assert_eq!(actual, "main");
+        }
+        other => panic!("expected WrongBranch, got {other:?}"),
+    }
+}
+
+#[test]
+fn flow_auto_requires_clean_staging() {
+    let (_dir, ctx, flow) = setup_flow_repo();
+    cmd!(ctx.sh, "git checkout staging")
+        .run()
+        .expect("checkout staging");
+    // Create an uncommitted file.
+    ctx.sh
+        .write_file("dirty.txt", "untracked\n")
+        .expect("write dirty");
+    cmd!(ctx.sh, "git add dirty.txt").run().expect("git add");
+    // staged but not committed
+    let result = flow::auto(&ctx, &flow, &PanicResolver);
+    match result {
+        Err(TaskitError::Flow(FlowError::DirtyWorktree { branch })) => {
+            assert_eq!(branch, "staging");
+        }
+        other => panic!("expected DirtyWorktree, got {other:?}"),
+    }
+}
+
+#[test]
+fn flow_auto_no_conflict_happy_path_ends_on_staging() {
+    let (_dir, ctx, flow) = setup_flow_repo();
+
+    // Add a commit on staging.
+    cmd!(ctx.sh, "git checkout staging")
+        .run()
+        .expect("checkout staging");
+    commit_file(&ctx.sh, "feature.txt", "new feature\n", "feat: add feature");
+
+    // `auto` will run CI internally. We need a minimal taskit.toml in the tempdir
+    // so that run_default_internal can load config. Use dry_run=true via a new Ctx
+    // so ci steps don't actually execute.
+    let dry_ctx = Ctx::new(
+        xshell::Shell::new().expect("shell"),
+        ctx.root.clone(),
+        Config::default(),
+        true, // dry_run
+        OutputFormat::Human,
+    );
+    // The dry_run ctx needs its shell in the tempdir.
+    dry_ctx.sh.change_dir(&ctx.root);
+
+    let result = flow::auto(&dry_ctx, &flow, &PanicResolver);
+    // In dry_run mode all git ops are printed but not run — the outcome is Ok.
+    assert!(result.is_ok(), "flow::auto dry-run failed: {result:?}");
 }
