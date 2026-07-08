@@ -3,7 +3,10 @@ use serde::Serialize;
 
 use taskit_types::error::{PipelineError, StepError};
 use taskit_types::output_format::OutputFormat;
-use taskit_types::step::{DiagnosticLevel, PipelineOutcome, StepResult, StepStatus};
+use taskit_types::step::{
+    DiagnosticLevel, PipelineOutcome, PipelineRunContext, StepDiagnosticContext, StepResult,
+    StepStatus,
+};
 
 /// Port: formats pipeline results for different output targets.
 pub trait OutputFormatter {
@@ -55,6 +58,30 @@ impl OutputFormatter for HumanFormatter {
             "",
             outcome.total.as_secs_f64()
         ));
+
+        // Append per-step context for failed steps.
+        let failed: Vec<&StepResult> = outcome
+            .results
+            .iter()
+            .filter(|s| s.status == StepStatus::Fail)
+            .collect();
+        if !failed.is_empty() {
+            out.push('\n');
+            for s in &failed {
+                let ctx_text = render_step_context_text(&s.name, &s.context);
+                if !ctx_text.is_empty() {
+                    out.push_str(&format!("{}:\n", s.name));
+                    out.push_str(&ctx_text);
+                }
+            }
+        }
+
+        // Run context footer.
+        if let Some(ref ctx) = outcome.context {
+            out.push('\n');
+            out.push_str(&render_run_context_text(ctx));
+        }
+
         out
     }
 }
@@ -67,6 +94,8 @@ struct JsonOutput {
     steps: Vec<JsonStep>,
     total_duration_secs: f64,
     passed: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    run_context: Option<JsonRunContext>,
 }
 
 #[derive(Serialize)]
@@ -76,14 +105,75 @@ struct JsonStep {
     duration_secs: f64,
     error: Option<String>,
     gate: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    context: Option<JsonStepContext>,
+}
+
+#[derive(Serialize)]
+struct JsonStepContext {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reproduction: Option<String>,
+    commands: Vec<JsonCommandRecord>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    notes: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct JsonCommandRecord {
+    command: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    success: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    exit_code: Option<i32>,
+}
+
+#[derive(Serialize)]
+struct JsonRunContext {
+    taskit_version: String,
+    workspace_root: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    git_sha: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    rustc_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cargo_version: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    workspace_members: Vec<String>,
+}
+
+fn json_step_context(ctx: &StepDiagnosticContext) -> Option<JsonStepContext> {
+    if ctx.reproduction.is_none() && ctx.commands.is_empty() && ctx.notes.is_empty() {
+        return None;
+    }
+    Some(JsonStepContext {
+        reproduction: ctx.reproduction.clone(),
+        commands: ctx
+            .commands
+            .iter()
+            .map(|c| JsonCommandRecord {
+                command: c.command.clone(),
+                success: c.success,
+                exit_code: c.exit_code,
+            })
+            .collect(),
+        notes: ctx.notes.clone(),
+    })
 }
 
 pub struct JsonFormatter;
 
 impl OutputFormatter for JsonFormatter {
     fn render(&self, outcome: &PipelineOutcome) -> String {
+        let run_context = outcome.context.as_ref().map(|ctx| JsonRunContext {
+            taskit_version: ctx.taskit_version.clone(),
+            workspace_root: ctx.workspace_root.clone(),
+            git_sha: ctx.git_sha.clone(),
+            rustc_version: ctx.rustc_version.clone(),
+            cargo_version: ctx.cargo_version.clone(),
+            workspace_members: ctx.workspace_members.clone(),
+        });
         let output = JsonOutput {
-            version: 1,
+            version: 2,
             steps: outcome
                 .results
                 .iter()
@@ -97,10 +187,12 @@ impl OutputFormatter for JsonFormatter {
                     duration_secs: s.duration.as_secs_f64(),
                     error: s.error.clone(),
                     gate: s.gate,
+                    context: json_step_context(&s.context),
                 })
                 .collect(),
             total_duration_secs: outcome.total.as_secs_f64(),
             passed: outcome.passed,
+            run_context,
         };
         serde_json::to_string_pretty(&output).expect("JSON serialization cannot fail")
     }
@@ -125,12 +217,19 @@ impl OutputFormatter for GithubFormatter {
                 }
                 StepStatus::Fail => {
                     let msg = s.error.as_deref().unwrap_or("failed");
+                    let repro = s
+                        .context
+                        .reproduction
+                        .as_deref()
+                        .map(|r| format!(" | Reproduction: {r}"))
+                        .unwrap_or_default();
                     out.push_str(&format!(
-                        "::error title={}::Step \"{}\" failed ({:.1}s): {}\n",
+                        "::error title={}::Step \"{}\" failed ({:.1}s): {}{}\n",
                         s.name,
                         s.name,
                         s.duration.as_secs_f64(),
-                        msg
+                        msg,
+                        repro,
                     ));
                 }
                 StepStatus::Skipped => {
@@ -141,6 +240,8 @@ impl OutputFormatter for GithubFormatter {
                 }
             }
         }
+
+        // Summary table (also written to GITHUB_STEP_SUMMARY by write_output).
         out.push_str("\n| Step | Status | Duration |\n");
         out.push_str("|---|---|---|\n");
         for s in &outcome.results {
@@ -151,6 +252,44 @@ impl OutputFormatter for GithubFormatter {
                 s.duration.as_secs_f64()
             ));
         }
+
+        // Reproduction table for failed steps.
+        let failed_with_repro: Vec<(&str, &str)> = outcome
+            .results
+            .iter()
+            .filter(|s| s.status == StepStatus::Fail)
+            .filter_map(|s| {
+                s.context
+                    .reproduction
+                    .as_deref()
+                    .map(|r| (s.name.as_str(), r))
+            })
+            .collect();
+        if !failed_with_repro.is_empty() {
+            out.push_str("\n## Reproduction\n\n");
+            out.push_str("| Step | Command |\n");
+            out.push_str("|---|---|\n");
+            for (name, repro) in &failed_with_repro {
+                out.push_str(&format!("| {name} | `{repro}` |\n"));
+            }
+        }
+
+        // Run context section.
+        if let Some(ref ctx) = outcome.context {
+            out.push_str("\n## Run context\n\n");
+            out.push_str(&format!("- taskit {}\n", ctx.taskit_version));
+            if let Some(ref v) = ctx.rustc_version {
+                out.push_str(&format!("- rustc {v}\n"));
+            }
+            if let Some(ref v) = ctx.cargo_version {
+                out.push_str(&format!("- cargo {v}\n"));
+            }
+            if let Some(ref sha) = ctx.git_sha {
+                out.push_str(&format!("- git {}\n", &sha[..sha.len().min(8)]));
+            }
+            out.push_str(&format!("- workspace: `{}`\n", ctx.workspace_root));
+        }
+
         out
     }
 }
@@ -186,6 +325,12 @@ impl OutputFormatter for JunitFormatter {
                         s.duration.as_secs_f64()
                     ));
                     out.push_str(&format!("      <failure message=\"{msg}\"/>\n"));
+                    if let Some(ref repro) = s.context.reproduction {
+                        out.push_str(&format!(
+                            "      <system-out>{}</system-out>\n",
+                            xml_escape(repro)
+                        ));
+                    }
                     out.push_str("    </testcase>\n");
                 }
                 StepStatus::Skipped => {
@@ -244,6 +389,30 @@ impl OutputFormatter for DiagnosticFormatter {
                 let handler = NarratableReportHandler::new();
                 let _ = handler.render_report(&mut buf, &err);
             }
+
+            // Append per-step reproduction hints for failed steps.
+            let mut hints = String::new();
+            for s in outcome
+                .results
+                .iter()
+                .filter(|s| s.status == StepStatus::Fail)
+            {
+                let ctx_text = render_step_context_text(&s.name, &s.context);
+                if !ctx_text.is_empty() {
+                    hints.push_str(&format!("{}:\n", s.name));
+                    hints.push_str(&ctx_text);
+                }
+            }
+            if !hints.is_empty() {
+                buf.push('\n');
+                buf.push_str(&hints);
+            }
+
+            if let Some(ref ctx) = outcome.context {
+                buf.push('\n');
+                buf.push_str(&render_run_context_text(ctx));
+            }
+
             buf
         }
     }
@@ -327,11 +496,16 @@ fn sarif_run_for_step(step: &StepResult) -> serde_json::Value {
         driver["rules"] = serde_json::json!(rules);
     }
 
+    let mut invocation = serde_json::json!({
+        "executionSuccessful": execution_successful,
+    });
+    if let Some(ref repro) = step.context.reproduction {
+        invocation["properties"] = serde_json::json!({ "reproduction": repro });
+    }
+
     serde_json::json!({
         "tool": { "driver": driver },
-        "invocations": [{
-            "executionSuccessful": execution_successful,
-        }],
+        "invocations": [invocation],
         "results": results,
     })
 }
@@ -351,6 +525,48 @@ fn sarif_tool_name(step_name: &str) -> &str {
         return "cargo-deny";
     }
     "taskit"
+}
+
+// -- Context rendering helpers -----------------------------------------------
+
+/// Render the reproduction hint + command log for a failed step (plain text).
+fn render_step_context_text(name: &str, ctx: &StepDiagnosticContext) -> String {
+    let mut out = String::new();
+    if let Some(repro) = &ctx.reproduction {
+        out.push_str(&format!("  Reproduction: {repro}\n"));
+    }
+    if !ctx.commands.is_empty() {
+        out.push_str(&format!("  Commands run during \"{name}\":\n"));
+        for cmd in &ctx.commands {
+            let status = match cmd.success {
+                Some(true) => "ok",
+                Some(false) => "fail",
+                None => "?",
+            };
+            out.push_str(&format!("    [{}] {}\n", status, cmd.command));
+        }
+    }
+    for note in &ctx.notes {
+        out.push_str(&format!("  Note: {note}\n"));
+    }
+    out
+}
+
+/// Render PipelineRunContext as a compact footer line.
+fn render_run_context_text(ctx: &PipelineRunContext) -> String {
+    let mut parts: Vec<String> = vec![format!("taskit {}", ctx.taskit_version)];
+    if let Some(ref v) = ctx.rustc_version {
+        parts.push(format!("rustc {v}"));
+    }
+    if let Some(ref v) = ctx.cargo_version {
+        parts.push(format!("cargo {v}"));
+    }
+    if let Some(ref sha) = ctx.git_sha {
+        parts.push(format!("git {}", &sha[..sha.len().min(8)]));
+    }
+    let mut out = format!("Run context: {}\n", parts.join(" | "));
+    out.push_str(&format!("  workspace: {}\n", ctx.workspace_root));
+    out
 }
 
 // -- Miette error reporting --------------------------------------------------
@@ -503,7 +719,7 @@ mod tests {
     fn json_formatter_valid_json() {
         let output = JsonFormatter.render(&sample_outcome());
         let parsed: serde_json::Value = serde_json::from_str(&output).expect("valid JSON");
-        assert_eq!(parsed["version"], 1);
+        assert_eq!(parsed["version"], 2);
         assert_eq!(parsed["passed"], false);
         assert_eq!(parsed["steps"].as_array().unwrap().len(), 2);
         assert_eq!(parsed["steps"][0]["name"], "fmt");
@@ -770,5 +986,174 @@ mod tests {
         // STEP_NAME ("compile") does not match any keyword in sarif_tool_name,
         // so the derived tool name is the fallback "taskit".
         assert_formatter_contract(&SarifFormatter, "taskit");
+    }
+
+    // -- Diagnostic context rendering ----------------------------------------
+
+    use taskit_types::step::{CommandRecord, PipelineRunContext, StepDiagnosticContext};
+
+    fn outcome_with_context() -> PipelineOutcome {
+        PipelineOutcome {
+            results: vec![StepResult {
+                name: "test".into(),
+                status: StepStatus::Fail,
+                duration: Duration::from_secs(5),
+                error: Some("tests failed".into()),
+                gate: false,
+                diagnostics: vec![],
+                context: StepDiagnosticContext {
+                    reproduction: Some("taskit test".into()),
+                    commands: vec![CommandRecord {
+                        command: "cargo nextest run".into(),
+                        success: Some(false),
+                        exit_code: Some(1),
+                    }],
+                    notes: vec![],
+                },
+            }],
+            total: Duration::from_secs(5),
+            passed: false,
+            context: Some(PipelineRunContext {
+                taskit_version: "0.7.0".into(),
+                workspace_root: "/workspace".into(),
+                rustc_version: Some("1.87.0".into()),
+                cargo_version: Some("1.87.0".into()),
+                git_sha: Some("abc12345def".into()),
+                ..PipelineRunContext::default()
+            }),
+        }
+    }
+
+    #[test]
+    fn human_formatter_renders_reproduction_on_failure() {
+        let out = HumanFormatter.render(&outcome_with_context());
+        assert!(
+            out.contains("taskit test"),
+            "should contain reproduction command"
+        );
+        assert!(
+            out.contains("cargo nextest run"),
+            "should contain command log"
+        );
+    }
+
+    #[test]
+    fn human_formatter_renders_run_context() {
+        let out = HumanFormatter.render(&outcome_with_context());
+        assert!(out.contains("0.7.0"), "should contain taskit version");
+        assert!(out.contains("/workspace"), "should contain workspace root");
+    }
+
+    #[test]
+    fn human_formatter_no_context_section_on_pass() {
+        let out = HumanFormatter.render(&passing_outcome());
+        assert!(
+            !out.contains("Reproduction:"),
+            "no reproduction on passing step"
+        );
+    }
+
+    #[test]
+    fn github_formatter_includes_reproduction_in_error_annotation() {
+        let out = GithubFormatter.render(&outcome_with_context());
+        assert!(
+            out.contains("Reproduction: taskit test"),
+            "::error annotation should include reproduction"
+        );
+    }
+
+    #[test]
+    fn github_formatter_includes_reproduction_table() {
+        let out = GithubFormatter.render(&outcome_with_context());
+        assert!(
+            out.contains("## Reproduction"),
+            "should include reproduction section"
+        );
+        assert!(
+            out.contains("`taskit test`"),
+            "should include reproduction command"
+        );
+    }
+
+    #[test]
+    fn github_formatter_includes_run_context_section() {
+        let out = GithubFormatter.render(&outcome_with_context());
+        assert!(
+            out.contains("## Run context"),
+            "should include run context section"
+        );
+        assert!(out.contains("0.7.0"), "should include taskit version");
+    }
+
+    #[test]
+    fn json_formatter_includes_step_context() {
+        let out = JsonFormatter.render(&outcome_with_context());
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let ctx = &parsed["steps"][0]["context"];
+        assert_eq!(ctx["reproduction"], "taskit test");
+        assert_eq!(ctx["commands"][0]["command"], "cargo nextest run");
+        assert_eq!(ctx["commands"][0]["success"], false);
+    }
+
+    #[test]
+    fn json_formatter_includes_run_context() {
+        let out = JsonFormatter.render(&outcome_with_context());
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed["run_context"]["taskit_version"], "0.7.0");
+        assert_eq!(parsed["run_context"]["workspace_root"], "/workspace");
+        assert_eq!(parsed["run_context"]["rustc_version"], "1.87.0");
+    }
+
+    #[test]
+    fn json_formatter_no_context_key_when_empty() {
+        let out = JsonFormatter.render(&passing_outcome());
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert!(
+            parsed["steps"][0]["context"].is_null(),
+            "no context key for steps without it"
+        );
+        assert!(
+            parsed["run_context"].is_null(),
+            "no run_context when absent"
+        );
+    }
+
+    #[test]
+    fn junit_formatter_includes_system_out_on_failure() {
+        let out = JunitFormatter.render(&outcome_with_context());
+        assert!(out.contains("<system-out>taskit test</system-out>"));
+    }
+
+    #[test]
+    fn sarif_formatter_includes_reproduction_in_invocation() {
+        let out = SarifFormatter.render(&outcome_with_context());
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let props = &parsed["runs"][0]["invocations"][0]["properties"];
+        assert_eq!(props["reproduction"], "taskit test");
+    }
+
+    #[test]
+    fn render_run_context_text_includes_all_fields() {
+        let ctx = PipelineRunContext {
+            taskit_version: "0.7.0".into(),
+            workspace_root: "/ws".into(),
+            rustc_version: Some("1.87.0".into()),
+            cargo_version: Some("1.87.0".into()),
+            git_sha: Some("abc12345".into()),
+            ..PipelineRunContext::default()
+        };
+        let text = render_run_context_text(&ctx);
+        assert!(text.contains("0.7.0"));
+        assert!(text.contains("rustc 1.87.0"));
+        assert!(text.contains("cargo 1.87.0"));
+        assert!(text.contains("abc12345"));
+        assert!(text.contains("/ws"));
+    }
+
+    #[test]
+    fn render_step_context_text_empty_when_no_data() {
+        let ctx = StepDiagnosticContext::default();
+        let text = render_step_context_text("fmt", &ctx);
+        assert!(text.is_empty(), "empty context should produce no output");
     }
 }
