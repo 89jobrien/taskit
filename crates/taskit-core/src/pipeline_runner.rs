@@ -43,9 +43,11 @@ mod tests {
                     error: None,
                     gate: false,
                     diagnostics: vec![],
+                    context: Default::default(),
                 }],
                 total: Duration::from_millis(10),
                 passed: self.passed,
+                context: None,
             })
         }
     }

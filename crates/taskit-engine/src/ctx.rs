@@ -7,7 +7,7 @@
 //! execution through its methods, so dry-run and output behaviour are visible
 //! in signatures rather than read from ambient state.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 
 use taskit_types::config::{
@@ -15,6 +15,7 @@ use taskit_types::config::{
 };
 use taskit_types::error::{TaskitError, TaskitResultExt};
 use taskit_types::output_format::OutputFormat;
+use taskit_types::step::{CommandRecord, PipelineRunContext};
 use xshell::{Cmd, Shell};
 
 /// Captured output from a command execution.
@@ -38,6 +39,8 @@ pub struct Ctx {
     pub output: OutputFormat,
     /// Transient: suppress child stdout/stderr for the duration of a closure.
     silent: Cell<bool>,
+    /// Commands executed through this context, used for step diagnostics.
+    command_log: RefCell<Vec<CommandRecord>>,
 }
 
 impl Ctx {
@@ -56,6 +59,7 @@ impl Ctx {
             dry_run,
             output,
             silent: Cell::new(false),
+            command_log: RefCell::new(Vec::new()),
         }
     }
 
@@ -100,13 +104,23 @@ impl Ctx {
     /// active, stdout/stderr are captured and discarded on success, or
     /// attached to the error on failure.
     pub fn run(&self, cmd: Cmd<'_>) -> Result<(), TaskitError> {
+        let label = cmd.to_string();
         if self.dry_run {
-            taskit_output::taskit_dry!("{cmd}");
+            self.record_command(CommandRecord {
+                command: label.clone(),
+                success: None,
+                exit_code: None,
+            });
+            taskit_output::taskit_dry!("{label}");
             return Ok(());
         }
         if self.silent.get() {
-            let label = cmd.to_string();
             let out = cmd.quiet().output().err_context(&label)?;
+            self.record_command(CommandRecord {
+                command: label.clone(),
+                success: Some(out.status.success()),
+                exit_code: out.status.code(),
+            });
             if !out.status.success() {
                 let stdout = String::from_utf8_lossy(&out.stdout);
                 let stderr = String::from_utf8_lossy(&out.stderr);
@@ -117,7 +131,13 @@ impl Ctx {
             }
             return Ok(());
         }
-        cmd.quiet().run().map_err(TaskitError::other)?;
+        let result = cmd.quiet().run().map_err(TaskitError::other);
+        self.record_command(CommandRecord {
+            command: label,
+            success: Some(result.is_ok()),
+            exit_code: None,
+        });
+        result?;
         Ok(())
     }
 
@@ -126,16 +146,26 @@ impl Ctx {
     /// Returns `Ok(CapturedOutput)` even on non-zero exit (`success == false`).
     /// Returns `Err` only if the command cannot be spawned.
     pub fn run_capture(&self, cmd: Cmd<'_>) -> Result<CapturedOutput, TaskitError> {
+        let label = cmd.to_string();
         if self.dry_run {
-            taskit_output::taskit_dry!("{cmd}");
+            self.record_command(CommandRecord {
+                command: label.clone(),
+                success: None,
+                exit_code: None,
+            });
+            taskit_output::taskit_dry!("{label}");
             return Ok(CapturedOutput {
                 stdout: String::new(),
                 stderr: String::new(),
                 success: true,
             });
         }
-        let label = cmd.to_string();
         let out = cmd.quiet().ignore_status().output().err_context(&label)?;
+        self.record_command(CommandRecord {
+            command: label,
+            success: Some(out.status.success()),
+            exit_code: out.status.code(),
+        });
         Ok(CapturedOutput {
             stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
             stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
@@ -167,6 +197,40 @@ impl Ctx {
         result
     }
 
+    /// Return the current command-log length before a step starts.
+    pub fn command_capture_start(&self) -> usize {
+        self.command_log.borrow().len()
+    }
+
+    /// Return command records appended since `start_index`.
+    pub fn command_capture_finish(&self, start_index: usize) -> Vec<CommandRecord> {
+        self.command_log
+            .borrow()
+            .iter()
+            .skip(start_index)
+            .cloned()
+            .collect()
+    }
+
+    /// Collect best-effort run context for pipeline diagnostics.
+    pub fn pipeline_run_context(&self) -> PipelineRunContext {
+        PipelineRunContext {
+            taskit_binary: std::env::current_exe()
+                .ok()
+                .map(|path| path.display().to_string()),
+            taskit_version: env!("CARGO_PKG_VERSION").to_string(),
+            workspace_root: self.root.display().to_string(),
+            git_sha: command_output(&self.root, "git", &["rev-parse", "HEAD"]),
+            rustc_version: command_output(&self.root, "rustc", &["--version"]),
+            cargo_version: command_output(&self.root, "cargo", &["--version"]),
+            workspace_members: workspace_member_names(&self.root),
+        }
+    }
+
+    fn record_command(&self, record: CommandRecord) {
+        self.command_log.borrow_mut().push(record);
+    }
+
     /// Test-only context: fresh shell, default config, executing (not dry-run).
     #[cfg(test)]
     pub fn test() -> Self {
@@ -178,6 +242,43 @@ impl Ctx {
             OutputFormat::Human,
         )
     }
+}
+
+fn command_output(current_dir: &Path, program: &str, args: &[&str]) -> Option<String> {
+    let output = std::process::Command::new(program)
+        .args(args)
+        .current_dir(current_dir)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let value = stdout.trim();
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.to_string())
+    }
+}
+
+fn workspace_member_names(root: &Path) -> Vec<String> {
+    let Ok(metadata) = cargo_metadata::MetadataCommand::new()
+        .current_dir(root)
+        .no_deps()
+        .exec()
+    else {
+        return Vec::new();
+    };
+
+    let mut names: Vec<String> = metadata
+        .workspace_members
+        .iter()
+        .filter_map(|id| metadata.packages.iter().find(|pkg| &pkg.id == id))
+        .map(|pkg| pkg.name.clone())
+        .collect();
+    names.sort();
+    names
 }
 
 #[cfg(test)]
@@ -200,6 +301,31 @@ mod tests {
     fn dry_run_flag_is_readable() {
         let ctx = Ctx::test();
         assert!(!ctx.dry_run);
+    }
+
+    #[test]
+    fn dry_run_commands_are_recorded() {
+        let ctx = Ctx::new(
+            Shell::new().expect("create shell"),
+            PathBuf::from("."),
+            Config::default(),
+            true,
+            OutputFormat::Human,
+        );
+        let start = ctx.command_capture_start();
+        ctx.run(xshell::cmd!(ctx.sh, "cargo --version")).unwrap();
+        let records = ctx.command_capture_finish(start);
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].success, None);
+        assert!(records[0].command.contains("cargo --version"));
+    }
+
+    #[test]
+    fn pipeline_run_context_has_required_fields() {
+        let ctx = Ctx::test();
+        let context = ctx.pipeline_run_context();
+        assert_eq!(context.taskit_version, env!("CARGO_PKG_VERSION"));
+        assert!(!context.workspace_root.is_empty());
     }
 
     #[test]

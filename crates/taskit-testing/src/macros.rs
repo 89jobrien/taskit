@@ -72,6 +72,7 @@ macro_rules! __step_result_inner {
             error: $error,
             gate: $gate,
             diagnostics: vec![],
+            context: Default::default(),
         }
     };
 }
