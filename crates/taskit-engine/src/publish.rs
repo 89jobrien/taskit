@@ -1,13 +1,15 @@
-use anyhow::Context;
 use taskit_types::error::TaskitError;
-use xshell::{Shell, cmd};
+use xshell::cmd;
 
-use crate::output::OutputFormat;
-use crate::runner;
+use crate::ctx::Ctx;
 use crate::step::Pipeline;
 
 /// Crates in publish order: dependencies before dependents.
 const PUBLISH_ORDER: &[&str] = &[
+    "taskit-types",
+    "taskit-testing",
+    "taskit-macros",
+    "taskit-output",
     "taskit-core",
     "taskit-engine",
     "taskit-init",
@@ -15,19 +17,15 @@ const PUBLISH_ORDER: &[&str] = &[
     "taskit",
 ];
 
-pub fn run(
-    sh: &Shell,
-    skip_docs: bool,
-    allow_dirty: bool,
-    fmt: OutputFormat,
-) -> Result<(), TaskitError> {
-    let dry_run = runner::is_dry_run();
+pub fn run(ctx: &Ctx, skip_docs: bool, allow_dirty: bool) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    let dry_run = ctx.dry_run;
     let mut pipeline = Pipeline::new(true);
 
     if !skip_docs {
         pipeline = pipeline.gate("cargo doc", || {
             let doc_cmd = cmd!(sh, "cargo doc --workspace --no-deps");
-            runner::xrun(doc_cmd).context("cargo doc failed")
+            ctx.run(doc_cmd)
         });
     }
 
@@ -43,21 +41,25 @@ pub fn run(
                 args.push("--allow-dirty");
             }
             let publish_cmd = cmd!(sh, "cargo {args...}");
-            runner::xrun(publish_cmd).with_context(|| format!("failed to publish {krate}"))
+            ctx.run(publish_cmd)
         });
     }
 
     let outcome = pipeline.run();
-    Ok(crate::output::write_output(fmt, &outcome)?)
+    Ok(taskit_output::write_output(ctx.output, &outcome)?)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn pos(name: &str) -> usize {
+        PUBLISH_ORDER.iter().position(|&c| c == name).unwrap()
+    }
+
     #[test]
-    fn publish_order_starts_with_core() {
-        assert_eq!(PUBLISH_ORDER[0], "taskit-core");
+    fn publish_order_starts_with_types() {
+        assert_eq!(PUBLISH_ORDER[0], "taskit-types");
     }
 
     #[test]
@@ -67,47 +69,39 @@ mod tests {
 
     #[test]
     fn publish_order_has_all_crates() {
-        assert_eq!(PUBLISH_ORDER.len(), 5);
-        assert!(PUBLISH_ORDER.contains(&"taskit-core"));
-        assert!(PUBLISH_ORDER.contains(&"taskit-engine"));
-        assert!(PUBLISH_ORDER.contains(&"taskit-init"));
-        assert!(PUBLISH_ORDER.contains(&"taskit-crux"));
-        assert!(PUBLISH_ORDER.contains(&"taskit"));
+        assert_eq!(PUBLISH_ORDER.len(), 9);
+        for name in [
+            "taskit-types",
+            "taskit-macros",
+            "taskit-testing",
+            "taskit-output",
+            "taskit-core",
+            "taskit-engine",
+            "taskit-init",
+            "taskit-crux",
+            "taskit",
+        ] {
+            assert!(PUBLISH_ORDER.contains(&name), "missing {name}");
+        }
+    }
+
+    #[test]
+    fn types_before_core() {
+        assert!(pos("taskit-types") < pos("taskit-core"));
     }
 
     #[test]
     fn core_before_engine() {
-        let core_pos = PUBLISH_ORDER
-            .iter()
-            .position(|&c| c == "taskit-core")
-            .unwrap();
-        let engine_pos = PUBLISH_ORDER
-            .iter()
-            .position(|&c| c == "taskit-engine")
-            .unwrap();
-        assert!(core_pos < engine_pos);
+        assert!(pos("taskit-core") < pos("taskit-engine"));
     }
 
     #[test]
     fn core_before_init() {
-        let core_pos = PUBLISH_ORDER
-            .iter()
-            .position(|&c| c == "taskit-core")
-            .unwrap();
-        let init_pos = PUBLISH_ORDER
-            .iter()
-            .position(|&c| c == "taskit-init")
-            .unwrap();
-        assert!(core_pos < init_pos);
+        assert!(pos("taskit-core") < pos("taskit-init"));
     }
 
     #[test]
     fn engine_before_root() {
-        let engine_pos = PUBLISH_ORDER
-            .iter()
-            .position(|&c| c == "taskit-engine")
-            .unwrap();
-        let root_pos = PUBLISH_ORDER.iter().position(|&c| c == "taskit").unwrap();
-        assert!(engine_pos < root_pos);
+        assert!(pos("taskit-engine") < pos("taskit"));
     }
 }

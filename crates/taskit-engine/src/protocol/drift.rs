@@ -1,12 +1,12 @@
-use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
     path::{Path, PathBuf},
 };
-use taskit_types::error::TaskitError;
+use taskit_types::error::{TaskitError, TaskitResultExt};
 
-use crate::config::{ProtocolConfig, SurfaceEntry};
+use crate::config::SurfaceEntry;
+use crate::ctx::Ctx;
 
 const DEFAULT_LOCK_PATH: &str = "taskit-protocol.lock";
 const ALGORITHM: &str = "sha256-normalized-core-contract-v1";
@@ -49,13 +49,9 @@ impl Drift {
 /// `config` is the `[protocol]` section from `taskit.toml`, or `None` in
 /// zero-config mode. When `config` is `None` or contains no surfaces the
 /// check is skipped silently (nothing to track).
-pub fn run(
-    root: &Path,
-    config: Option<&ProtocolConfig>,
-    update: bool,
-    warn_only: bool,
-    hook: bool,
-) -> Result<(), TaskitError> {
+pub fn run(ctx: &Ctx, update: bool, warn_only: bool, hook: bool) -> Result<(), TaskitError> {
+    let root = ctx.root();
+    let config = ctx.proto();
     let surfaces: &[SurfaceEntry] = config.map(|c| c.surfaces.as_slice()).unwrap_or(&[]);
     let lock_rel = config
         .map(|c| c.lockfile_path())
@@ -63,7 +59,7 @@ pub fn run(
 
     if surfaces.is_empty() {
         if !hook {
-            eprintln!("protocol-drift: no surfaces configured, skipping");
+            taskit_output::taskit_skip!("protocol-drift: no surfaces configured, skipping");
         }
         return Ok(());
     }
@@ -78,7 +74,7 @@ pub fn run(
         if !is_tracked_surface_path(root, path, surfaces) {
             return Ok(());
         }
-        eprintln!(
+        taskit_output::taskit_progress!(
             "[protocol-drift] {} is a hash-tracked core contract surface",
             display_relative(root, path).display()
         );
@@ -88,11 +84,11 @@ pub fn run(
     let lock_path = root.join(lock_rel);
 
     if update {
-        if crate::runner::is_dry_run() {
-            eprintln!("dry-run: write {lock_rel}");
+        if ctx.dry_run {
+            taskit_output::taskit_dry!("write {lock_rel}");
         } else {
             write_lockfile(&lock_path, &current)?;
-            eprintln!(
+            taskit_output::taskit_ok!(
                 "protocol-drift: updated {} with {} surface hash(es)",
                 lock_rel,
                 current.surfaces.len()
@@ -106,7 +102,7 @@ pub fn run(
 
     if drift.is_empty() {
         if !hook {
-            eprintln!(
+            taskit_output::taskit_ok!(
                 "protocol-drift: OK ({} core contract surface hash(es) match)",
                 current.surfaces.len()
             );
@@ -115,16 +111,16 @@ pub fn run(
     }
 
     report_drift(&drift);
-    eprintln!(
+    taskit_output::taskit_err!(
         "protocol-drift: if this change is intentional, \
-         run `cargo xtask check-protocol-drift --update`"
+         run `taskit check-protocol-drift --update`"
     );
 
     if hook || warn_only {
         return Ok(());
     }
 
-    Err(anyhow::anyhow!("core contract drift detected").into())
+    Err(TaskitError::other("core contract drift detected"))
 }
 
 fn calculate_lockfile(root: &Path, surfaces: &[SurfaceEntry]) -> Result<Lockfile, TaskitError> {
@@ -132,7 +128,7 @@ fn calculate_lockfile(root: &Path, surfaces: &[SurfaceEntry]) -> Result<Lockfile
     for surface in surfaces {
         let path = root.join(&surface.path);
         let content = fs::read_to_string(&path)
-            .with_context(|| format!("failed to read {}", path.display()))?;
+            .err_context_with(|| format!("failed to read {}", path.display()))?;
         let normalized = super::contract_hash::normalize(&content);
         hashes.push(SurfaceHash {
             name: surface.name.clone(),
@@ -148,38 +144,35 @@ fn calculate_lockfile(root: &Path, surfaces: &[SurfaceEntry]) -> Result<Lockfile
 }
 
 fn read_lockfile(path: &Path) -> Result<Lockfile, TaskitError> {
-    let content = fs::read_to_string(path).with_context(|| {
+    let content = fs::read_to_string(path).err_context_with(|| {
         format!(
-            "failed to read {}; run `cargo xtask check-protocol-drift --update` to create it",
+            "failed to read {}; run `taskit check-protocol-drift --update` to create it",
             path.display()
         )
     })?;
     let lockfile: Lockfile = serde_json::from_str(&content)
-        .with_context(|| format!("failed to parse {}", path.display()))?;
+        .err_context_with(|| format!("failed to parse {}", path.display()))?;
     if lockfile.version != 1 {
-        return Err(anyhow::anyhow!(
+        return Err(TaskitError::other(format!(
             "unsupported protocol drift lockfile version {} in {}",
             lockfile.version,
             path.display()
-        )
-        .into());
+        )));
     }
     if lockfile.algorithm != ALGORITHM {
-        return Err(anyhow::anyhow!(
+        return Err(TaskitError::other(format!(
             "unsupported protocol drift algorithm {} in {} (expected {ALGORITHM})",
             lockfile.algorithm,
             path.display()
-        )
-        .into());
+        )));
     }
     Ok(lockfile)
 }
 
 fn write_lockfile(path: &Path, lockfile: &Lockfile) -> Result<(), TaskitError> {
-    let mut content = serde_json::to_string_pretty(lockfile)
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+    let mut content = serde_json::to_string_pretty(lockfile).map_err(TaskitError::other)?;
     content.push('\n');
-    Ok(fs::write(path, content).with_context(|| format!("failed to write {}", path.display()))?)
+    fs::write(path, content).err_context_with(|| format!("failed to write {}", path.display()))
 }
 
 fn compare_lockfiles(expected: &Lockfile, actual: &Lockfile) -> Vec<Drift> {
@@ -213,21 +206,21 @@ fn compare_lockfiles(expected: &Lockfile, actual: &Lockfile) -> Vec<Drift> {
 }
 
 fn report_drift(drift: &[Drift]) {
-    eprintln!("protocol-drift: core contract hash mismatch:");
+    taskit_output::taskit_err!("protocol-drift: core contract hash mismatch:");
     for item in drift {
-        eprintln!("  - {} ({})", item.name, item.path);
+        taskit_output::taskit_err!("- {} ({})", item.name, item.path);
         match (&item.expected, &item.actual) {
             (Some(e), Some(a)) => {
-                eprintln!("      expected: {e}");
-                eprintln!("      actual  : {a}");
+                taskit_output::taskit_err!("expected: {e}");
+                taskit_output::taskit_err!("actual  : {a}");
             }
             (Some(e), None) => {
-                eprintln!("      expected: {e}");
-                eprintln!("      actual  : <missing>");
+                taskit_output::taskit_err!("expected: {e}");
+                taskit_output::taskit_err!("actual  : <missing>");
             }
             (None, Some(a)) => {
-                eprintln!("      expected: <missing>");
-                eprintln!("      actual  : {a}");
+                taskit_output::taskit_err!("expected: <missing>");
+                taskit_output::taskit_err!("actual  : {a}");
             }
             (None, None) => {}
         }
@@ -246,13 +239,12 @@ fn display_relative(root: &Path, path: &Path) -> PathBuf {
 
 /// Parses Claude Code hook stdin JSON to extract the edited file path.
 mod hook_input {
-    use anyhow::Context;
     use serde::Deserialize;
     use std::{
         io::{self, IsTerminal as _, Read},
         path::PathBuf,
     };
-    use taskit_types::error::TaskitError;
+    use taskit_types::error::{TaskitError, TaskitResultExt};
 
     #[derive(Debug, Deserialize)]
     struct HookInput {
@@ -271,12 +263,12 @@ mod hook_input {
         let mut input = String::new();
         io::stdin()
             .read_to_string(&mut input)
-            .context("failed to read hook input from stdin")?;
+            .err_context("failed to read hook input from stdin")?;
         if input.trim().is_empty() {
             return Ok(None);
         }
         let parsed: HookInput =
-            serde_json::from_str(&input).context("failed to parse hook input JSON")?;
+            serde_json::from_str(&input).err_context("failed to parse hook input JSON")?;
         Ok(parsed.tool_input.and_then(|ti| ti.file_path))
     }
 }

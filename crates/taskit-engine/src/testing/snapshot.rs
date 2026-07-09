@@ -1,10 +1,11 @@
 use taskit_types::error::TaskitError;
-use xshell::{Shell, cmd};
+use xshell::cmd;
 
-use crate::runner::xrun;
+use crate::ctx::Ctx;
 
-pub fn run(sh: &Shell) -> Result<(), TaskitError> {
-    eprintln!("Reviewing pending insta snapshots...");
-    xrun(cmd!(sh, "cargo insta review"))?;
+pub fn run(ctx: &Ctx) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    taskit_output::taskit_progress!("Reviewing pending insta snapshots...");
+    ctx.run(cmd!(sh, "cargo insta review"))?;
     Ok(())
 }

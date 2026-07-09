@@ -1,0 +1,19 @@
+[package]
+name = "taskit-output"
+version = "0.7.0"
+edition.workspace = true
+license.workspace = true
+description = "Structured output, message sinks, and formatters for taskit"
+
+[dependencies]
+taskit-types.workspace = true
+miette = { version = "7", features = ["fancy"] }
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+proptest = "1"
+taskit-testing.workspace = true
+
+[features]
+crux = []

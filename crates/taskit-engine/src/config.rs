@@ -6,12 +6,11 @@ pub use taskit_types::config::{
     ProtocolConfig, SurfaceEntry, WorkspaceConfig,
 };
 
-use anyhow::Context;
 use std::{
     env, fs,
     path::{Path, PathBuf},
 };
-use taskit_types::error::TaskitError;
+use taskit_types::error::{TaskitError, TaskitResultExt};
 
 use crate::Workspace;
 
@@ -78,12 +77,13 @@ pub fn discover_with(
         ci: None,
         coverage: None,
         flow: None,
+        release: None,
     })
 }
 
 /// Find the workspace root and load `taskit.toml` if present.
 pub fn load() -> Result<Workspace, TaskitError> {
-    let cwd = env::current_dir().context("failed to read current directory")?;
+    let cwd = env::current_dir().err_context("failed to read current directory")?;
 
     if let Some(config_path) = find_config_file(&cwd) {
         let root = config_path
@@ -94,7 +94,7 @@ pub fn load() -> Result<Workspace, TaskitError> {
         let root = match &config.workspace.root {
             Some(override_root) => {
                 let resolved = root.join(override_root);
-                resolved.canonicalize().with_context(|| {
+                resolved.canonicalize().err_context_with(|| {
                     format!("failed to resolve workspace.root = {}", resolved.display())
                 })?
             }
@@ -106,7 +106,7 @@ pub fn load() -> Result<Workspace, TaskitError> {
         return Ok(Workspace { root, config });
     }
 
-    let root = cargo_workspace_root().context(
+    let root = cargo_workspace_root().err_context(
         "no taskit.toml found and `cargo metadata` failed; \
          run taskit from inside a Cargo workspace",
     )?;
@@ -140,23 +140,37 @@ fn merge_discovered(config: &mut Config, discovered: Config) {
 }
 
 fn parse_config(path: &Path) -> Result<Config, TaskitError> {
-    let content =
-        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
-    Ok(toml::from_str(&content).with_context(|| format!("failed to parse {}", path.display()))?)
+    let content = fs::read_to_string(path)
+        .err_context_with(|| format!("failed to read {}", path.display()))?;
+    toml::from_str(&content).err_context_with(|| format!("failed to parse {}", path.display()))
 }
 
 fn cargo_workspace_root() -> Result<PathBuf, TaskitError> {
     let metadata = cargo_metadata::MetadataCommand::new()
         .no_deps()
         .exec()
-        .context("failed to run `cargo metadata`")?;
+        .err_context("failed to run `cargo metadata`")?;
     Ok(metadata.workspace_root.into())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
     use std::fs;
+
+    proptest! {
+        #[test]
+        fn prop_parse_config_never_panics(
+            content in "[a-z_\\[\\]=\"\n ]{0,120}",
+        ) {
+            let dir = tempfile::tempdir().expect("tempdir");
+            let path = dir.path().join(CONFIG_FILE);
+            fs::write(&path, &content).unwrap();
+            // Must not panic — either Ok or Err is acceptable.
+            let _ = parse_config(&path);
+        }
+    }
 
     fn write_temp_config(content: &str) -> (tempfile::TempDir, PathBuf) {
         let dir = tempfile::tempdir().expect("tempdir");

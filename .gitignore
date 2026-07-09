@@ -1,5 +1,12 @@
 target/
+src/baml_client/
 .DS_Store
+.pytest_cache/
+.ruff_cache/
+.venv/
+.taskit-cache/
+.claude/settings.local.json
+*.local.md
 
 # handoff-begin
 .ctx/*

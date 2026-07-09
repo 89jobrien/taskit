@@ -32,9 +32,10 @@ pub enum TaskitError {
     Other(Box<dyn std::error::Error + Send + Sync>),
 }
 
-impl From<anyhow::Error> for TaskitError {
-    fn from(err: anyhow::Error) -> Self {
-        TaskitError::Other(err.into())
+impl TaskitError {
+    /// Create an `Other` variant from any display-able message.
+    pub fn other(msg: impl std::fmt::Display) -> Self {
+        TaskitError::Other(msg.to_string().into())
     }
 }
 
@@ -136,6 +137,7 @@ pub enum InitError {
 }
 
 #[derive(Debug, Error, Diagnostic)]
+#[non_exhaustive]
 pub enum FlowError {
     #[error("not on expected branch: expected '{expected}', got '{actual}'")]
     #[diagnostic(
@@ -168,6 +170,20 @@ pub enum FlowError {
     #[error("merge failed: {reason}")]
     #[diagnostic(code(taskit::flow::merge_failed))]
     MergeFailed { reason: String },
+
+    #[error("merge conflict needs human review: {path} — {reason}")]
+    #[diagnostic(
+        code(taskit::flow::needs_human),
+        help("resolve manually, then run `taskit flow finish`")
+    )]
+    NeedsHuman { path: String, reason: String },
+
+    #[error("CI failed on release: {}", failed.join(", "))]
+    #[diagnostic(
+        code(taskit::flow::ci_failed),
+        help("fix the failing steps, then re-run `taskit flow auto`")
+    )]
+    CiFailed { failed: Vec<String> },
 }
 
 #[derive(Debug, Error, Diagnostic)]
@@ -177,6 +193,25 @@ pub struct StepError {
     pub name: String,
     #[help]
     pub detail: Option<String>,
+}
+
+/// Ergonomic error-context mapping for Result types.
+///
+/// Replaces `.map_err(|e| TaskitError::other(format!("msg: {e}")))`
+/// with `.err_context("msg")?`.
+pub trait TaskitResultExt<T> {
+    fn err_context(self, msg: &str) -> Result<T, TaskitError>;
+    fn err_context_with<F: FnOnce() -> String>(self, f: F) -> Result<T, TaskitError>;
+}
+
+impl<T, E: std::fmt::Display> TaskitResultExt<T> for Result<T, E> {
+    fn err_context(self, msg: &str) -> Result<T, TaskitError> {
+        self.map_err(|e| TaskitError::other(format!("{msg}: {e}")))
+    }
+
+    fn err_context_with<F: FnOnce() -> String>(self, f: F) -> Result<T, TaskitError> {
+        self.map_err(|e| TaskitError::other(format!("{}: {e}", f())))
+    }
 }
 
 #[cfg(test)]
@@ -201,6 +236,24 @@ mod tests {
         };
         let code = err.code().expect("should have diagnostic code");
         assert_eq!(code.to_string(), "taskit::config::not_found");
+    }
+
+    #[test]
+    fn taskit_error_other_constructs_internal_error() {
+        let err = TaskitError::other("custom failure");
+        assert!(matches!(err, TaskitError::Other(_)));
+        assert_eq!(err.to_string(), "custom failure");
+        let code = err.code().expect("should have diagnostic code");
+        assert_eq!(code.to_string(), "taskit::internal");
+    }
+
+    #[test]
+    fn taskit_error_io_display_and_diagnostic_code() {
+        let err = TaskitError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "missing"));
+        assert!(err.to_string().contains("io error"), "got: {err}");
+        assert!(err.to_string().contains("missing"), "got: {err}");
+        let code = err.code().expect("should have diagnostic code");
+        assert_eq!(code.to_string(), "taskit::io");
     }
 
     #[test]
@@ -286,6 +339,14 @@ mod tests {
     }
 
     #[test]
+    fn protocol_stale_display_and_diagnostic_code() {
+        let err = ProtocolError::Stale;
+        assert_eq!(err.to_string(), "lockfile is stale");
+        let code = err.code().expect("should have diagnostic code");
+        assert_eq!(code.to_string(), "taskit::protocol::stale");
+    }
+
+    #[test]
     fn init_already_exists_display() {
         let err = TaskitError::Init(InitError::AlreadyExists);
         assert!(err.to_string().contains("already exists"), "got: {err}");
@@ -307,11 +368,142 @@ mod tests {
     }
 
     #[test]
+    fn init_write_file_display_and_diagnostic_code() {
+        let err = InitError::WriteFile {
+            file: "taskit.toml".into(),
+            reason: "permission denied".into(),
+        };
+        assert!(err.to_string().contains("failed to write taskit.toml"));
+        assert!(err.to_string().contains("permission denied"));
+        let code = err.code().expect("should have diagnostic code");
+        assert_eq!(code.to_string(), "taskit::init::write");
+    }
+
+    #[test]
+    fn flow_errors_display_debug_and_expose_diagnostic_codes() {
+        let cases = [
+            (
+                FlowError::WrongBranch {
+                    expected: "staging".into(),
+                    actual: "main".into(),
+                },
+                "not on expected branch",
+                "WrongBranch",
+                "taskit::flow::wrong_branch",
+            ),
+            (
+                FlowError::ProtectedBranch {
+                    branch: "main".into(),
+                    staging: "staging".into(),
+                },
+                "protected",
+                "ProtectedBranch",
+                "taskit::flow::protected",
+            ),
+            (
+                FlowError::MissingBranch {
+                    branch: "release".into(),
+                },
+                "does not exist",
+                "MissingBranch",
+                "taskit::flow::missing_branch",
+            ),
+            (
+                FlowError::DirtyWorktree {
+                    branch: "staging".into(),
+                },
+                "uncommitted changes",
+                "DirtyWorktree",
+                "taskit::flow::dirty",
+            ),
+            (
+                FlowError::MergeFailed {
+                    reason: "conflict".into(),
+                },
+                "merge failed",
+                "MergeFailed",
+                "taskit::flow::merge_failed",
+            ),
+        ];
+
+        for (err, expected_display, expected_debug, expected_code) in cases {
+            assert!(
+                err.to_string().contains(expected_display),
+                "expected {expected_display:?} in {err}"
+            );
+            assert!(
+                format!("{err:?}").contains(expected_debug),
+                "expected {expected_debug:?} in {err:?}"
+            );
+            let code = err.code().expect("should have diagnostic code");
+            assert_eq!(code.to_string(), expected_code);
+        }
+    }
+
+    #[test]
+    fn flow_needs_human_display_and_code() {
+        let err = FlowError::NeedsHuman {
+            path: "src/lib.rs".into(),
+            reason: "too complex".into(),
+        };
+        assert!(err.to_string().contains("src/lib.rs"));
+        assert!(err.to_string().contains("too complex"));
+        let code = err.code().expect("diagnostic code");
+        assert_eq!(code.to_string(), "taskit::flow::needs_human");
+    }
+
+    #[test]
+    fn flow_ci_failed_display_and_code() {
+        let err = FlowError::CiFailed {
+            failed: vec!["lint".into(), "test".into()],
+        };
+        assert!(err.to_string().contains("lint"));
+        assert!(err.to_string().contains("test"));
+        let code = err.code().expect("diagnostic code");
+        assert_eq!(code.to_string(), "taskit::flow::ci_failed");
+    }
+
+    #[test]
     fn config_invalid_display() {
         let err = ConfigError::Invalid {
             message: "missing workspace".into(),
             hint: "add [workspace] section".into(),
         };
         assert!(err.to_string().contains("missing workspace"));
+    }
+
+    #[test]
+    fn result_ext_ok_passthrough() {
+        let r: Result<i32, std::io::Error> = Ok(42);
+        assert_eq!(r.err_context("should not matter").unwrap(), 42);
+    }
+
+    #[test]
+    fn result_ext_err_wraps_message() {
+        let r: Result<(), std::io::Error> =
+            Err(std::io::Error::new(std::io::ErrorKind::NotFound, "gone"));
+        let err = r.err_context("reading file").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("reading file"), "got: {msg}");
+        assert!(msg.contains("gone"), "got: {msg}");
+    }
+
+    #[test]
+    fn result_ext_lazy_not_called_on_ok() {
+        use std::cell::Cell;
+        let called = Cell::new(false);
+        let r: Result<i32, std::io::Error> = Ok(1);
+        let _ = r.err_context_with(|| {
+            called.set(true);
+            "lazy".into()
+        });
+        assert!(!called.get());
+    }
+
+    #[test]
+    fn result_ext_lazy_called_on_err() {
+        let r: Result<(), String> = Err("bad".into());
+        let err = r.err_context_with(|| "lazy context".into()).unwrap_err();
+        assert!(err.to_string().contains("lazy context"));
     }
 }

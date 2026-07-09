@@ -1,7 +1,7 @@
 # taskit
 
-Config-driven `cargo xtask` runner with affected-crate detection, protocol-drift tracking,
-and CI pipeline orchestration for Rust workspaces.
+Config-driven CI pipeline runner with affected-crate detection, protocol-drift tracking,
+and pipeline orchestration for Rust workspaces.
 
 ## Install
 
@@ -98,7 +98,7 @@ cmd  = "check-protocol-drift"
 | `health [--update]`                                                    | Measure codebase health, compare to baseline        |
 | `inspect [--max-warnings N] [--max-todo N]`                            | Check workspace metrics against thresholds          |
 | `publish [--skip-docs] [--allow-dirty]`                                | Generate docs and publish to crates.io              |
-| `init [--force] [--interactive]`                                       | Generate taskit.toml, Cruxfile, xtask/              |
+| `init [--force] [--interactive]`                                       | Generate taskit.toml, Cruxfile, .cargo/config.toml  |
 | `version`                                                              | Show workspace crate versions                       |
 | `dev-setup`                                                            | Install development tools                           |
 | `self-check`                                                           | Verify required tools are installed                 |
@@ -109,6 +109,13 @@ cmd  = "check-protocol-drift"
 | `bench [--crate-name X] [--save-baseline]`                             | Run criterion benchmarks                            |
 | `test-report`                                                          | Generate unified coverage report                    |
 | `snapshot-review`                                                      | Review pending insta snapshots                      |
+| `flow status`                                                          | Show current branch / staging state                 |
+| `flow promote`                                                         | Merge main -> staging                               |
+| `flow finish`                                                          | Merge staging -> main after CI                      |
+| `flow guard`                                                           | Assert branch invariants                            |
+| `flow auto`                                                            | Full promote -> CI -> finish pipeline with LLM      |
+|                                                                        | conflict resolution (BamlConflictResolver / BAML);  |
+|                                                                        | escalates to human via `FlowError::NeedsHuman`      |
 
 ## Affected-crate detection
 

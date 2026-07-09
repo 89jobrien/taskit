@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["crates/*"]
+exclude = ["fuzz"]
 
 [workspace.package]
 edition = "2024"
@@ -8,13 +9,16 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/89jobrien/taskit"
 
 [workspace.dependencies]
-taskit-core = { version = "0.6.0", path = "crates/taskit-core" }
-taskit-types = { version = "0.6.0", path = "crates/taskit-types" }
-taskit-engine = { version = "0.6.0", path = "crates/taskit-engine" }
-taskit-init = { version = "0.6.0", path = "crates/taskit-init" }
-taskit-crux = { version = "0.6.0", path = "crates/taskit-crux" }
-anyhow = "1"
+taskit-core = { version = "0.7.0", path = "crates/taskit-core" }
+taskit-types = { version = "0.7.0", path = "crates/taskit-types" }
+taskit-engine = { version = "0.7.0", path = "crates/taskit-engine" }
+taskit-init = { version = "0.7.0", path = "crates/taskit-init" }
+taskit-crux = { version = "0.7.0", path = "crates/taskit-crux" }
+taskit-testing = { version = "0.7.0", path = "crates/taskit-testing" }
+taskit-macros = { version = "0.7.0", path = "crates/taskit-macros" }
+taskit-output = { version = "0.7.0", path = "crates/taskit-output" }
 clap = { version = "4", features = ["derive"] }
+tempfile = "3"
 xshell = "0.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -22,13 +26,13 @@ cargo_metadata = "0.19"
 
 [package]
 name = "taskit"
-version = "0.6.0"
+version = "0.7.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Config-driven cargo xtask runner with affected-crate detection, protocol-drift tracking, and CI pipeline orchestration"
+description = "Config-driven CI pipeline runner with affected-crate detection, protocol-drift tracking, and pipeline orchestration"
 homepage = "https://github.com/89jobrien/taskit"
-keywords = ["cargo", "xtask", "ci", "workspace", "build-tool"]
+keywords = ["cargo", "ci", "workspace", "build-tool", "pipeline"]
 categories = ["development-tools", "command-line-utilities"]
 readme = "README.md"
 publish = true
@@ -38,15 +42,18 @@ name = "taskit"
 path = "src/main.rs"
 
 [dependencies]
-taskit-core.workspace = true
 taskit-types.workspace = true
+taskit-core.workspace = true
 taskit-engine.workspace = true
 taskit-init.workspace = true
-taskit-crux = { workspace = true, optional = true }
-anyhow.workspace = true
+taskit-output.workspace = true
 clap.workspace = true
 miette = { version = "7", features = ["fancy"] }
 xshell.workspace = true
+baml = "0.218.0"
+
+[package.metadata.cargo-machete]
+ignored = ["baml"]
 
 [features]
-crux = ["dep:taskit-crux"]
+crux = ["taskit-output/crux"]

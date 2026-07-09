@@ -3,12 +3,12 @@ use std::{fs, path::Path};
 use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};
 
-use crate::runner::{is_dry_run, xrun};
+use crate::ctx::Ctx;
 
 // ── pre-push hash cache ───────────────────────────────────────────────────────
 
-const PRE_COMMIT_CACHE: &str = ".xtask-cache/pre-commit.json";
-const PRE_PUSH_CACHE: &str = ".xtask-cache/pre-push.json";
+const PRE_COMMIT_CACHE: &str = ".taskit-cache/pre-commit.json";
+const PRE_PUSH_CACHE: &str = ".taskit-cache/pre-push.json";
 
 /// A passing pre-push run is keyed by the HEAD commit SHA plus the sorted
 /// list of affected crate names.  If both match on a subsequent push to the
@@ -32,8 +32,7 @@ fn save_pre_push_cache(cache: &PrePushCache) -> Result<(), TaskitError> {
     }
     fs::write(
         PRE_PUSH_CACHE,
-        serde_json::to_string_pretty(cache)
-            .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?,
+        serde_json::to_string_pretty(cache).map_err(TaskitError::other)?,
     )?;
     Ok(())
 }
@@ -41,7 +40,7 @@ fn save_pre_push_cache(cache: &PrePushCache) -> Result<(), TaskitError> {
 fn head_sha(sh: &Shell) -> Result<String, TaskitError> {
     Ok(cmd!(sh, "git rev-parse HEAD")
         .read()
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?
+        .map_err(TaskitError::other)?
         .trim()
         .to_string())
 }
@@ -68,8 +67,7 @@ fn save_pre_commit_cache(cache: &PreCommitCache) -> Result<(), TaskitError> {
     }
     fs::write(
         PRE_COMMIT_CACHE,
-        serde_json::to_string_pretty(cache)
-            .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?,
+        serde_json::to_string_pretty(cache).map_err(TaskitError::other)?,
     )?;
     Ok(())
 }
@@ -90,7 +88,7 @@ fn staged_rs_hash(sh: &Shell, staged: &str) -> Result<String, TaskitError> {
     for path in paths {
         let blob = cmd!(sh, "git show {path}")
             .read()
-            .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+            .map_err(TaskitError::other)?;
         let mut inner = Sha256::new();
         inner.update(blob.as_bytes());
         let file_hash = hex::encode(inner.finalize());
@@ -107,43 +105,51 @@ fn any_rust_file(staged: &str) -> bool {
     staged.lines().any(|l| l.ends_with(".rs"))
 }
 
-pub fn pre_commit(sh: &Shell) -> Result<(), TaskitError> {
-    eprintln!("Running pre-commit checks (Rust only)...");
+pub fn pre_commit(ctx: &Ctx) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    taskit_output::taskit_progress!("Running pre-commit checks (Rust only)...");
     let staged = cmd!(sh, "git diff --cached --name-only --diff-filter=d")
         .read()
-        .map_err(|e| TaskitError::from(anyhow::anyhow!("{e}")))?;
+        .map_err(TaskitError::other)?;
     if !any_rust_file(&staged) {
-        eprintln!("No Rust files staged, skipping.");
+        taskit_output::taskit_skip!("No Rust files staged, skipping.");
         return Ok(());
     }
 
     let hash = staged_rs_hash(sh, &staged)?;
     let cached = load_pre_commit_cache();
     if !hash.is_empty() && cached.staged_hash == hash {
-        eprintln!("pre-commit: staged tree unchanged since last pass. Skipping.");
+        taskit_output::taskit_skip!("pre-commit: staged tree unchanged since last pass. Skipping.");
         return Ok(());
     }
 
-    xrun(cmd!(sh, "cargo fmt --check --all"))?;
+    ctx.run(cmd!(sh, "cargo fmt --check --all"))?;
 
-    if !is_dry_run() {
+    if let Err(e) = crate::protocol::drift::run(ctx, false, false, false) {
+        taskit_output::taskit_err!("protocol-drift check failed: {e}");
+        taskit_output::taskit_progress!("self-healing: updating protocol lockfile...");
+        crate::protocol::drift::run(ctx, true, false, false)?;
+        // Stage the updated lockfile so it's included in the current commit.
+        ctx.run(cmd!(sh, "git add taskit-protocol.lock"))?;
+        taskit_output::taskit_ok!("protocol lockfile updated and staged");
+    }
+
+    if !ctx.dry_run {
         save_pre_commit_cache(&PreCommitCache { staged_hash: hash })?;
         crate::cache::update()?;
     }
-    eprintln!("Pre-commit checks passed.");
+    taskit_output::taskit_ok!("Pre-commit checks passed.");
     Ok(())
 }
 
-pub fn pre_push(
-    sh: &Shell,
-    ws: &crate::config::WorkspaceConfig,
-    proto: Option<&crate::config::ProtocolConfig>,
-    cov: Option<&crate::config::CoverageConfig>,
-) -> Result<(), TaskitError> {
-    eprintln!("Running pre-push checks...");
+pub fn pre_push(ctx: &Ctx) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    let ws = ctx.ws();
+    let cov = ctx.cov();
+    taskit_output::taskit_progress!("Running pre-push checks...");
     let affected = crate::affected::detect(sh, ws)?;
     if affected.is_empty() {
-        eprintln!("No affected Rust crates, skipping.");
+        taskit_output::taskit_skip!("No affected Rust crates, skipping.");
         return Ok(());
     }
 
@@ -162,77 +168,87 @@ pub fn pre_push(
                 crates: crate_names.clone(),
             })
     {
-        eprintln!("pre-push: checks already passed for HEAD {sha:.12}. Skipping.");
+        taskit_output::taskit_skip!(
+            "pre-push: checks already passed for HEAD {sha:.12}. Skipping."
+        );
         return Ok(());
     }
 
     for pkg in &crate_names {
-        eprintln!("\n--- {pkg} ---");
-        xrun(cmd!(
+        taskit_output::taskit_progress!("--- {pkg} ---");
+        ctx.run(cmd!(
             sh,
             "cargo clippy --locked --quiet -p {pkg} --all-targets -- -D warnings"
         ))?;
-        xrun(cmd!(
+        ctx.run(cmd!(
             sh,
-            "cargo nextest run --locked -p {pkg} --lib --status-level none --final-status-level fail --hide-progress-bar --fail-fast"
+            "cargo nextest run --locked -p {pkg} --lib --no-tests warn --status-level none --final-status-level fail --hide-progress-bar --fail-fast"
         ))?;
         if let Some(c) = cov
             && *pkg == c.crate_name
         {
-            crate::testing::coverage::run(sh, &c.crate_name, c.threshold())?;
+            crate::testing::coverage::run(ctx, &c.crate_name, c.threshold())?;
         }
     }
-    let root = std::env::current_dir()?;
-    if let Err(e) = crate::protocol::drift::run(&root, proto, false, true, false) {
-        eprintln!("[protocol-drift] warning: check could not complete: {e:#}");
+    if let Err(e) = crate::protocol::drift::run(ctx, false, false, false) {
+        taskit_output::taskit_err!("protocol-drift check failed: {e}");
+        taskit_output::taskit_progress!("self-healing: updating protocol lockfile...");
+        crate::protocol::drift::run(ctx, true, false, false)?;
+        taskit_output::taskit_progress!("re-checking protocol drift...");
+        crate::protocol::drift::run(ctx, false, false, false)?;
+        // Stage and amend the lockfile into the current commit
+        let sh = &ctx.sh;
+        ctx.run(cmd!(sh, "git add taskit-protocol.lock"))?;
+        ctx.run(cmd!(sh, "git commit --amend --no-edit"))?;
+        taskit_output::taskit_ok!("protocol lockfile updated and amended into commit");
     }
 
-    if !is_dry_run() {
+    if !ctx.dry_run {
         save_pre_push_cache(&PrePushCache {
             head_sha: sha,
             crates: crate_names,
         })?;
         crate::cache::update()?;
     }
-    eprintln!("\nPre-push checks passed.");
+    taskit_output::taskit_ok!("Pre-push checks passed.");
     Ok(())
 }
 
 const PRE_COMMIT_HOOK: &str = "#!/usr/bin/env bash\n\
-                              # Auto-generated by cargo xtask install-hooks\n\
-                              # Delegates Rust checks to xtask; non-Rust checks below.\n\n\
-                              cargo xtask pre-commit\n\
-                              XTASK_EXIT=$?\n\n\
+                              # Auto-generated by taskit install-hooks\n\
+                              # Delegates Rust checks to taskit; non-Rust checks below.\n\n\
+                              taskit pre-commit\n\
+                              TASKIT_EXIT=$?\n\n\
                               # Run the original hook for non-Rust checks if it exists\n\
                               ORIG_EXIT=0\n\
                               if [ -f hooks/pre-commit ]; then\n\
                               \tbash hooks/pre-commit\n\
                               \tORIG_EXIT=$?\n\
                               fi\n\n\
-                              exit $(( XTASK_EXIT | ORIG_EXIT ))\n";
+                              exit $(( TASKIT_EXIT | ORIG_EXIT ))\n";
 
 const PRE_PUSH_HOOK: &str = "#!/usr/bin/env bash\n\
-                             # Auto-generated by cargo xtask install-hooks\n\
-                             cargo xtask pre-push \"$@\"\n\
-                             XTASK_EXIT=$?\n\n\
+                             # Auto-generated by taskit install-hooks\n\
+                             taskit pre-push \"$@\"\n\
+                             TASKIT_EXIT=$?\n\n\
                              # Run the original hook for non-Rust checks if it exists\n\
                              ORIG_EXIT=0\n\
                              if [ -f hooks/pre-push ]; then\n\
                              \tbash hooks/pre-push \"$@\"\n\
                              \tORIG_EXIT=$?\n\
                              fi\n\n\
-                             exit $(( XTASK_EXIT | ORIG_EXIT ))\n";
+                             exit $(( TASKIT_EXIT | ORIG_EXIT ))\n";
 
-pub fn install_hooks() -> Result<(), TaskitError> {
+pub fn install_hooks(ctx: &Ctx) -> Result<(), TaskitError> {
     let hooks_dir = ".git/hooks";
 
     let pre_commit = PRE_COMMIT_HOOK;
     let pre_push = PRE_PUSH_HOOK;
 
-    if is_dry_run() {
-        eprintln!("dry-run: create_dir_all {hooks_dir}");
-        eprintln!("dry-run: write {hooks_dir}/pre-commit");
-        eprintln!("dry-run: write {hooks_dir}/pre-push");
+    if ctx.dry_run {
+        taskit_output::taskit_dry!("create_dir_all {hooks_dir}");
+        taskit_output::taskit_dry!("write {hooks_dir}/pre-commit");
+        taskit_output::taskit_dry!("write {hooks_dir}/pre-push");
         return Ok(());
     }
 
@@ -242,9 +258,9 @@ pub fn install_hooks() -> Result<(), TaskitError> {
     fs::write(format!("{hooks_dir}/pre-push"), pre_push)?;
     make_executable(&format!("{hooks_dir}/pre-push"))?;
 
-    eprintln!("Git hooks installed:");
-    eprintln!("  .git/hooks/pre-commit");
-    eprintln!("  .git/hooks/pre-push");
+    taskit_output::taskit_ok!("Git hooks installed:");
+    taskit_output::taskit_ok!(".git/hooks/pre-commit");
+    taskit_output::taskit_ok!(".git/hooks/pre-push");
     Ok(())
 }
 
@@ -492,8 +508,8 @@ mod tests {
     }
 
     #[test]
-    fn pre_commit_hook_delegates_to_xtask_pre_commit() {
-        assert!(PRE_COMMIT_HOOK.contains("cargo xtask pre-commit"));
+    fn pre_commit_hook_delegates_to_taskit_pre_commit() {
+        assert!(PRE_COMMIT_HOOK.contains("taskit pre-commit"));
     }
 
     #[test]
@@ -503,7 +519,7 @@ mod tests {
 
     #[test]
     fn pre_commit_hook_combines_exit_codes() {
-        assert!(PRE_COMMIT_HOOK.contains("XTASK_EXIT"));
+        assert!(PRE_COMMIT_HOOK.contains("TASKIT_EXIT"));
         assert!(PRE_COMMIT_HOOK.contains("ORIG_EXIT"));
     }
 
@@ -513,8 +529,8 @@ mod tests {
     }
 
     #[test]
-    fn pre_push_hook_delegates_to_xtask_pre_push() {
-        assert!(PRE_PUSH_HOOK.contains("cargo xtask pre-push"));
+    fn pre_push_hook_delegates_to_taskit_pre_push() {
+        assert!(PRE_PUSH_HOOK.contains("taskit pre-push"));
     }
 
     #[test]
@@ -533,7 +549,7 @@ mod tests {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     fn tmpdir() -> std::path::PathBuf {
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir().join(format!("xtask-hooks-{}-{}", std::process::id(), n));
+        let dir = std::env::temp_dir().join(format!("taskit-hooks-{}-{}", std::process::id(), n));
         fs::create_dir_all(&dir).expect("create tmpdir");
         dir
     }

@@ -1,0 +1,31 @@
+# Cruxfile for taskit
+pipeline: taskit-ci
+steps:
+  - step: self_check
+    handler: shell::exec
+    args:
+      cmd: "taskit self-check"
+  - step: fmt_check
+    handler: shell::exec
+    args:
+      cmd: "taskit fmt --check"
+  - step: lint
+    handler: shell::exec
+    args:
+      cmd: "taskit lint"
+  - step: compile_tests
+    handler: shell::exec
+    args:
+      cmd: "taskit compile-tests"
+  - step: test
+    handler: shell::exec
+    args:
+      cmd: "taskit test"
+  - step: check_deps
+    handler: shell::exec
+    args:
+      cmd: "taskit check-deps"
+  - step: check_protocol_drift
+    handler: shell::exec
+    args:
+      cmd: "taskit check-protocol-drift"

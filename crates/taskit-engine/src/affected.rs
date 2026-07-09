@@ -1,4 +1,3 @@
-use anyhow::Context;
 use std::collections::BTreeSet;
 use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};
@@ -15,7 +14,11 @@ use crate::config::{CrateEntry, PropagationEntry};
 pub fn detect(sh: &Shell, ws: &WorkspaceConfig) -> Result<BTreeSet<String>, TaskitError> {
     let output = cmd!(sh, "git diff --name-only origin/main...HEAD")
         .read()
-        .context("failed to detect affected crates — ensure 'origin/main' is fetchable")?;
+        .map_err(|e| {
+            TaskitError::other(format!(
+                "failed to detect affected crates — ensure 'origin/main' is fetchable: {e}"
+            ))
+        })?;
     let changed_files: Vec<&str> = output.lines().collect();
 
     let mut affected = BTreeSet::new();
@@ -129,7 +132,7 @@ mod tests {
     #[test]
     fn crate_for_file_returns_none_for_unknown_path() {
         let ws = make_ws(&[("my-lib", None)], &[]);
-        assert_eq!(crate_for_file("xtask/src/main.rs", &ws), None);
+        assert_eq!(crate_for_file("scripts/build.rs", &ws), None);
         assert_eq!(crate_for_file("README.md", &ws), None);
         assert_eq!(crate_for_file("Cargo.toml", &ws), None);
     }

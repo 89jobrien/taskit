@@ -1,7 +1,7 @@
 use taskit_types::error::TaskitError;
-use xshell::{Shell, cmd};
+use xshell::cmd;
 
-use crate::runner::xrun;
+use crate::ctx::Ctx;
 
 /// Build the argument list for `cargo bench`, based on optional crate filter and baseline flag.
 fn build_bench_args(crate_name: Option<&str>, save_baseline: bool) -> Vec<String> {
@@ -19,10 +19,11 @@ fn build_bench_args(crate_name: Option<&str>, save_baseline: bool) -> Vec<String
     args
 }
 
-pub fn run(sh: &Shell, crate_name: Option<&str>, save_baseline: bool) -> Result<(), TaskitError> {
+pub fn run(ctx: &Ctx, crate_name: Option<&str>, save_baseline: bool) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
     let args = build_bench_args(crate_name, save_baseline);
     let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-    xrun(cmd!(sh, "cargo {args_ref...}"))?;
+    ctx.run(cmd!(sh, "cargo {args_ref...}"))?;
     Ok(())
 }
 

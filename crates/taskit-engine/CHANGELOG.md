@@ -1,38 +1,61 @@
 # Changelog
 
-## [0.6.0](https://github.com/89jobrien/taskit/releases/tag/v0.6.0) - 2026-06-28
-
-### ✨ Features
-
-- integrate inspect/publish with output formatters; generate xtask crate and cargo alias on init ([a2c1d65](https://github.com/89jobrien/taskit/commit/a2c1d65168d97dba06d9d9ef83dc299f8cf79885))
-- add taskit publish subcommand with doc generation and ordered crate publishing ([b8992a3](https://github.com/89jobrien/taskit/commit/b8992a39e81a6aa7445cdb42593c1fef3eb964be))
-- add taskit inspect subcommand for threshold-based metrics pass/fail ([c586e32](https://github.com/89jobrien/taskit/commit/c586e32f439b552539cec2a20cb64a8f8dbfd0e0))
-- **taskit-engine**: add `taskit health` subcommand ([1f5f581](https://github.com/89jobrien/taskit/commit/1f5f5813f1e34ba1047fafe09eb6ee407b31520d))
-
-### 🐛 Bug Fixes
-
-- use edition 2024 in xtask template, cargo xtask alias, prune artifacts on clean ([16444ff](https://github.com/89jobrien/taskit/commit/16444ffd8a078c2ab65f576b26fee77e84ed6685))
-
-### 🔧 Chores
-
-- **release**: taskit v0.5.0 ([cc34a86](https://github.com/89jobrien/taskit/commit/cc34a867c1cd3c4432ce56c4a45b25b7b32738a3))
-- restructure to workspace dependencies ([e453269](https://github.com/89jobrien/taskit/commit/e453269d54930fe92ead772a26044b1a089299e0))
-
-## [0.5.0](https://github.com/89jobrien/taskit/releases/tag/v0.5.0) - 2026-06-28
-
-### ✨ Features
-
-- integrate inspect/publish with output formatters; generate xtask crate and cargo alias on init ([a2c1d65](https://github.com/89jobrien/taskit/commit/a2c1d65168d97dba06d9d9ef83dc299f8cf79885))
-- add taskit publish subcommand with doc generation and ordered crate publishing ([b8992a3](https://github.com/89jobrien/taskit/commit/b8992a39e81a6aa7445cdb42593c1fef3eb964be))
-- add taskit inspect subcommand for threshold-based metrics pass/fail ([c586e32](https://github.com/89jobrien/taskit/commit/c586e32f439b552539cec2a20cb64a8f8dbfd0e0))
-- **taskit-engine**: add `taskit health` subcommand ([1f5f581](https://github.com/89jobrien/taskit/commit/1f5f5813f1e34ba1047fafe09eb6ee407b31520d))
-
-### 🐛 Bug Fixes
-
-- use edition 2024 in xtask template, cargo xtask alias, prune artifacts on clean ([16444ff](https://github.com/89jobrien/taskit/commit/16444ffd8a078c2ab65f576b26fee77e84ed6685))
-
-### 🔧 Chores
-
-- restructure to workspace dependencies ([e453269](https://github.com/89jobrien/taskit/commit/e453269d54930fe92ead772a26044b1a089299e0))
-
 All notable changes to taskit-engine will be documented in this file.
+
+## Unreleased
+
+### Features
+
+- `flow::auto` — agentic promote → CI gate → finish pipeline with conflict resolution
+  hook (7b082a2)
+- `merge_with_resolution` — git merge helper with conflict detection, resolver
+  dispatch, and patch staging (cc9c740)
+- `ConflictResolver` trait (now in taskit-core), `ConflictFile`, `ResolvedFile` types
+  initially introduced here (a24ed07, moved in a5381d7)
+
+### Refactoring
+
+- Derive `Default` for `PipelineOutcome`; simplify `auto_with_ci` seam (24bc3c6)
+- Add `#[non_exhaustive]` to `FlowError` and `FlowAction` (a635817)
+- Fix `promote`/`finish` branch-switching behaviour (4b58717)
+- Move `ResolvedFile` import into test module (38144da)
+
+### Tests
+
+- Integration tests for `flow::auto`: wrong-branch, dirty-worktree, dry-run (6fdee10)
+- Integration tests for `merge_with_resolution`: all 4 branches (e541232)
+- CI failure and pass paths via `auto_with_ci` seam (8aaa78a)
+
+### Fixes
+
+- AU/UA tests, doc fixes, step numbering (17eca40)
+- Remove dead `ConflictUnresolved` variant from `FlowError` (9d91275)
+- Auto-heal protocol-drift in pre-commit hook (86db27f)
+
+## [0.7.0] - 2026-06-28
+
+### Refactoring
+
+- Move output formatters to taskit-output crate (re-exported)
+- Migrate eprintln! to structured output macros
+- Migrate map_err chains to err_context()
+- Remove duplicate print_summary()
+- Replace anyhow::Result with TaskitError at public boundaries
+- Rename .taskit-cache/ (was .xtask-cache/)
+
+## [0.6.0] - 2026-06-28
+
+### Features
+
+- Integrate inspect/publish with output formatters (a2c1d65)
+- Add taskit publish subcommand with doc generation (b8992a3)
+- Add taskit inspect subcommand for threshold metrics (c586e32)
+- Add `taskit health` subcommand (1f5f581)
+
+### Fixes
+
+- Use edition 2024 in templates, prune artifacts on clean (16444ff)
+
+## [0.5.0] - 2026-06-28
+
+- Restructure to workspace dependencies (e453269)

@@ -1,0 +1,111 @@
+[tools]
+rust = "latest"
+"cargo:cargo-nextest" = "latest"
+"cargo:cargo-deny" = "latest"
+"cargo:mdbook" = "latest"
+
+[tasks.check]
+description = "Run cargo check on all targets"
+run = "cargo check --all-targets"
+
+[tasks.fmt]
+description = "Format all Rust code"
+run = "cargo xtask fmt"
+
+[tasks."fmt:check"]
+description = "Check formatting without writing"
+run = "cargo xtask fmt --check"
+
+[tasks.lint]
+description = "Run clippy lints"
+run = "cargo xtask lint"
+
+[tasks.test]
+description = "Run tests via nextest"
+run = "cargo xtask test"
+
+[tasks."test:offline"]
+description = "Run tests without network"
+run = "cargo xtask test --offline"
+
+[tasks.ci]
+description = "Run the full CI pipeline"
+run = "cargo xtask ci"
+
+[tasks."ci:fast"]
+description = "CI pipeline, stop on first failure"
+run = "cargo xtask ci --fail-fast"
+
+[tasks.book]
+description = "Build mdBook documentation"
+run = "cargo xtask book"
+
+[tasks."book:serve"]
+description = "Serve mdBook with live reload"
+run = "cargo xtask book --serve"
+
+[tasks.pre-commit]
+description = "Pre-commit hook delegate"
+run = "cargo xtask pre-commit"
+
+[tasks.pre-push]
+description = "Pre-push hook delegate"
+run = "cargo xtask pre-push"
+
+[tasks.audit]
+description = "Run cargo-deny (licenses, bans, sources)"
+run = "cargo deny check licenses bans sources"
+
+[tasks."publish:crates-io"]
+description = "Publish workspace crates to crates.io"
+run = "cargo run -p taskit -- publish"
+
+[tasks."publish:github"]
+description = "Create a GitHub release from the current tag"
+run = "gh release create $(git describe --tags --abbrev=0) --generate-notes"
+
+[tasks."release:check"]
+description = "Full release readiness gate"
+run = """
+cargo xtask fmt --check
+cargo xtask lint
+cargo xtask test
+cargo deny check licenses bans sources
+"""
+
+[tasks."release:build"]
+description = "Build all crates in release mode"
+run = "cargo build --workspace --release"
+
+[tasks."release:tag"]
+description = "Tag the current commit with the workspace version"
+run = """
+version=$(cargo metadata --no-deps --format-version 1 \
+  | jq -r '.packages[] | select(.name == "taskit") | .version')
+git tag -a "v${version}" -m "Release v${version}"
+echo "Tagged v${version}"
+"""
+
+[tasks."release:cut"]
+description = "Full release: check, build, tag, publish"
+depends = ["release:check", "release:build", "release:tag"]
+run = """
+echo "Release gates passed, built, and tagged."
+echo "Run 'mise run publish:crates-io' and 'mise run publish:github' to ship."
+"""
+
+[tasks.install]
+description = "Install taskit binary to local PATH"
+run = "cargo install --path ."
+
+[tasks.reinstall]
+description = "Force reinstall taskit binary from local source"
+run = "cargo install --path . --force"
+
+[tasks.clean]
+description = "Clean target/ and prune taskit artifacts"
+run = "cargo clean"
+
+[tasks.init]
+description = "Generate taskit.toml, Cruxfile, and scaffold"
+run = "cargo run -p taskit -- init"

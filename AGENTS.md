@@ -11,8 +11,7 @@ CI pipelines in any Rust workspace. The codebase uses hexagonal architecture
 
 ## Primary Toolkit: `cargo` Commands
 
-All development workflows use `cargo`. There is no justfile or xtask wrapper in this
-project.
+All development workflows use `cargo` and the `taskit` binary directly.
 
 ### Build & Quality
 
@@ -29,7 +28,7 @@ project.
 | `cargo nextest run -E 'test(pipeline)'`     | Filter tests by name                    |
 | `cargo test --doc`                          | Run doc tests                           |
 | `cargo deny check`                          | Check for license/advisory issues       |
-| `cargo xtask pre-commit`                    | Run pre-commit checks (if xtask exists) |
+| `taskit pre-commit`                         | Run pre-commit checks                   |
 
 ### Testing
 

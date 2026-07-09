@@ -1,0 +1,2 @@
+[alias]
+taskit = "run --package taskit --"
