@@ -97,7 +97,7 @@ pub struct StepResult {
     pub context: StepDiagnosticContext,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct PipelineOutcome {
     pub results: Vec<StepResult>,
     pub total: Duration,

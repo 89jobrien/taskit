@@ -1,4 +1,6 @@
+use taskit_core::conflict_resolver::ConflictResolver;
 use taskit_types::config::FlowConfig;
+use taskit_types::conflict::ConflictFile;
 use taskit_types::error::{FlowError, TaskitError};
 use xshell::{Shell, cmd};
 
@@ -72,6 +74,89 @@ fn ahead_behind(sh: &Shell, local: &str, remote: &str) -> Result<(usize, usize),
     Ok((ahead, behind))
 }
 
+/// Parse `git status --porcelain` output for conflict markers (UU, AA, DD, AU, UA).
+pub(crate) fn parse_conflict_paths(porcelain: &str) -> Vec<String> {
+    porcelain
+        .lines()
+        .filter(|l| {
+            l.starts_with("UU ")
+                || l.starts_with("AA ")
+                || l.starts_with("DD ")
+                || l.starts_with("AU ")
+                || l.starts_with("UA ")
+        })
+        .map(|l| l[3..].trim().to_string())
+        .collect()
+}
+
+/// Read both sides of a conflicted file via `git show`.
+pub(crate) fn read_conflict_file(sh: &Shell, path: &str) -> Result<ConflictFile, TaskitError> {
+    let ours = cmd!(sh, "git show HEAD:{path}")
+        .quiet()
+        .read()
+        .unwrap_or_default();
+    let theirs = cmd!(sh, "git show MERGE_HEAD:{path}")
+        .quiet()
+        .read()
+        .unwrap_or_default();
+    let base = std::fs::read_to_string(path).ok();
+    Ok(ConflictFile::new(path, ours, theirs, base))
+}
+
+/// Attempt a `--no-ff` merge; on conflict invoke `resolver`; on escalation return the error.
+/// On successful resolution, stages all resolved files and completes the merge via
+/// `git commit --no-edit`.
+pub fn merge_with_resolution(
+    ctx: &Ctx,
+    branch: &str,
+    message: &str,
+    resolver: &dyn ConflictResolver,
+) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    if ctx.dry_run {
+        taskit_output::taskit_dry!("git merge --no-ff {branch} -m \"{message}\"");
+        return Ok(());
+    }
+    let output = cmd!(sh, "git merge --no-ff {branch} -m {message}")
+        .quiet()
+        .ignore_status()
+        .output()
+        .map_err(TaskitError::other)?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let porcelain = cmd!(sh, "git status --porcelain")
+        .read()
+        .map_err(TaskitError::other)?;
+    let paths = parse_conflict_paths(&porcelain);
+    if paths.is_empty() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(FlowError::MergeFailed {
+            reason: stderr.trim().to_string(),
+        }
+        .into());
+    }
+    let files: Vec<ConflictFile> = paths
+        .iter()
+        .map(|p| read_conflict_file(sh, p))
+        .collect::<Result<_, _>>()?;
+    let resolved = resolver.resolve(&files)?;
+    for r in &resolved {
+        let abs_path = ctx.root.join(&r.path);
+        std::fs::write(&abs_path, &r.content).map_err(TaskitError::other)?;
+        let path = &r.path;
+        cmd!(sh, "git add {path}")
+            .run()
+            .map_err(TaskitError::other)?;
+    }
+    cmd!(sh, "git commit --no-edit").run().map_err(|e| {
+        FlowError::MergeFailed {
+            reason: e.to_string(),
+        }
+        .into()
+    })
+}
+
 fn merge_no_ff(ctx: &Ctx, branch: &str, message: &str) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     if ctx.dry_run {
@@ -142,10 +227,7 @@ pub fn promote(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
         staging,
         &format!("flow: promote {staging} into {release}"),
     )?;
-    checkout(ctx, staging)?;
-    taskit_output::taskit_ok!(
-        "Done. Now on {staging}. Review {release}, then `taskit flow finish`."
-    );
+    taskit_output::taskit_ok!("Done. Now on {release}. Run `taskit flow finish` when ready.");
     Ok(())
 }
 
@@ -155,7 +237,10 @@ pub fn finish(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
     let staging = flow.staging_branch();
     let release = flow.release_branch();
 
-    require_branch(sh, release)?;
+    // Auto-switch to release if not already there.
+    if current_branch(sh)? != release {
+        checkout(ctx, release)?;
+    }
     require_clean(sh, release)?;
     require_branch_exists(sh, main)?;
     require_branch_exists(sh, staging)?;
@@ -192,12 +277,156 @@ pub fn guard(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
     Ok(())
 }
 
+/// Run the full promote → CI gate → finish pipeline with LLM-assisted conflict resolution.
+///
+/// Sequence:
+/// 1. Verify staging is clean and release/main exist.
+/// 2. Promote: merge staging → release (with conflict resolution).
+/// 3. CI gate: run default pipeline on release; abort if any step fails.
+/// 4. Finish: merge release → main, sync main → staging (with conflict resolution).
+pub fn auto(
+    ctx: &Ctx,
+    flow: &FlowConfig,
+    resolver: &dyn ConflictResolver,
+) -> Result<(), TaskitError> {
+    auto_with_ci(ctx, flow, resolver, |c| {
+        crate::ci::run_default_internal(c, true, false)
+    })
+}
+
+/// Internal entry point for `flow auto`, injectable CI function for testing.
+pub fn auto_with_ci(
+    ctx: &Ctx,
+    flow: &FlowConfig,
+    resolver: &dyn ConflictResolver,
+    run_ci: impl Fn(&Ctx) -> taskit_types::step::PipelineOutcome,
+) -> Result<(), TaskitError> {
+    use taskit_types::step::StepStatus;
+
+    let sh = &ctx.sh;
+    let staging = flow.staging_branch();
+    let release = flow.release_branch();
+    let main = flow.main_branch();
+
+    require_branch(sh, staging)?;
+    require_clean(sh, staging)?;
+    require_branch_exists(sh, release)?;
+    require_branch_exists(sh, main)?;
+
+    // 1. Promote staging → release
+    taskit_output::taskit_progress!("auto: promoting {staging} → {release}");
+    checkout(ctx, release)?;
+    merge_with_resolution(
+        ctx,
+        staging,
+        &format!("flow: promote {staging} into {release}"),
+        resolver,
+    )?;
+
+    // 2. CI gate on release
+    taskit_output::taskit_progress!("auto: running CI on {release}");
+    let outcome = run_ci(ctx);
+    if !outcome.passed {
+        let failed: Vec<String> = outcome
+            .results
+            .iter()
+            .filter(|s| s.status == StepStatus::Fail)
+            .map(|s| s.name.clone())
+            .collect();
+        taskit_output::taskit_err!(
+            "auto: CI failed on {release} — staying on {release} for investigation"
+        );
+        return Err(FlowError::CiFailed { failed }.into());
+    }
+    taskit_output::taskit_ok!("auto: CI passed on {release}");
+
+    // 3. Finish release → main, sync main → staging
+    taskit_output::taskit_progress!("auto: finishing {release} → {main}");
+    checkout(ctx, main)?;
+    merge_with_resolution(
+        ctx,
+        release,
+        &format!("flow: finish {release} into {main}"),
+        resolver,
+    )?;
+
+    taskit_output::taskit_progress!("auto: syncing {main} → {staging}");
+    checkout(ctx, staging)?;
+    merge_with_resolution(
+        ctx,
+        main,
+        &format!("flow: sync {main} into {staging}"),
+        resolver,
+    )?;
+
+    taskit_output::taskit_ok!("auto: done. {staging} is in sync with {main}.");
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use taskit_types::conflict::ResolvedFile;
 
     fn default_flow() -> FlowConfig {
         FlowConfig::default()
+    }
+
+    struct AlwaysResolve;
+    impl ConflictResolver for AlwaysResolve {
+        fn resolve(&self, files: &[ConflictFile]) -> Result<Vec<ResolvedFile>, TaskitError> {
+            Ok(files
+                .iter()
+                .map(|f| ResolvedFile::new(f.path.clone(), "resolved\n"))
+                .collect())
+        }
+    }
+
+    struct AlwaysEscalate;
+    impl ConflictResolver for AlwaysEscalate {
+        fn resolve(&self, files: &[ConflictFile]) -> Result<Vec<ResolvedFile>, TaskitError> {
+            Err(FlowError::NeedsHuman {
+                path: files.first().map(|f| f.path.clone()).unwrap_or_default(),
+                reason: "too complex".into(),
+            }
+            .into())
+        }
+    }
+
+    #[test]
+    fn parse_conflict_paths_empty_on_clean() {
+        assert!(parse_conflict_paths("").is_empty());
+        assert!(parse_conflict_paths("M  src/lib.rs\n?? new.txt\n").is_empty());
+    }
+
+    #[test]
+    fn parse_conflict_paths_detects_uu_aa_dd() {
+        let porcelain = "UU src/lib.rs\nAA Cargo.toml\nDD old.rs\nM  clean.rs\n";
+        let paths = parse_conflict_paths(porcelain);
+        assert_eq!(paths, vec!["src/lib.rs", "Cargo.toml", "old.rs"]);
+    }
+
+    #[test]
+    fn parse_conflict_paths_detects_au_ua() {
+        let porcelain = "AU src/main.rs\nUA Cargo.lock\nM  clean.rs\n";
+        let paths = parse_conflict_paths(porcelain);
+        assert_eq!(paths, vec!["src/main.rs", "Cargo.lock"]);
+    }
+
+    #[test]
+    fn conflict_resolver_fake_resolves() {
+        let result =
+            AlwaysResolve.resolve(&[ConflictFile::new("src/lib.rs", "ours", "theirs", None)]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap()[0].content, "resolved\n");
+    }
+
+    #[test]
+    fn conflict_resolver_fake_escalates() {
+        let result = AlwaysEscalate.resolve(&[ConflictFile::new("src/lib.rs", "a", "b", None)]);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("src/lib.rs"), "got: {msg}");
     }
 
     #[test]
@@ -326,5 +555,126 @@ release = "rc"
         assert_eq!(cfg.main_branch(), "main");
         assert_eq!(cfg.staging_branch(), "dev");
         assert_eq!(cfg.release_branch(), "release");
+    }
+
+    // ── auto_with_ci tests (CI gate path) ─────────────────────────────────────
+
+    fn setup_auto_repo() -> (tempfile::TempDir, Ctx, FlowConfig) {
+        use taskit_types::config::Config;
+        use taskit_types::output_format::OutputFormat;
+        let dir = tempfile::tempdir().expect("tempdir");
+        let sh = xshell::Shell::new().expect("shell");
+        sh.change_dir(dir.path());
+        cmd!(sh, "git init -b main").run().expect("git init");
+        cmd!(sh, "git config user.email test@example.com")
+            .run()
+            .expect("email");
+        cmd!(sh, "git config user.name Test").run().expect("name");
+        cmd!(sh, "git config core.hooksPath /dev/null")
+            .run()
+            .expect("disable hooks");
+        sh.write_file("README.md", "# test\n").expect("write");
+        cmd!(sh, "git add README.md").run().expect("add");
+        cmd!(sh, "git commit -m init").run().expect("commit");
+        cmd!(sh, "git branch staging")
+            .run()
+            .expect("branch staging");
+        cmd!(sh, "git branch release")
+            .run()
+            .expect("branch release");
+        cmd!(sh, "git checkout staging")
+            .run()
+            .expect("checkout staging");
+        // Add a commit so promote has something to merge.
+        sh.write_file("feature.txt", "feature\n").expect("write");
+        cmd!(sh, "git add feature.txt").run().expect("add");
+        cmd!(sh, "git commit -m feature").run().expect("commit");
+        let flow = FlowConfig::default();
+        let ctx = Ctx::new(
+            sh,
+            dir.path().to_path_buf(),
+            Config::default(),
+            false,
+            OutputFormat::Human,
+        );
+        (dir, ctx, flow)
+    }
+
+    #[test]
+    fn auto_ci_failure_returns_ci_failed_and_stays_on_release() {
+        use taskit_types::error::FlowError;
+        use taskit_types::step::{PipelineOutcome, StepResult, StepStatus};
+
+        let (_dir, ctx, flow) = setup_auto_repo();
+
+        // Inject a CI function that always reports a failed step.
+        let failing_ci = |_: &Ctx| PipelineOutcome {
+            results: vec![StepResult {
+                name: "fmt".into(),
+                status: StepStatus::Fail,
+                duration: std::time::Duration::ZERO,
+                error: Some("formatting errors".into()),
+                gate: false,
+                diagnostics: vec![],
+                context: taskit_types::step::StepDiagnosticContext::default(),
+            }],
+            ..Default::default()
+        };
+
+        let result = auto_with_ci(&ctx, &flow, &AlwaysResolve, failing_ci);
+
+        match result {
+            Err(taskit_types::error::TaskitError::Flow(FlowError::CiFailed { failed })) => {
+                assert_eq!(failed, vec!["fmt".to_string()]);
+            }
+            other => panic!("expected CiFailed, got {other:?}"),
+        }
+
+        // After CI failure, we should still be on release (not main).
+        let branch = cmd!(ctx.sh, "git branch --show-current")
+            .read()
+            .expect("branch");
+        assert_eq!(
+            branch.trim(),
+            "release",
+            "should stay on release after CI failure"
+        );
+    }
+
+    #[test]
+    fn auto_ci_pass_completes_finish() {
+        use taskit_types::step::{PipelineOutcome, StepResult, StepStatus};
+
+        let (_dir, ctx, flow) = setup_auto_repo();
+
+        let passing_ci = |_: &Ctx| PipelineOutcome {
+            results: vec![StepResult {
+                name: "fmt".into(),
+                status: StepStatus::Pass,
+                duration: std::time::Duration::ZERO,
+                error: None,
+                gate: false,
+                diagnostics: vec![],
+                context: taskit_types::step::StepDiagnosticContext::default(),
+            }],
+            passed: true,
+            ..Default::default()
+        };
+
+        let result = auto_with_ci(&ctx, &flow, &AlwaysResolve, passing_ci);
+        assert!(
+            result.is_ok(),
+            "auto should complete when CI passes: {result:?}"
+        );
+
+        // After success we should be on staging.
+        let branch = cmd!(ctx.sh, "git branch --show-current")
+            .read()
+            .expect("branch");
+        assert_eq!(
+            branch.trim(),
+            "staging",
+            "should land on staging after auto completes"
+        );
     }
 }

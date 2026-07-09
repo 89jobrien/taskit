@@ -1,4 +1,5 @@
 target/
+src/baml_client/
 .DS_Store
 .pytest_cache/
 .ruff_cache/

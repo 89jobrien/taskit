@@ -10,12 +10,12 @@
     {
       "name": "taskit-types-error",
       "path": "crates/taskit-types/src/error.rs",
-      "hash": "5ff7086f11d426bc92ae8ed97a113e0b67cb1bf640972be3d20b7d7d85dcd2fa"
+      "hash": "ff1571a6585dedad6d1eee532aa2acc228236be4b9f83748bf7a279f96bdc5e9"
     },
     {
       "name": "taskit-engine-command",
       "path": "crates/taskit-engine/src/command.rs",
-      "hash": "81670de6de16d4d51f547c6ace8d31943059ca0885faff65dd03f3440e89fe70"
+      "hash": "09cc79ea8bb8e120d2501a4a585cb784d06732b52434120b6a9e1175a216377b"
     },
     {
       "name": "taskit-engine-discovery",

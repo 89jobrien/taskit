@@ -43,12 +43,17 @@ path = "src/main.rs"
 
 [dependencies]
 taskit-types.workspace = true
+taskit-core.workspace = true
 taskit-engine.workspace = true
 taskit-init.workspace = true
 taskit-output.workspace = true
 clap.workspace = true
 miette = { version = "7", features = ["fancy"] }
 xshell.workspace = true
+baml = "0.218.0"
+
+[package.metadata.cargo-machete]
+ignored = ["baml"]
 
 [features]
 crux = ["taskit-output/crux"]

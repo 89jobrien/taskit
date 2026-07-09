@@ -109,6 +109,13 @@ cmd  = "check-protocol-drift"
 | `bench [--crate-name X] [--save-baseline]`                             | Run criterion benchmarks                            |
 | `test-report`                                                          | Generate unified coverage report                    |
 | `snapshot-review`                                                      | Review pending insta snapshots                      |
+| `flow status`                                                          | Show current branch / staging state                 |
+| `flow promote`                                                         | Merge main -> staging                               |
+| `flow finish`                                                          | Merge staging -> main after CI                      |
+| `flow guard`                                                           | Assert branch invariants                            |
+| `flow auto`                                                            | Full promote -> CI -> finish pipeline with LLM      |
+|                                                                        | conflict resolution (BamlConflictResolver / BAML);  |
+|                                                                        | escalates to human via `FlowError::NeedsHuman`      |
 
 ## Affected-crate detection
 
