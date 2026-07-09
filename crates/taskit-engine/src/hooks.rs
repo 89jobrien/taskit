@@ -125,6 +125,15 @@ pub fn pre_commit(ctx: &Ctx) -> Result<(), TaskitError> {
 
     ctx.run(cmd!(sh, "cargo fmt --check --all"))?;
 
+    if let Err(e) = crate::protocol::drift::run(ctx, false, false, false) {
+        taskit_output::taskit_err!("protocol-drift check failed: {e}");
+        taskit_output::taskit_progress!("self-healing: updating protocol lockfile...");
+        crate::protocol::drift::run(ctx, true, false, false)?;
+        // Stage the updated lockfile so it's included in the current commit.
+        ctx.run(cmd!(sh, "git add taskit-protocol.lock"))?;
+        taskit_output::taskit_ok!("protocol lockfile updated and staged");
+    }
+
     if !ctx.dry_run {
         save_pre_commit_cache(&PreCommitCache { staged_hash: hash })?;
         crate::cache::update()?;
