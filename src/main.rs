@@ -352,7 +352,11 @@ fn to_command(cmd: Cmd) -> Box<dyn Command> {
                     Box::new(flow_resolver::BamlConflictResolver),
                 ),
             };
-            Box::new(Flow { action, resolver })
+            Box::new(Flow {
+                action,
+                resolver,
+                ci_runner: Box::new(|c| taskit_engine::ci::run_default_internal(c, true, false)),
+            })
         }
         Cmd::Init { .. } => unreachable!("Init is handled before dispatch"),
     }

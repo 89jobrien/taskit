@@ -149,7 +149,7 @@ fn dispatch_cmd<'a>(
 }
 
 /// The built-in default pipeline, used when no `[[ci.steps]]` are configured.
-pub(crate) fn run_default_internal(ctx: &Ctx, fail_fast: bool, offline: bool) -> PipelineOutcome {
+pub fn run_default_internal(ctx: &Ctx, fail_fast: bool, offline: bool) -> PipelineOutcome {
     run_default_pipeline(ctx, fail_fast, offline, false)
 }
 

@@ -295,7 +295,7 @@ pub fn auto(
 }
 
 /// Internal entry point for `flow auto`, injectable CI function for testing.
-pub(crate) fn auto_with_ci(
+pub fn auto_with_ci(
     ctx: &Ctx,
     flow: &FlowConfig,
     resolver: &dyn ConflictResolver,

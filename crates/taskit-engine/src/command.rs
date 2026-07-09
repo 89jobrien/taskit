@@ -9,6 +9,8 @@
 
 use taskit_types::error::TaskitError;
 
+use taskit_types::step::PipelineOutcome;
+
 use crate::ctx::Ctx;
 use crate::{
     audit, check_deps, check_freshness, ci, clean, dev_setup, flow, fmt, health, hooks, inspect,
@@ -333,6 +335,7 @@ pub enum FlowAction {
 pub struct Flow {
     pub action: FlowAction,
     pub resolver: Box<dyn taskit_core::ConflictResolver>,
+    pub ci_runner: Box<dyn Fn(&Ctx) -> PipelineOutcome + Send + Sync>,
 }
 impl Command for Flow {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
@@ -342,7 +345,9 @@ impl Command for Flow {
             FlowAction::Promote => flow::promote(ctx, &cfg),
             FlowAction::Finish => flow::finish(ctx, &cfg),
             FlowAction::Guard => flow::guard(ctx, &cfg),
-            FlowAction::Auto => flow::auto(ctx, &cfg, self.resolver.as_ref()),
+            FlowAction::Auto => {
+                flow::auto_with_ci(ctx, &cfg, self.resolver.as_ref(), |c| (self.ci_runner)(c))
+            }
         }
     }
 }
