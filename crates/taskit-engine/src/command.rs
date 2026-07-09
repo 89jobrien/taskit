@@ -327,13 +327,12 @@ pub enum FlowAction {
     Promote,
     Finish,
     Guard,
-    Auto {
-        resolver: Box<dyn taskit_core::ConflictResolver>,
-    },
+    Auto,
 }
 
 pub struct Flow {
     pub action: FlowAction,
+    pub resolver: Box<dyn taskit_core::ConflictResolver>,
 }
 impl Command for Flow {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
@@ -343,7 +342,7 @@ impl Command for Flow {
             FlowAction::Promote => flow::promote(ctx, &cfg),
             FlowAction::Finish => flow::finish(ctx, &cfg),
             FlowAction::Guard => flow::guard(ctx, &cfg),
-            FlowAction::Auto { resolver } => flow::auto(ctx, &cfg, resolver.as_ref()),
+            FlowAction::Auto => flow::auto(ctx, &cfg, self.resolver.as_ref()),
         }
     }
 }

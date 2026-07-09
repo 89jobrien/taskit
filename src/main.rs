@@ -13,6 +13,7 @@ use std::env;
 use taskit_engine::command::{self, Command};
 use taskit_engine::ctx::Ctx;
 use taskit_types::config::DEFAULT_COVERAGE_THRESHOLD;
+use taskit_types::error::TaskitError;
 use taskit_types::output_format::OutputFormat;
 use xshell::Shell;
 
@@ -225,6 +226,16 @@ enum FlowCmd {
     Auto,
 }
 
+struct NullResolver;
+impl taskit_core::ConflictResolver for NullResolver {
+    fn resolve(
+        &self,
+        _files: &[taskit_types::conflict::ConflictFile],
+    ) -> Result<Vec<taskit_types::conflict::ResolvedFile>, TaskitError> {
+        unreachable!("resolver called on non-Auto flow action")
+    }
+}
+
 /// Map a parsed CLI subcommand to its [`Command`] implementation.
 ///
 /// This is the single dispatch seam: adding a subcommand means adding a
@@ -329,17 +340,20 @@ fn to_command(cmd: Cmd) -> Box<dyn Command> {
             allow_dirty,
         }),
         Cmd::Release { tag, notes_file } => Box::new(Release { tag, notes_file }),
-        Cmd::Flow { sub } => Box::new(Flow {
-            action: match sub {
-                FlowCmd::Status => FlowAction::Status,
-                FlowCmd::Promote => FlowAction::Promote,
-                FlowCmd::Finish => FlowAction::Finish,
-                FlowCmd::Guard => FlowAction::Guard,
-                FlowCmd::Auto => FlowAction::Auto {
-                    resolver: Box::new(flow_resolver::BamlConflictResolver),
-                },
-            },
-        }),
+        Cmd::Flow { sub } => {
+            let (action, resolver): (FlowAction, Box<dyn taskit_core::ConflictResolver>) = match sub
+            {
+                FlowCmd::Status => (FlowAction::Status, Box::new(NullResolver)),
+                FlowCmd::Promote => (FlowAction::Promote, Box::new(NullResolver)),
+                FlowCmd::Finish => (FlowAction::Finish, Box::new(NullResolver)),
+                FlowCmd::Guard => (FlowAction::Guard, Box::new(NullResolver)),
+                FlowCmd::Auto => (
+                    FlowAction::Auto,
+                    Box::new(flow_resolver::BamlConflictResolver),
+                ),
+            };
+            Box::new(Flow { action, resolver })
+        }
         Cmd::Init { .. } => unreachable!("Init is handled before dispatch"),
     }
 }
