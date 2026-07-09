@@ -1,3 +1,11 @@
+#[allow(
+    clippy::all,
+    non_snake_case,
+    unused_imports,
+    non_camel_case_types,
+    dead_code
+)]
+mod baml_client;
 mod flow_resolver;
 
 use clap::{Parser, Subcommand};

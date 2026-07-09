@@ -49,6 +49,10 @@ taskit-output.workspace = true
 clap.workspace = true
 miette = { version = "7", features = ["fancy"] }
 xshell.workspace = true
+baml = "0.218.0"
+
+[package.metadata.cargo-machete]
+ignored = ["baml"]
 
 [features]
 crux = ["taskit-output/crux"]
