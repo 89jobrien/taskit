@@ -1,5 +1,14 @@
 # Changelog
 
+All notable changes to taskit-core will be documented in this file.
+
+## Unreleased
+
+### Features
+
+- `ConflictResolver` trait moved here from taskit-engine; port accepting
+  `Vec<ConflictFile>` and returning `Vec<ResolvedFile>` (a5381d7)
+
 ## [0.6.0](https://github.com/89jobrien/taskit/releases/tag/v0.6.0) - 2026-06-28
 
 ### 🐛 Bug Fixes

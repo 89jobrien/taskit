@@ -4,6 +4,55 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Features
+
+- **flow auto**: agentic pipeline (`taskit flow auto`) that promotes staging to release,
+  runs the full CI gate, and finishes the merge — with configurable conflict resolution
+  (7b082a2, 7898349, 0b8d0a6)
+- **BamlConflictResolver**: BAML-backed LLM conflict resolver implementing the
+  `ConflictResolver` port; calls `ResolveConflict` function and maps structured output
+  to `ResolvedFile` (0b8d0a6)
+- **FlowCmd::Auto**: wire `taskit flow auto` CLI subcommand with resolver dispatch
+  (7898349)
+- **merge_with_resolution**: helper on `FlowEngine` that runs `git merge`, detects
+  conflicts, calls the resolver, stages patches, and completes the merge (cc9c740)
+- **ConflictResolver trait**: pluggable port accepting `Vec<ConflictFile>` and returning
+  `Vec<ResolvedFile>` (a24ed07)
+- **FlowError extensions**: `ConflictUnresolved`, `NeedsHuman`, and `CiFailed` variants
+  to signal unrecoverable flow states (10ee91a)
+
+### Refactoring
+
+- Move `ConflictFile` and `ResolvedFile` types to `taskit-types`; move
+  `ConflictResolver` trait to `taskit-core` (a5381d7)
+- Derive `Default` for `PipelineOutcome`; simplify `auto_with_ci` test seam
+  construction (24bc3c6)
+- Remove dead `ConflictUnresolved` variant from `FlowError` (9d91275)
+- Add `#[non_exhaustive]` to `FlowError` and `FlowAction` for forward
+  compatibility (a635817)
+- Fix `promote` branch-switch: user stays on release after promote; `finish`
+  auto-switches branch (4b58717)
+
+### Tests
+
+- Integration tests for `flow::auto` — wrong-branch guard, dirty-worktree guard,
+  dry-run happy path (6fdee10)
+- Integration tests for `merge_with_resolution` covering all 4 branches:
+  clean merge, conflict + resolver, conflict + no-resolver, dry-run (e541232)
+- CI failure and pass paths for `flow::auto` via `auto_with_ci` seam (8aaa78a)
+
+### Fixes
+
+- Move `ResolvedFile` import into test module to fix unused-import lint (38144da)
+- Auto-heal protocol-drift lockfile in pre-commit hook (previously only pre-push)
+  (86db27f)
+- AU/UA tests, `#[non_exhaustive]` on structs, doc fixes, step numbering (17eca40)
+
+### Docs
+
+- Update README, CLAUDE.md, DESIGN.md for `flow auto` and architecture
+  refactor (7684247)
+
 ## [0.7.0](https://github.com/89jobrien/taskit/releases/tag/v0.7.0) - 2026-06-28
 
 ### Features
