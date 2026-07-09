@@ -328,7 +328,7 @@ pub enum FlowAction {
     Finish,
     Guard,
     Auto {
-        resolver: Box<dyn flow::ConflictResolver>,
+        resolver: Box<dyn taskit_core::ConflictResolver>,
     },
 }
 

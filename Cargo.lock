@@ -1309,6 +1309,7 @@ dependencies = [
  "baml",
  "clap",
  "miette",
+ "taskit-core",
  "taskit-engine",
  "taskit-init",
  "taskit-output",

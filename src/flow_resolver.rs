@@ -1,5 +1,6 @@
 use crate::baml_client::types::ConflictInput;
-use taskit_engine::flow::{ConflictFile, ConflictResolver, ResolvedFile};
+use taskit_core::conflict_resolver::ConflictResolver;
+use taskit_types::conflict::{ConflictFile, ResolvedFile};
 use taskit_types::error::{FlowError, TaskitError};
 
 /// LLM-assisted conflict resolver backed by the BAML `ResolveConflict` function.

@@ -1,8 +1,8 @@
+use taskit_core::conflict_resolver::ConflictResolver;
 use taskit_engine::ctx::Ctx;
-use taskit_engine::flow::{
-    self, ConflictFile, ConflictResolver, ResolvedFile, merge_with_resolution,
-};
+use taskit_engine::flow::{self, merge_with_resolution};
 use taskit_types::config::{Config, FlowConfig};
+use taskit_types::conflict::{ConflictFile, ResolvedFile};
 use taskit_types::error::{FlowError, TaskitError};
 use taskit_types::output_format::OutputFormat;
 use xshell::{Shell, cmd};
