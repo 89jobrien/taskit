@@ -1,6 +1,6 @@
 use taskit_core::conflict_resolver::ConflictResolver;
 use taskit_types::config::FlowConfig;
-use taskit_types::conflict::{ConflictFile, ResolvedFile};
+use taskit_types::conflict::ConflictFile;
 use taskit_types::error::{FlowError, TaskitError};
 use xshell::{Shell, cmd};
 
@@ -366,6 +366,7 @@ pub(crate) fn auto_with_ci(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use taskit_types::conflict::ResolvedFile;
 
     fn default_flow() -> FlowConfig {
         FlowConfig::default()
