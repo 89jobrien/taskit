@@ -143,6 +143,8 @@ impl ReleaseConfig {
     }
 }
 
+/// Metric thresholds for `taskit inspect`. All fields are optional; absent
+/// fields are not checked. CLI flags override values set here.
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct InspectConfig {
     /// Maximum allowed clippy warnings before `taskit inspect` fails.
@@ -319,8 +321,7 @@ mod tests {
         let cfg = ReleaseConfig {
             github_repo: Some("89jobrien/taskit".into()),
             publish_order: vec!["taskit-types".into()],
-            skip_docs: None,
-            allow_dirty: None,
+            ..Default::default()
         };
         assert_eq!(cfg.github_repo(), Some("89jobrien/taskit"));
         assert_eq!(cfg.publish_order, vec!["taskit-types"]);

@@ -20,7 +20,8 @@ const PUBLISH_ORDER: &[&str] = &[
 pub fn run(ctx: &Ctx, skip_docs: bool, allow_dirty: bool) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     let dry_run = ctx.dry_run;
-    // CLI flags win; fall back to [release] config defaults.
+    // CLI wins over config: `true || _` short-circuits so an explicit CLI flag
+    // always takes effect regardless of what [release] says.
     let rel = ctx.release_config();
     let effective_skip_docs = skip_docs || rel.and_then(|r| r.skip_docs).unwrap_or(false);
     let effective_allow_dirty = allow_dirty || rel.and_then(|r| r.allow_dirty).unwrap_or(false);
