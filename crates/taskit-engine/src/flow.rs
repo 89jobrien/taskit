@@ -235,74 +235,68 @@ pub fn sync(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
 }
 
 /// Advance work from develop to staging.
+/// Advance the current branch one step in the pipeline.
+///
+/// - `develop`  → merges into `staging`
+/// - `staging`  → merges into `release`
+/// - `release`  → merges into `main`, then syncs `main` back into `develop`
 pub fn promote(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
+    let branch = current_branch(sh)?;
+
     let develop = flow.develop_branch();
     let staging = flow.staging_branch();
-
-    require_branch(sh, develop)?;
-    require_clean(sh, develop)?;
-    require_branch_exists(sh, staging)?;
-
-    taskit_output::taskit_progress!("Promoting {develop} -> {staging}");
-    checkout(ctx, staging)?;
-    merge_no_ff(
-        ctx,
-        develop,
-        &format!("flow: promote {develop} into {staging}"),
-    )?;
-    taskit_output::taskit_ok!("Done. Now on {staging}. Run `taskit flow stage` when ready.");
-    Ok(())
-}
-
-/// Advance staging to release.
-pub fn stage(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
-    let sh = &ctx.sh;
-    let staging = flow.staging_branch();
     let release = flow.release_branch();
-
-    require_branch(sh, staging)?;
-    require_clean(sh, staging)?;
-    require_branch_exists(sh, release)?;
-
-    taskit_output::taskit_progress!("Staging {staging} -> {release}");
-    checkout(ctx, release)?;
-    merge_no_ff(
-        ctx,
-        staging,
-        &format!("flow: stage {staging} into {release}"),
-    )?;
-    taskit_output::taskit_ok!("Done. Now on {release}. Run `taskit flow finish` when ready.");
-    Ok(())
-}
-
-pub fn finish(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
-    let sh = &ctx.sh;
     let main = flow.main_branch();
-    let develop = flow.develop_branch();
-    let release = flow.release_branch();
 
-    // Auto-switch to release if not already there.
-    if current_branch(sh)? != release {
+    if branch == develop {
+        require_clean(sh, develop)?;
+        require_branch_exists(sh, staging)?;
+        taskit_output::taskit_progress!("Promoting {develop} -> {staging}");
+        checkout(ctx, staging)?;
+        merge_no_ff(
+            ctx,
+            develop,
+            &format!("flow: promote {develop} into {staging}"),
+        )?;
+        taskit_output::taskit_ok!("Done. Now on {staging}.");
+    } else if branch == staging {
+        require_clean(sh, staging)?;
+        require_branch_exists(sh, release)?;
+        taskit_output::taskit_progress!("Promoting {staging} -> {release}");
         checkout(ctx, release)?;
+        merge_no_ff(
+            ctx,
+            staging,
+            &format!("flow: promote {staging} into {release}"),
+        )?;
+        taskit_output::taskit_ok!("Done. Now on {release}.");
+    } else if branch == release {
+        require_clean(sh, release)?;
+        require_branch_exists(sh, main)?;
+        require_branch_exists(sh, develop)?;
+        taskit_output::taskit_progress!(
+            "Promoting {release} -> {main}, then syncing {main} -> {develop}"
+        );
+        checkout(ctx, main)?;
+        merge_no_ff(
+            ctx,
+            release,
+            &format!("flow: promote {release} into {main}"),
+        )?;
+        checkout(ctx, develop)?;
+        merge_no_ff(ctx, main, &format!("flow: sync {main} into {develop}"))?;
+        taskit_output::taskit_ok!("Done. Now on {develop}. All branches are in sync.");
+    } else {
+        return Err(FlowError::NotAFlowBranch {
+            branch,
+            develop: develop.to_string(),
+            staging: staging.to_string(),
+            release: release.to_string(),
+        }
+        .into());
     }
-    require_clean(sh, release)?;
-    require_branch_exists(sh, main)?;
-    require_branch_exists(sh, develop)?;
 
-    taskit_output::taskit_progress!(
-        "Finishing release: {release} -> {main}, then syncing {main} -> {develop}"
-    );
-
-    // Merge release into main
-    checkout(ctx, main)?;
-    merge_no_ff(ctx, release, &format!("flow: finish {release} into {main}"))?;
-
-    // Sync main back into develop
-    checkout(ctx, develop)?;
-    merge_no_ff(ctx, main, &format!("flow: sync {main} into {develop}"))?;
-
-    taskit_output::taskit_ok!("Done. Now on {develop}. All branches are in sync.");
     Ok(())
 }
 

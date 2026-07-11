@@ -353,6 +353,7 @@ impl Command for Release {
 pub enum FlowAction {
     Status,
     Sync,
+    Promote,
     Guard,
     Auto {
         resolver: Box<dyn taskit_core::ConflictResolver>,
@@ -369,6 +370,7 @@ impl Command for Flow {
         match &self.action {
             FlowAction::Status => flow::status(ctx, &cfg),
             FlowAction::Sync => flow::sync(ctx, &cfg),
+            FlowAction::Promote => flow::promote(ctx, &cfg),
             FlowAction::Guard => flow::guard(ctx, &cfg),
             FlowAction::Auto {
                 resolver,

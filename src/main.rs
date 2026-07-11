@@ -232,10 +232,9 @@ enum FlowCmd {
     Status,
     /// Merge main into develop (bring in latest stable)
     Sync,
-    /// Run full develop → staging → release → main pipeline with CI gate (conflict resolution
-    /// requires BAML)
+    /// Advance current branch one stage: develop→staging, staging→release, release→main
     Promote,
-    /// Alias for promote
+    /// Run the full pipeline across all stages with CI gate (conflict resolution requires BAML)
     Auto,
     /// Validate current branch is not protected (for pre-commit hooks)
     Guard,
@@ -360,7 +359,8 @@ fn to_command(cmd: Cmd) -> Box<dyn Command> {
             let action = match sub {
                 FlowCmd::Status => FlowAction::Status,
                 FlowCmd::Sync => FlowAction::Sync,
-                FlowCmd::Promote | FlowCmd::Auto => FlowAction::Auto {
+                FlowCmd::Promote => FlowAction::Promote,
+                FlowCmd::Auto => FlowAction::Auto {
                     resolver: Box::new(flow_resolver::BamlConflictResolver),
                     ci_runner: Box::new(|c| {
                         taskit_engine::ci::run_default_internal(c, true, false)
