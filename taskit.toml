@@ -1,4 +1,5 @@
 [workspace]
+# root = "/path/to/workspace"  # defaults to Cargo.toml location
 crates = [
   { dir = "crates/taskit-core", pkg = "taskit-core" },
   { dir = "crates/taskit-types", pkg = "taskit-types" },
@@ -15,7 +16,7 @@ crates = [
 
 [[workspace.propagation]]
 source = "taskit-core"
-dependents = ["taskit-crux", "taskit-engine"]
+dependents = ["taskit-crux", "taskit-crux", "taskit-engine", "taskit-engine", "taskit"]
 
 [[workspace.propagation]]
 source = "taskit-engine"
@@ -43,6 +44,10 @@ dependents = ["taskit-core", "taskit-crux", "taskit-testing", "taskit-engine", "
 
 [protocol]
 # lockfile = "taskit-protocol.lock"
+
+[[protocol.surfaces]]
+name = "taskit-core-conflict_resolver"
+path = "crates/taskit-core/src/conflict_resolver.rs"
 
 [[protocol.surfaces]]
 name = "taskit-core-pipeline_runner"
@@ -79,7 +84,8 @@ path = "crates/taskit-init/src/plan.rs"
 # threshold = 80.0
 
 [ci]
-# cruxfile = "Cruxfile"
+# cruxfile  = "Cruxfile"  # path to Cruxfile for crux-based pipelines
+# fail_fast = false        # stop on first failing step
 
 [[ci.steps]]
 name = "self-check"
@@ -116,10 +122,40 @@ name = "check-protocol-drift"
 cmd = "check-protocol-drift"
 gate = false
 
-# Git flow: main (stable) -> staging (work) -> release (publish) -> main
+# Metric thresholds for `taskit inspect`. CLI flags override these.
+#
+# [inspect]
+# max_clippy_warnings = 0
+# max_clippy_errors   = 0
+# max_test_failures   = 0
+# max_todo_fixme      = 20   # omit to skip the TODO/FIXME check
+
+# Default retention policy for `taskit clean`. CLI --older-than overrides.
+#
+# [clean]
+# older_than = "7d"  # use `cargo sweep`; omit to run `cargo clean`
+
+# Git flow: main -> develop (work) -> staging (integration) -> release (publish) -> main
 # These are the defaults; uncomment to customize branch names.
 #
 # [flow]
 # main = "main"
+# develop = "develop"
 # staging = "staging"
 # release = "release"
+
+[release]
+github_repo = "89jobrien/taskit"
+publish_order = [
+  "taskit-types",
+  "taskit-core",
+  "taskit-testing",
+  "taskit-crux",
+  "taskit-macros",
+  "taskit-output",
+  "taskit-init",
+  "taskit-engine",
+  "taskit",
+]
+# skip_docs   = false  # skip `cargo doc` before publishing
+# allow_dirty = false  # publish with uncommitted changes
