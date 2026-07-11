@@ -232,16 +232,11 @@ enum FlowCmd {
     Status,
     /// Merge main into develop (bring in latest stable)
     Sync,
-    /// Merge develop into staging
+    /// Run full develop → staging → release → main pipeline with CI gate (conflict resolution
+    /// requires BAML)
     Promote,
-    /// Merge staging into release
-    Stage,
-    /// Merge release into main, then sync main into develop
-    Finish,
     /// Validate current branch is not protected (for pre-commit hooks)
     Guard,
-    /// Run full promote → stage → CI → finish pipeline (conflict resolution requires BAML)
-    Auto,
 }
 
 /// Map a parsed CLI subcommand to its [`Command`] implementation.
@@ -363,16 +358,13 @@ fn to_command(cmd: Cmd) -> Box<dyn Command> {
             let action = match sub {
                 FlowCmd::Status => FlowAction::Status,
                 FlowCmd::Sync => FlowAction::Sync,
-                FlowCmd::Promote => FlowAction::Promote,
-                FlowCmd::Stage => FlowAction::Stage,
-                FlowCmd::Finish => FlowAction::Finish,
-                FlowCmd::Guard => FlowAction::Guard,
-                FlowCmd::Auto => FlowAction::Auto {
+                FlowCmd::Promote => FlowAction::Auto {
                     resolver: Box::new(flow_resolver::BamlConflictResolver),
                     ci_runner: Box::new(|c| {
                         taskit_engine::ci::run_default_internal(c, true, false)
                     }),
                 },
+                FlowCmd::Guard => FlowAction::Guard,
             };
             Box::new(Flow { action })
         }

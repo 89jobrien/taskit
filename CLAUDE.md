@@ -47,12 +47,12 @@ taskit --dry-run <subcommand>   # print without executing
 | `publish [--skip-docs] [--allow-dirty]`                  | Generate docs and publish to crates.io |
 | `init [--force] [--interactive]`                         | Generate taskit.toml, Cruxfile, hooks  |
 | `flow status`                                            | Show current branch / staging state    |
-| `flow promote`                                           | Merge main -> staging                  |
-| `flow finish`                                            | Merge staging -> main after CI         |
-| `flow guard`                                             | Assert branch invariants               |
-| `flow auto`                                              | Promote -> CI -> finish; LLM conflict  |
-|                                                          | resolution via BamlConflictResolver;   |
+| `flow sync`                                              | Merge main -> develop                  |
+| `flow promote`                                           | Full pipeline: develop -> staging ->   |
+|                                                          | release -> main with CI gate; LLM      |
+|                                                          | conflict resolution via BAML;          |
 |                                                          | escalates via FlowError::NeedsHuman    |
+| `flow guard`                                             | Assert branch invariants               |
 
 ## Architecture
 
