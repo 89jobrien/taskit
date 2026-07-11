@@ -390,8 +390,11 @@ All configuration lives in `taskit.toml` at the workspace root.
 | `[workspace]` | Crate list, propagation rules, offline skip |
 | `[protocol]` | Contract surface drift detection |
 | `[coverage]` | Coverage enforcement |
-| `[ci]` | Pipeline steps |
+| `[ci]` | Pipeline steps, fail_fast default |
+| `[inspect]` | Metric thresholds (warnings, errors, TODOs) |
+| `[clean]` | Artifact retention policy |
 | `[flow]` | Git branching workflow |
+| `[release]` | Publish order, GitHub repo, skip_docs, allow_dirty |
 ",
             dry_run,
         )?;
@@ -535,7 +538,9 @@ pub fn write_xtask(force: bool, dry_run: bool) -> Result<(), TaskitError> {
     if main_rs.exists() && !force {
         let existing = std::fs::read_to_string(&main_rs)?;
         if existing.contains(XTASK_SENTINEL) {
-            eprintln!("xtask/src/main.rs already has taskit-managed block, skipping");
+            if !dry_run {
+                eprintln!("xtask/src/main.rs already has taskit-managed block, skipping");
+            }
             return Ok(());
         }
         // Inject the block at the end of the existing file.

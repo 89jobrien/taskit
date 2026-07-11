@@ -205,15 +205,19 @@ mod tests {
         #[test]
         fn prop_release_config_publish_order_preserved(
             publish_order in proptest::collection::vec("[a-z][a-z0-9-]{1,20}", 0..=5),
+            skip_docs in proptest::option::of(proptest::bool::ANY),
+            allow_dirty in proptest::option::of(proptest::bool::ANY),
         ) {
             let cfg = ReleaseConfig {
                 github_repo: None,
                 publish_order: publish_order.clone(),
-                skip_docs: None,
-                allow_dirty: None,
+                skip_docs,
+                allow_dirty,
             };
             prop_assert_eq!(cfg.github_repo(), None);
             prop_assert_eq!(cfg.publish_order, publish_order);
+            prop_assert_eq!(cfg.skip_docs, skip_docs);
+            prop_assert_eq!(cfg.allow_dirty, allow_dirty);
         }
     }
 
@@ -358,6 +362,65 @@ mod tests {
             threshold: Some(92.5),
         };
         assert_eq!(cfg.threshold(), 92.5);
+    }
+
+    #[test]
+    fn inspect_config_deserializes_all_fields() {
+        let cfg: InspectConfig = toml::from_str(
+            r#"
+            max_clippy_warnings = 5
+            max_clippy_errors   = 2
+            max_test_failures   = 0
+            max_todo_fixme      = 20
+            "#,
+        )
+        .expect("InspectConfig TOML should parse");
+        assert_eq!(cfg.max_clippy_warnings, Some(5));
+        assert_eq!(cfg.max_clippy_errors, Some(2));
+        assert_eq!(cfg.max_test_failures, Some(0));
+        assert_eq!(cfg.max_todo_fixme, Some(20));
+    }
+
+    #[test]
+    fn inspect_config_all_fields_optional() {
+        let cfg: InspectConfig = toml::from_str("").expect("empty InspectConfig should parse");
+        assert!(cfg.max_clippy_warnings.is_none());
+        assert!(cfg.max_clippy_errors.is_none());
+        assert!(cfg.max_test_failures.is_none());
+        assert!(cfg.max_todo_fixme.is_none());
+    }
+
+    #[test]
+    fn clean_config_deserializes_older_than() {
+        let cfg: CleanConfig =
+            toml::from_str(r#"older_than = "7d""#).expect("CleanConfig TOML should parse");
+        assert_eq!(cfg.older_than.as_deref(), Some("7d"));
+    }
+
+    #[test]
+    fn clean_config_older_than_optional() {
+        let cfg: CleanConfig = toml::from_str("").expect("empty CleanConfig should parse");
+        assert!(cfg.older_than.is_none());
+    }
+
+    #[test]
+    fn ci_config_fail_fast_parses() {
+        let cfg: CiConfig =
+            toml::from_str("fail_fast = true").expect("CiConfig fail_fast should parse");
+        assert_eq!(cfg.fail_fast, Some(true));
+    }
+
+    #[test]
+    fn ci_config_fail_fast_defaults_to_none() {
+        let cfg: CiConfig = toml::from_str("").unwrap();
+        assert!(cfg.fail_fast.is_none());
+    }
+
+    #[test]
+    fn release_config_skip_docs_and_allow_dirty_parse() {
+        let cfg: ReleaseConfig = toml::from_str("skip_docs = true\nallow_dirty = false").unwrap();
+        assert_eq!(cfg.skip_docs, Some(true));
+        assert_eq!(cfg.allow_dirty, Some(false));
     }
 
     #[test]
