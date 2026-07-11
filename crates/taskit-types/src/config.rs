@@ -53,14 +53,14 @@ impl Config {
         // coverage threshold must be in (0, 100]
         if let Some(ref cov) = self.coverage {
             let t = cov.threshold;
-            if let Some(v) = t {
-                if !v.is_finite() || v <= 0.0 || v > 100.0 {
-                    diags.push(ConfigDiagnostic {
-                        severity: DiagnosticSeverity::Error,
-                        field: "coverage.threshold".into(),
-                        message: format!("threshold must be in (0, 100], got {v}"),
-                    });
-                }
+            if let Some(v) = t
+                && (!v.is_finite() || v <= 0.0 || v > 100.0)
+            {
+                diags.push(ConfigDiagnostic {
+                    severity: DiagnosticSeverity::Error,
+                    field: "coverage.threshold".into(),
+                    message: format!("threshold must be in (0, 100], got {v}"),
+                });
             }
         }
 
@@ -95,16 +95,15 @@ impl Config {
         }
 
         // release github_repo must be in owner/name format if set
-        if let Some(ref rel) = self.release {
-            if let Some(repo) = &rel.github_repo {
-                if repo.matches('/').count() != 1 {
-                    diags.push(ConfigDiagnostic {
-                        severity: DiagnosticSeverity::Warning,
-                        field: "release.github_repo".into(),
-                        message: format!("expected `owner/repo` format, got {repo:?}"),
-                    });
-                }
-            }
+        if let Some(ref rel) = self.release
+            && let Some(repo) = &rel.github_repo
+            && repo.matches('/').count() != 1
+        {
+            diags.push(ConfigDiagnostic {
+                severity: DiagnosticSeverity::Warning,
+                field: "release.github_repo".into(),
+                message: format!("expected `owner/repo` format, got {repo:?}"),
+            });
         }
 
         diags
