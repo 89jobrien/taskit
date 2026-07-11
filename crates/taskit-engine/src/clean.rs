@@ -5,7 +5,10 @@ use crate::ctx::Ctx;
 
 pub fn run(ctx: &Ctx, older_than: Option<&str>) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
-    if let Some(days) = older_than {
+    // CLI flag wins; fall back to [clean] older_than in taskit.toml.
+    let config_days = ctx.clean_config().and_then(|c| c.older_than.as_deref());
+    let effective = older_than.or(config_days);
+    if let Some(days) = effective {
         let days_num = days.strip_suffix('d').unwrap_or(days);
         if days_num.parse::<u64>().is_err() {
             return Err(TaskitError::other(format!(
@@ -105,5 +108,23 @@ mod tests {
     fn older_than_rejects_uppercase_d_suffix() {
         // Only lowercase 'd' is stripped; uppercase is not.
         assert!(!check_parse("7D"));
+    }
+
+    #[test]
+    fn clean_config_older_than_used_when_cli_none() {
+        // When CLI passes None, the effective value comes from config.
+        let config_days: Option<&str> = Some("7d");
+        let cli_arg: Option<&str> = None;
+        let effective = cli_arg.or(config_days);
+        assert_eq!(effective, Some("7d"));
+    }
+
+    #[test]
+    fn clean_no_config_and_no_cli_uses_cargo_clean() {
+        // When both are None, effective is None → cargo clean path is taken.
+        let config_days: Option<&str> = None;
+        let cli_arg: Option<&str> = None;
+        let effective = cli_arg.or(config_days);
+        assert!(effective.is_none());
     }
 }

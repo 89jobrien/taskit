@@ -144,6 +144,7 @@ mod tests {
                 gate: false,
             }],
             cruxfile: None,
+            fail_fast: None,
         }
     }
 

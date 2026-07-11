@@ -115,6 +115,22 @@ crate changes, all listed dependents are automatically included.
 surfaces from `[[protocol.surfaces]]`. Use `taskit check-protocol-drift
 --update` to regenerate.
 
+## Config Reference (`taskit.toml`)
+
+Key optional sections and their top-level fields:
+
+| Section      | Fields                                                              |
+| ------------ | ------------------------------------------------------------------- |
+| `[ci]`       | `steps`, `cruxfile`, `fail_fast` (bool — stop on first failure)    |
+| `[inspect]`  | `max_clippy_warnings`, `max_clippy_errors`, `max_test_failures`,   |
+|              | `max_todo_fixme` (all `usize`; absent = not checked)               |
+| `[clean]`    | `older_than` (e.g. `"7d"` — uses `cargo sweep`; absent = full     |
+|              | `cargo clean`)                                                      |
+| `[release]`  | `github_repo`, `publish_order`, `skip_docs` (bool), `allow_dirty` |
+|              | (bool)                                                              |
+
+CLI flags always override the corresponding config values.
+
 ## Testing
 
 ```bash

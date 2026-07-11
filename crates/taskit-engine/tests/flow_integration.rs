@@ -22,7 +22,7 @@ impl ConflictResolver for PanicResolver {
     }
 }
 
-/// Set up a temporary git repo with `main`, `staging`, and `release` branches.
+/// Set up a temporary git repo with `main`, `develop`, `staging`, and `release` branches.
 ///
 /// Returns `(TempDir, Ctx, FlowConfig)`. The context's shell working directory
 /// is set to the tempdir root. The caller must keep the `TempDir` alive for the
@@ -40,6 +40,9 @@ fn setup_flow_repo() -> (tempfile::TempDir, Ctx, FlowConfig) {
     cmd!(sh, "git config user.name Test")
         .run()
         .expect("git config name");
+    cmd!(sh, "git config core.hooksPath /dev/null")
+        .run()
+        .expect("disable hooks");
 
     // Initial commit on main.
     sh.write_file("README.md", "# test\n")
@@ -47,7 +50,10 @@ fn setup_flow_repo() -> (tempfile::TempDir, Ctx, FlowConfig) {
     cmd!(sh, "git add README.md").run().expect("git add");
     cmd!(sh, "git commit -m init").run().expect("git commit");
 
-    // Create staging and release from main.
+    // Create develop, staging, and release from main.
+    cmd!(sh, "git branch develop")
+        .run()
+        .expect("branch develop");
     cmd!(sh, "git branch staging")
         .run()
         .expect("branch staging");
@@ -105,26 +111,63 @@ fn flow_guard_blocks_on_main() {
 }
 
 #[test]
-fn flow_guard_allows_staging() {
+fn flow_guard_allows_develop() {
     let (_dir, ctx, flow) = setup_flow_repo();
-    cmd!(ctx.sh, "git checkout staging")
+    cmd!(ctx.sh, "git checkout develop")
         .run()
-        .expect("checkout staging");
+        .expect("checkout develop");
     let result = flow::guard(&ctx, &flow);
     assert!(
         result.is_ok(),
-        "flow::guard should allow staging: {result:?}"
+        "flow::guard should allow develop: {result:?}"
     );
 }
 
 #[test]
-fn flow_promote_merges_staging_to_release() {
+fn flow_sync_merges_main_into_develop() {
     let (_dir, ctx, flow) = setup_flow_repo();
 
-    // Add a commit on staging.
-    cmd!(ctx.sh, "git checkout staging")
+    // Add a commit on main after develop branched off.
+    commit_file(&ctx.sh, "hotfix.txt", "hotfix\n", "fix: hotfix on main");
+    let main_sha = branch_sha(&ctx.sh, "main");
+
+    // Sync: requires being on develop.
+    cmd!(ctx.sh, "git checkout develop")
         .run()
-        .expect("checkout staging");
+        .expect("checkout develop");
+    flow::sync(&ctx, &flow).expect("flow::sync");
+
+    let reachable = cmd!(ctx.sh, "git merge-base --is-ancestor {main_sha} develop")
+        .run()
+        .is_ok();
+    assert!(
+        reachable,
+        "main commit not reachable from develop after sync"
+    );
+}
+
+#[test]
+fn flow_sync_fails_on_wrong_branch() {
+    let (_dir, ctx, flow) = setup_flow_repo();
+    // We are on main — sync requires develop.
+    let result = flow::sync(&ctx, &flow);
+    match result {
+        Err(TaskitError::Flow(FlowError::WrongBranch { expected, actual })) => {
+            assert_eq!(expected, "develop");
+            assert_eq!(actual, "main");
+        }
+        other => panic!("expected WrongBranch, got {other:?}"),
+    }
+}
+
+#[test]
+fn flow_promote_merges_develop_to_staging() {
+    let (_dir, ctx, flow) = setup_flow_repo();
+
+    // Add a commit on develop.
+    cmd!(ctx.sh, "git checkout develop")
+        .run()
+        .expect("checkout develop");
     commit_file(
         &ctx.sh,
         "feature.txt",
@@ -132,29 +175,92 @@ fn flow_promote_merges_staging_to_release() {
         "feat: add feature",
     );
 
-    let staging_sha = branch_sha(&ctx.sh, "staging");
+    let develop_sha = branch_sha(&ctx.sh, "develop");
 
     flow::promote(&ctx, &flow).expect("flow::promote");
 
-    // After promote we should be back on staging; verify release has the commit.
-    let release_sha = branch_sha(&ctx.sh, "release");
+    // After promote we are on staging; develop commit must be reachable from staging.
+    let staging_sha = branch_sha(&ctx.sh, "staging");
     assert_ne!(
-        staging_sha, release_sha,
-        "release should have advanced past its original tip"
+        develop_sha, staging_sha,
+        "staging should have advanced past its original tip"
     );
-
-    // The staging commit must be reachable from release.
-    let reachable = cmd!(ctx.sh, "git merge-base --is-ancestor {staging_sha} release")
+    let reachable = cmd!(ctx.sh, "git merge-base --is-ancestor {develop_sha} staging")
         .run()
         .is_ok();
-    assert!(reachable, "staging commit not reachable from release");
+    assert!(reachable, "develop commit not reachable from staging");
 }
 
 #[test]
 fn flow_promote_fails_on_wrong_branch() {
     let (_dir, ctx, flow) = setup_flow_repo();
-    // We are on main — promote requires staging.
+    // We are on main — promote requires develop.
     let result = flow::promote(&ctx, &flow);
+    match result {
+        Err(TaskitError::Flow(FlowError::WrongBranch { expected, actual })) => {
+            assert_eq!(expected, "develop");
+            assert_eq!(actual, "main");
+        }
+        other => panic!("expected WrongBranch, got {other:?}"),
+    }
+}
+
+#[test]
+fn flow_promote_leaves_user_on_staging() {
+    let (_dir, ctx, flow) = setup_flow_repo();
+
+    cmd!(ctx.sh, "git checkout develop")
+        .run()
+        .expect("checkout develop");
+    commit_file(&ctx.sh, "feature.txt", "feature\n", "feat: add feature");
+
+    flow::promote(&ctx, &flow).expect("flow::promote");
+
+    let branch = cmd!(ctx.sh, "git branch --show-current")
+        .read()
+        .expect("branch");
+    assert_eq!(
+        branch.trim(),
+        "staging",
+        "promote should leave user on staging"
+    );
+}
+
+#[test]
+fn flow_stage_merges_staging_to_release() {
+    let (_dir, ctx, flow) = setup_flow_repo();
+
+    // Add a commit on staging.
+    cmd!(ctx.sh, "git checkout staging")
+        .run()
+        .expect("checkout staging");
+    commit_file(&ctx.sh, "rc.txt", "rc content\n", "chore: staging commit");
+
+    let staging_sha = branch_sha(&ctx.sh, "staging");
+
+    flow::stage(&ctx, &flow).expect("flow::stage");
+
+    // After stage we are on release; staging commit must be reachable.
+    let reachable = cmd!(ctx.sh, "git merge-base --is-ancestor {staging_sha} release")
+        .run()
+        .is_ok();
+    assert!(reachable, "staging commit not reachable from release");
+
+    let branch = cmd!(ctx.sh, "git branch --show-current")
+        .read()
+        .expect("branch");
+    assert_eq!(
+        branch.trim(),
+        "release",
+        "stage should leave user on release"
+    );
+}
+
+#[test]
+fn flow_stage_fails_on_wrong_branch() {
+    let (_dir, ctx, flow) = setup_flow_repo();
+    // We are on main — stage requires staging.
+    let result = flow::stage(&ctx, &flow);
     match result {
         Err(TaskitError::Flow(FlowError::WrongBranch { expected, actual })) => {
             assert_eq!(expected, "staging");
@@ -165,7 +271,7 @@ fn flow_promote_fails_on_wrong_branch() {
 }
 
 #[test]
-fn flow_finish_merges_release_to_main_and_syncs_staging() {
+fn flow_finish_merges_release_to_main_and_syncs_develop() {
     let (_dir, ctx, flow) = setup_flow_repo();
 
     // Add a commit directly on release.
@@ -178,47 +284,25 @@ fn flow_finish_merges_release_to_main_and_syncs_staging() {
 
     flow::finish(&ctx, &flow).expect("flow::finish");
 
-    // After finish we are on staging. Verify main contains the release commit.
+    // After finish we are on develop. Verify main contains the release commit.
     let main_reachable = cmd!(ctx.sh, "git merge-base --is-ancestor {release_sha} main")
         .run()
         .is_ok();
     assert!(main_reachable, "release commit not reachable from main");
 
-    // Verify staging was synced (main commit reachable from staging).
+    // Verify develop was synced (main commit reachable from develop).
     let main_sha = branch_sha(&ctx.sh, "main");
-    let staging_reachable = cmd!(ctx.sh, "git merge-base --is-ancestor {main_sha} staging")
+    let develop_reachable = cmd!(ctx.sh, "git merge-base --is-ancestor {main_sha} develop")
         .run()
         .is_ok();
     assert!(
-        staging_reachable,
-        "main not yet synced into staging after finish"
+        develop_reachable,
+        "main not yet synced into develop after finish"
     );
 }
 
 #[test]
-fn flow_promote_leaves_user_on_release() {
-    let (_dir, ctx, flow) = setup_flow_repo();
-
-    // Add a commit on staging so promote has something to merge.
-    cmd!(ctx.sh, "git checkout staging")
-        .run()
-        .expect("checkout staging");
-    commit_file(&ctx.sh, "feature.txt", "feature\n", "feat: add feature");
-
-    flow::promote(&ctx, &flow).expect("flow::promote");
-
-    let branch = cmd!(ctx.sh, "git branch --show-current")
-        .read()
-        .expect("branch");
-    assert_eq!(
-        branch.trim(),
-        "release",
-        "promote should leave user on release"
-    );
-}
-
-#[test]
-fn flow_finish_auto_switches_from_staging() {
+fn flow_finish_auto_switches_from_develop() {
     let (_dir, ctx, flow) = setup_flow_repo();
 
     // Seed release with a commit.
@@ -227,22 +311,22 @@ fn flow_finish_auto_switches_from_staging() {
         .expect("checkout release");
     commit_file(&ctx.sh, "hotfix.txt", "hotfix\n", "fix: hotfix");
 
-    // Switch to staging — finish should auto-switch to release.
-    cmd!(ctx.sh, "git checkout staging")
+    // Switch to develop — finish should auto-switch to release.
+    cmd!(ctx.sh, "git checkout develop")
         .run()
-        .expect("checkout staging");
+        .expect("checkout develop");
 
-    flow::finish(&ctx, &flow).expect("flow::finish should succeed from staging");
+    flow::finish(&ctx, &flow).expect("flow::finish should succeed from develop");
 }
 
 #[test]
-fn flow_auto_requires_staging_branch() {
+fn flow_auto_requires_develop_branch() {
     let (_dir, ctx, flow) = setup_flow_repo();
-    // We start on main — auto requires staging.
+    // We start on main — auto requires develop.
     let result = flow::auto(&ctx, &flow, &PanicResolver);
     match result {
         Err(TaskitError::Flow(FlowError::WrongBranch { expected, actual })) => {
-            assert_eq!(expected, "staging");
+            assert_eq!(expected, "develop");
             assert_eq!(actual, "main");
         }
         other => panic!("expected WrongBranch, got {other:?}"),
@@ -250,39 +334,36 @@ fn flow_auto_requires_staging_branch() {
 }
 
 #[test]
-fn flow_auto_requires_clean_staging() {
+fn flow_auto_requires_clean_develop() {
     let (_dir, ctx, flow) = setup_flow_repo();
-    cmd!(ctx.sh, "git checkout staging")
+    cmd!(ctx.sh, "git checkout develop")
         .run()
-        .expect("checkout staging");
-    // Create an uncommitted file.
+        .expect("checkout develop");
+    // staged but not committed
     ctx.sh
         .write_file("dirty.txt", "untracked\n")
         .expect("write dirty");
     cmd!(ctx.sh, "git add dirty.txt").run().expect("git add");
-    // staged but not committed
     let result = flow::auto(&ctx, &flow, &PanicResolver);
     match result {
         Err(TaskitError::Flow(FlowError::DirtyWorktree { branch })) => {
-            assert_eq!(branch, "staging");
+            assert_eq!(branch, "develop");
         }
         other => panic!("expected DirtyWorktree, got {other:?}"),
     }
 }
 
 #[test]
-fn flow_auto_no_conflict_happy_path_ends_on_staging() {
+fn flow_auto_no_conflict_happy_path_ends_on_develop() {
     let (_dir, ctx, flow) = setup_flow_repo();
 
-    // Add a commit on staging.
-    cmd!(ctx.sh, "git checkout staging")
+    // Add a commit on develop.
+    cmd!(ctx.sh, "git checkout develop")
         .run()
-        .expect("checkout staging");
+        .expect("checkout develop");
     commit_file(&ctx.sh, "feature.txt", "new feature\n", "feat: add feature");
 
-    // `auto` will run CI internally. We need a minimal taskit.toml in the tempdir
-    // so that run_default_internal can load config. Use dry_run=true via a new Ctx
-    // so ci steps don't actually execute.
+    // Use dry_run=true so CI steps don't actually execute.
     let dry_ctx = Ctx::new(
         xshell::Shell::new().expect("shell"),
         ctx.root.clone(),
@@ -290,11 +371,9 @@ fn flow_auto_no_conflict_happy_path_ends_on_staging() {
         true, // dry_run
         OutputFormat::Human,
     );
-    // The dry_run ctx needs its shell in the tempdir.
     dry_ctx.sh.change_dir(&ctx.root);
 
     let result = flow::auto(&dry_ctx, &flow, &PanicResolver);
-    // In dry_run mode all git ops are printed but not run — the outcome is Ok.
     assert!(result.is_ok(), "flow::auto dry-run failed: {result:?}");
 }
 
@@ -321,14 +400,12 @@ fn merge_with_resolution_fast_path_no_conflict() {
         &PanicResolver,
     );
     assert!(result.is_ok(), "clean merge failed: {result:?}");
-    // release should now contain the staging commit.
     let log = cmd!(ctx.sh, "git log --oneline -1").read().expect("log");
     assert!(log.contains("merge staging into release"), "got: {log}");
 }
 
 #[test]
 fn merge_with_resolution_needs_human_escalates() {
-    // Build a repo with a true content conflict from scratch.
     let dir = tempfile::tempdir().expect("tempdir");
     let sh = xshell::Shell::new().expect("shell");
     sh.change_dir(dir.path());
@@ -340,12 +417,10 @@ fn merge_with_resolution_needs_human_escalates() {
     cmd!(sh, "git config core.hooksPath /dev/null")
         .run()
         .expect("disable hooks");
-    // Shared base commit.
     sh.write_file("shared.txt", "base content\n")
         .expect("write");
     cmd!(sh, "git add shared.txt").run().expect("add");
     cmd!(sh, "git commit -m base").run().expect("commit");
-    // Create staging and release from the same base, diverge shared.txt.
     cmd!(sh, "git branch staging")
         .run()
         .expect("branch staging");
@@ -403,13 +478,11 @@ fn merge_with_resolution_needs_human_escalates() {
         }
         other => panic!("expected NeedsHuman, got {other:?}"),
     }
-    // Abort the in-progress merge so the repo is clean for teardown.
     let _ = cmd!(ctx.sh, "git merge --abort").run();
 }
 
 #[test]
 fn merge_with_resolution_resolver_resolves_conflict() {
-    // Build a repo with a true content conflict from scratch.
     let dir = tempfile::tempdir().expect("tempdir");
     let sh = xshell::Shell::new().expect("shell");
     sh.change_dir(dir.path());
@@ -477,7 +550,6 @@ fn merge_with_resolution_resolver_resolves_conflict() {
     );
     assert!(result.is_ok(), "resolution failed: {result:?}");
 
-    // The resolved content should be on disk.
     let content = std::fs::read_to_string(ctx.root.join("shared.txt")).expect("read");
     assert_eq!(content, "resolved content\n");
 }
@@ -486,8 +558,6 @@ fn merge_with_resolution_resolver_resolves_conflict() {
 fn merge_with_resolution_nothing_to_merge_returns_merge_failed() {
     let (_dir, ctx, _flow) = setup_flow_repo();
 
-    // release and staging are identical — merge produces "Already up to date."
-    // which git exits 0 for. Force a failure by merging a non-existent branch.
     cmd!(ctx.sh, "git checkout release")
         .run()
         .expect("checkout release");

@@ -74,6 +74,7 @@ mod tests {
             deny_toml: false,
             ctx_scaffold: false,
             mdbook: false,
+            xtask: false,
         }
     }
 

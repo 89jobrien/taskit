@@ -20,24 +20,35 @@ const PUBLISH_ORDER: &[&str] = &[
 pub fn run(ctx: &Ctx, skip_docs: bool, allow_dirty: bool) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     let dry_run = ctx.dry_run;
+    // CLI wins over config: `true || _` short-circuits so an explicit CLI flag
+    // always takes effect regardless of what [release] says.
+    let rel = ctx.release_config();
+    let effective_skip_docs = skip_docs || rel.and_then(|r| r.skip_docs).unwrap_or(false);
+    let effective_allow_dirty = allow_dirty || rel.and_then(|r| r.allow_dirty).unwrap_or(false);
+
     let mut pipeline = Pipeline::new(true);
 
-    if !skip_docs {
+    if !effective_skip_docs {
         pipeline = pipeline.gate("cargo doc", || {
             let doc_cmd = cmd!(sh, "cargo doc --workspace --no-deps");
             ctx.run(doc_cmd)
         });
     }
 
-    for krate in PUBLISH_ORDER {
-        let krate = *krate;
+    let effective_order: Vec<String> = ctx
+        .release_config()
+        .filter(|r| !r.publish_order.is_empty())
+        .map(|r| r.publish_order.clone())
+        .unwrap_or_else(|| PUBLISH_ORDER.iter().map(|s| s.to_string()).collect());
+
+    for krate in effective_order {
         let step_name = format!("publish {krate}");
         pipeline = pipeline.step(&step_name, move || {
-            let mut args = vec!["publish", "-p", krate];
+            let mut args = vec!["publish", "-p", krate.as_str()];
             if dry_run {
                 args.push("--dry-run");
             }
-            if allow_dirty {
+            if effective_allow_dirty {
                 args.push("--allow-dirty");
             }
             let publish_cmd = cmd!(sh, "cargo {args...}");
@@ -103,5 +114,53 @@ mod tests {
     #[test]
     fn engine_before_root() {
         assert!(pos("taskit-engine") < pos("taskit"));
+    }
+
+    // --- Finding 6: config fallback logic tests ---
+
+    fn resolve_flag(cli: bool, config: Option<bool>) -> bool {
+        cli || config.unwrap_or(false)
+    }
+
+    #[test]
+    fn effective_skip_docs_cli_wins() {
+        assert!(resolve_flag(true, Some(false)));
+    }
+
+    #[test]
+    fn effective_skip_docs_config_used_when_cli_false() {
+        assert!(resolve_flag(false, Some(true)));
+    }
+
+    #[test]
+    fn effective_allow_dirty_none_config_defaults_false() {
+        assert!(!resolve_flag(false, None));
+    }
+
+    #[test]
+    fn effective_allow_dirty_cli_true_no_config() {
+        assert!(resolve_flag(true, None));
+    }
+
+    #[test]
+    fn config_publish_order_overrides_constant() {
+        let config_order: Vec<String> = vec!["crate-a".into(), "crate-b".into()];
+        let effective: Vec<&str> = if !config_order.is_empty() {
+            config_order.iter().map(String::as_str).collect()
+        } else {
+            PUBLISH_ORDER.to_vec()
+        };
+        assert_eq!(effective, vec!["crate-a", "crate-b"]);
+    }
+
+    #[test]
+    fn empty_config_publish_order_falls_back_to_constant() {
+        let config_order: Vec<String> = vec![];
+        let effective: Vec<&str> = if !config_order.is_empty() {
+            config_order.iter().map(String::as_str).collect()
+        } else {
+            PUBLISH_ORDER.to_vec()
+        };
+        assert_eq!(effective, PUBLISH_ORDER);
     }
 }

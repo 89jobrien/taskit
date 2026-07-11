@@ -56,15 +56,17 @@ pub fn run(ctx: &Ctx, fail_fast: bool, include_network: bool) -> Result<(), Task
     let offline = !include_network;
     let output_format = ctx.output;
     let capture = matches!(output_format, OutputFormat::Sarif);
+    // CLI flag wins; fall back to [ci] fail_fast config; default false.
+    let effective_fail_fast = fail_fast || ctx.ci().and_then(|c| c.fail_fast).unwrap_or(false);
     let outcome = match ctx.ci() {
         Some(cfg) if !cfg.steps.is_empty() => {
-            run_from_config_internal(ctx, cfg, fail_fast, offline)
+            run_from_config_internal(ctx, cfg, effective_fail_fast, offline)
         }
         Some(_) => {
             // Explicit [ci] with empty steps = run nothing
-            Pipeline::new(fail_fast).run()
+            Pipeline::new(effective_fail_fast).run()
         }
-        None => run_default_pipeline(ctx, fail_fast, offline, capture),
+        None => run_default_pipeline(ctx, effective_fail_fast, offline, capture),
     };
     Ok(taskit_output::write_output(output_format, &outcome)?)
 }
@@ -337,10 +339,42 @@ mod tests {
         let cfg = CiConfig {
             steps: vec![],
             cruxfile: None,
+            fail_fast: None,
         };
         // Empty steps = run nothing (not the default pipeline)
         let outcome = run_from_config_internal(&ctx, &cfg, false, false);
         assert!(outcome.passed);
         assert!(outcome.results.is_empty());
+    }
+
+    // --- effective_fail_fast resolution logic ---
+
+    fn resolve_fail_fast(cli: bool, config: Option<bool>) -> bool {
+        cli || config.unwrap_or(false)
+    }
+
+    #[test]
+    fn effective_fail_fast_cli_false_config_true() {
+        assert!(resolve_fail_fast(false, Some(true)));
+    }
+
+    #[test]
+    fn effective_fail_fast_cli_true_config_false() {
+        assert!(resolve_fail_fast(true, Some(false)));
+    }
+
+    #[test]
+    fn effective_fail_fast_cli_true_config_none() {
+        assert!(resolve_fail_fast(true, None));
+    }
+
+    #[test]
+    fn effective_fail_fast_both_false() {
+        assert!(!resolve_fail_fast(false, Some(false)));
+    }
+
+    #[test]
+    fn effective_fail_fast_both_none() {
+        assert!(!resolve_fail_fast(false, None));
     }
 }

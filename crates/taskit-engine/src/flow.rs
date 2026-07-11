@@ -193,6 +193,7 @@ fn checkout(ctx: &Ctx, branch: &str) -> Result<(), TaskitError> {
 pub fn status(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     let main = flow.main_branch();
+    let develop = flow.develop_branch();
     let staging = flow.staging_branch();
     let release = flow.release_branch();
     let current = current_branch(sh)?;
@@ -200,7 +201,13 @@ pub fn status(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
     taskit_output::taskit_progress!("Flow status (current branch: {current})");
     taskit_output::taskit_progress!("");
 
-    for (from, to) in [(staging, main), (release, staging), (main, release)] {
+    // main → develop → staging → release → main
+    for (from, to) in [
+        (main, develop),
+        (develop, staging),
+        (staging, release),
+        (release, main),
+    ] {
         if !branch_exists(sh, from)? || !branch_exists(sh, to)? {
             taskit_output::taskit_progress!("{from} -> {to}: (branch missing)");
             continue;
@@ -211,7 +218,45 @@ pub fn status(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
     Ok(())
 }
 
+/// Merge main into develop, bringing in the latest stable changes.
+pub fn sync(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    let main = flow.main_branch();
+    let develop = flow.develop_branch();
+
+    require_branch(sh, develop)?;
+    require_clean(sh, develop)?;
+    require_branch_exists(sh, main)?;
+
+    taskit_output::taskit_progress!("Syncing {main} -> {develop}");
+    merge_no_ff(ctx, main, &format!("flow: sync {main} into {develop}"))?;
+    taskit_output::taskit_ok!("Done. {develop} is up to date with {main}.");
+    Ok(())
+}
+
+/// Advance work from develop to staging.
 pub fn promote(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    let develop = flow.develop_branch();
+    let staging = flow.staging_branch();
+
+    require_branch(sh, develop)?;
+    require_clean(sh, develop)?;
+    require_branch_exists(sh, staging)?;
+
+    taskit_output::taskit_progress!("Promoting {develop} -> {staging}");
+    checkout(ctx, staging)?;
+    merge_no_ff(
+        ctx,
+        develop,
+        &format!("flow: promote {develop} into {staging}"),
+    )?;
+    taskit_output::taskit_ok!("Done. Now on {staging}. Run `taskit flow stage` when ready.");
+    Ok(())
+}
+
+/// Advance staging to release.
+pub fn stage(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     let staging = flow.staging_branch();
     let release = flow.release_branch();
@@ -220,12 +265,12 @@ pub fn promote(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
     require_clean(sh, staging)?;
     require_branch_exists(sh, release)?;
 
-    taskit_output::taskit_progress!("Promoting {staging} -> {release}");
+    taskit_output::taskit_progress!("Staging {staging} -> {release}");
     checkout(ctx, release)?;
     merge_no_ff(
         ctx,
         staging,
-        &format!("flow: promote {staging} into {release}"),
+        &format!("flow: stage {staging} into {release}"),
     )?;
     taskit_output::taskit_ok!("Done. Now on {release}. Run `taskit flow finish` when ready.");
     Ok(())
@@ -234,7 +279,7 @@ pub fn promote(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
 pub fn finish(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     let main = flow.main_branch();
-    let staging = flow.staging_branch();
+    let develop = flow.develop_branch();
     let release = flow.release_branch();
 
     // Auto-switch to release if not already there.
@@ -243,21 +288,21 @@ pub fn finish(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
     }
     require_clean(sh, release)?;
     require_branch_exists(sh, main)?;
-    require_branch_exists(sh, staging)?;
+    require_branch_exists(sh, develop)?;
 
     taskit_output::taskit_progress!(
-        "Finishing release: {release} -> {main}, then syncing {main} -> {staging}"
+        "Finishing release: {release} -> {main}, then syncing {main} -> {develop}"
     );
 
     // Merge release into main
     checkout(ctx, main)?;
     merge_no_ff(ctx, release, &format!("flow: finish {release} into {main}"))?;
 
-    // Sync main back into staging
-    checkout(ctx, staging)?;
-    merge_no_ff(ctx, main, &format!("flow: sync {main} into {staging}"))?;
+    // Sync main back into develop
+    checkout(ctx, develop)?;
+    merge_no_ff(ctx, main, &format!("flow: sync {main} into {develop}"))?;
 
-    taskit_output::taskit_ok!("Done. Now on {staging}. All branches are in sync.");
+    taskit_output::taskit_ok!("Done. Now on {develop}. All branches are in sync.");
     Ok(())
 }
 
@@ -277,13 +322,15 @@ pub fn guard(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
     Ok(())
 }
 
-/// Run the full promote → CI gate → finish pipeline with LLM-assisted conflict resolution.
+/// Run the full promote → stage → CI gate → finish pipeline with LLM-assisted conflict
+/// resolution.
 ///
 /// Sequence:
-/// 1. Verify staging is clean and release/main exist.
-/// 2. Promote: merge staging → release (with conflict resolution).
-/// 3. CI gate: run default pipeline on release; abort if any step fails.
-/// 4. Finish: merge release → main, sync main → staging (with conflict resolution).
+/// 1. Verify develop is clean and staging/release/main exist.
+/// 2. Promote: merge develop → staging (with conflict resolution).
+/// 3. Stage: merge staging → release (with conflict resolution).
+/// 4. CI gate: run default pipeline on release; abort if any step fails.
+/// 5. Finish: merge release → main, sync main → develop (with conflict resolution).
 pub fn auto(
     ctx: &Ctx,
     flow: &FlowConfig,
@@ -295,52 +342,130 @@ pub fn auto(
 }
 
 /// Internal entry point for `flow auto`, injectable CI function for testing.
+///
+/// Resumes from `.taskit-state.json` if present, skipping phases already completed.
 pub fn auto_with_ci(
     ctx: &Ctx,
     flow: &FlowConfig,
     resolver: &dyn ConflictResolver,
     run_ci: impl Fn(&Ctx) -> taskit_types::step::PipelineOutcome,
 ) -> Result<(), TaskitError> {
+    use taskit_types::flow_state::{FlowPhase, FlowState};
     use taskit_types::step::StepStatus;
 
     let sh = &ctx.sh;
+    let develop = flow.develop_branch();
     let staging = flow.staging_branch();
     let release = flow.release_branch();
     let main = flow.main_branch();
 
-    require_branch(sh, staging)?;
-    require_clean(sh, staging)?;
-    require_branch_exists(sh, release)?;
-    require_branch_exists(sh, main)?;
+    // Load any persisted state from a prior interrupted run.
+    let saved = crate::flow_state_store::load(&ctx.root);
 
-    // 1. Promote staging → release
-    taskit_output::taskit_progress!("auto: promoting {staging} → {release}");
-    checkout(ctx, release)?;
-    merge_with_resolution(
-        ctx,
-        staging,
-        &format!("flow: promote {staging} into {release}"),
-        resolver,
-    )?;
-
-    // 2. CI gate on release
-    taskit_output::taskit_progress!("auto: running CI on {release}");
-    let outcome = run_ci(ctx);
-    if !outcome.passed {
-        let failed: Vec<String> = outcome
-            .results
-            .iter()
-            .filter(|s| s.status == StepStatus::Fail)
-            .map(|s| s.name.clone())
-            .collect();
-        taskit_output::taskit_err!(
-            "auto: CI failed on {release} — staying on {release} for investigation"
-        );
-        return Err(FlowError::CiFailed { failed }.into());
+    let resume_phase = saved.as_ref().map(|s| &s.phase);
+    if let Some(phase) = resume_phase {
+        taskit_output::taskit_progress!("auto: resuming from {phase:?}");
     }
-    taskit_output::taskit_ok!("auto: CI passed on {release}");
 
-    // 3. Finish release → main, sync main → staging
+    // ── Phase 1: Promoting ────────────────────────────────────────────────
+
+    if resume_phase.is_none() || resume_phase == Some(&FlowPhase::Promoting) {
+        if resume_phase.is_none() {
+            // Fresh run — validate preconditions.
+            require_branch(sh, develop)?;
+            require_clean(sh, develop)?;
+            require_branch_exists(sh, staging)?;
+            require_branch_exists(sh, release)?;
+            require_branch_exists(sh, main)?;
+
+            let state = FlowState::promoting(staging, release, main);
+            if !ctx.dry_run {
+                crate::flow_state_store::save(&ctx.root, &state)?;
+            }
+        }
+
+        taskit_output::taskit_progress!("auto: promoting {develop} → {staging}");
+        checkout(ctx, staging)?;
+        merge_with_resolution(
+            ctx,
+            develop,
+            &format!("flow: promote {develop} into {staging}"),
+            resolver,
+        )?;
+
+        taskit_output::taskit_progress!("auto: staging {staging} → {release}");
+        checkout(ctx, release)?;
+        merge_with_resolution(
+            ctx,
+            staging,
+            &format!("flow: stage {staging} into {release}"),
+            resolver,
+        )?;
+
+        // Advance state to CiGate.
+        if !ctx.dry_run {
+            let state = FlowState {
+                phase: FlowPhase::CiGate,
+                staging: staging.to_string(),
+                release: release.to_string(),
+                main: main.to_string(),
+                merge_sha: None,
+                failed_steps: vec![],
+            };
+            crate::flow_state_store::save(&ctx.root, &state)?;
+        }
+    }
+
+    // ── Phase 2: CI gate ─────────────────────────────────────────────────
+
+    if resume_phase.is_none()
+        || resume_phase == Some(&FlowPhase::Promoting)
+        || resume_phase == Some(&FlowPhase::CiGate)
+    {
+        taskit_output::taskit_progress!("auto: running CI on {release}");
+        let outcome = run_ci(ctx);
+        if !outcome.passed {
+            let failed: Vec<String> = outcome
+                .results
+                .iter()
+                .filter(|s| s.status == StepStatus::Fail)
+                .map(|s| s.name.clone())
+                .collect();
+            // Persist failure state so the user can re-run after fixing CI.
+            if !ctx.dry_run {
+                let state = FlowState {
+                    phase: FlowPhase::CiGate,
+                    staging: staging.to_string(),
+                    release: release.to_string(),
+                    main: main.to_string(),
+                    merge_sha: None,
+                    failed_steps: failed.clone(),
+                };
+                crate::flow_state_store::save(&ctx.root, &state)?;
+            }
+            taskit_output::taskit_err!(
+                "auto: CI failed on {release} — staying on {release} for investigation"
+            );
+            return Err(FlowError::CiFailed { failed }.into());
+        }
+        taskit_output::taskit_ok!("auto: CI passed on {release}");
+
+        // Advance to Finishing.
+        if !ctx.dry_run {
+            let state = FlowState {
+                phase: FlowPhase::Finishing,
+                staging: staging.to_string(),
+                release: release.to_string(),
+                main: main.to_string(),
+                merge_sha: None,
+                failed_steps: vec![],
+            };
+            crate::flow_state_store::save(&ctx.root, &state)?;
+        }
+    }
+
+    // ── Phase 3: Finishing ────────────────────────────────────────────────
+
     taskit_output::taskit_progress!("auto: finishing {release} → {main}");
     checkout(ctx, main)?;
     merge_with_resolution(
@@ -350,16 +475,21 @@ pub fn auto_with_ci(
         resolver,
     )?;
 
-    taskit_output::taskit_progress!("auto: syncing {main} → {staging}");
-    checkout(ctx, staging)?;
+    taskit_output::taskit_progress!("auto: syncing {main} → {develop}");
+    checkout(ctx, develop)?;
     merge_with_resolution(
         ctx,
         main,
-        &format!("flow: sync {main} into {staging}"),
+        &format!("flow: sync {main} into {develop}"),
         resolver,
     )?;
 
-    taskit_output::taskit_ok!("auto: done. {staging} is in sync with {main}.");
+    // Success — clear the state file.
+    if !ctx.dry_run {
+        crate::flow_state_store::clear(&ctx.root)?;
+    }
+
+    taskit_output::taskit_ok!("auto: done. {develop} is in sync with {main}.");
     Ok(())
 }
 
@@ -441,11 +571,13 @@ mod tests {
     fn custom_branch_names() {
         let f = FlowConfig {
             main: Some("production".into()),
-            staging: Some("develop".into()),
+            develop: Some("work".into()),
+            staging: Some("int".into()),
             release: Some("rc".into()),
         };
         assert_eq!(f.main_branch(), "production");
-        assert_eq!(f.staging_branch(), "develop");
+        assert_eq!(f.develop_branch(), "work");
+        assert_eq!(f.staging_branch(), "int");
         assert_eq!(f.release_branch(), "rc");
     }
 
@@ -531,13 +663,15 @@ mod tests {
         let cfg: FlowConfig = toml::from_str(
             r#"
 main = "production"
-staging = "develop"
+develop = "work"
+staging = "int"
 release = "rc"
 "#,
         )
         .unwrap();
         assert_eq!(cfg.main_branch(), "production");
-        assert_eq!(cfg.staging_branch(), "develop");
+        assert_eq!(cfg.develop_branch(), "work");
+        assert_eq!(cfg.staging_branch(), "int");
         assert_eq!(cfg.release_branch(), "rc");
     }
 
@@ -545,15 +679,17 @@ release = "rc"
     fn flow_config_parses_empty_toml() {
         let cfg: FlowConfig = toml::from_str("").unwrap();
         assert_eq!(cfg.main_branch(), "main");
+        assert_eq!(cfg.develop_branch(), "develop");
         assert_eq!(cfg.staging_branch(), "staging");
         assert_eq!(cfg.release_branch(), "release");
     }
 
     #[test]
     fn flow_config_partial_override() {
-        let cfg: FlowConfig = toml::from_str(r#"staging = "dev""#).unwrap();
+        let cfg: FlowConfig = toml::from_str(r#"develop = "dev""#).unwrap();
         assert_eq!(cfg.main_branch(), "main");
-        assert_eq!(cfg.staging_branch(), "dev");
+        assert_eq!(cfg.develop_branch(), "dev");
+        assert_eq!(cfg.staging_branch(), "staging");
         assert_eq!(cfg.release_branch(), "release");
     }
 
@@ -576,15 +712,18 @@ release = "rc"
         sh.write_file("README.md", "# test\n").expect("write");
         cmd!(sh, "git add README.md").run().expect("add");
         cmd!(sh, "git commit -m init").run().expect("commit");
+        cmd!(sh, "git branch develop")
+            .run()
+            .expect("branch develop");
         cmd!(sh, "git branch staging")
             .run()
             .expect("branch staging");
         cmd!(sh, "git branch release")
             .run()
             .expect("branch release");
-        cmd!(sh, "git checkout staging")
+        cmd!(sh, "git checkout develop")
             .run()
-            .expect("checkout staging");
+            .expect("checkout develop");
         // Add a commit so promote has something to merge.
         sh.write_file("feature.txt", "feature\n").expect("write");
         cmd!(sh, "git add feature.txt").run().expect("add");
@@ -667,14 +806,14 @@ release = "rc"
             "auto should complete when CI passes: {result:?}"
         );
 
-        // After success we should be on staging.
+        // After success we should be on develop.
         let branch = cmd!(ctx.sh, "git branch --show-current")
             .read()
             .expect("branch");
         assert_eq!(
             branch.trim(),
-            "staging",
-            "should land on staging after auto completes"
+            "develop",
+            "should land on develop after auto completes"
         );
     }
 }
