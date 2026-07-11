@@ -291,7 +291,7 @@ impl Command for Health {
 }
 
 pub struct Inspect {
-    pub max_warnings: usize,
+    pub max_warnings: Option<usize>,
     pub max_todo: Option<usize>,
 }
 impl Command for Inspect {

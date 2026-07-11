@@ -172,9 +172,9 @@ enum Cmd {
     },
     /// Check workspace metrics against thresholds (pass/fail)
     Inspect {
-        /// Maximum allowed clippy warnings (default: 0)
-        #[arg(long, default_value_t = 0)]
-        max_warnings: usize,
+        /// Maximum allowed clippy warnings (default: from config, or 0)
+        #[arg(long)]
+        max_warnings: Option<usize>,
         /// Maximum allowed unresolved code markers (unchecked if omitted)
         #[arg(long)]
         max_todo: Option<usize>,

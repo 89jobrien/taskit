@@ -73,12 +73,21 @@ fn threshold_check(name: &str, value: usize, limit: usize) -> Result<(), TaskitE
     }
 }
 
-pub fn run(ctx: &Ctx, max_warnings: usize, max_todo: Option<usize>) -> Result<(), TaskitError> {
+pub fn run(
+    ctx: &Ctx,
+    max_warnings: Option<usize>,
+    max_todo: Option<usize>,
+) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
+    // CLI flags override config; config fills in defaults for unset flags.
+    let cfg = ctx.inspect();
     let thresholds = Thresholds {
-        max_clippy_warnings: max_warnings,
-        max_todo_fixme: max_todo,
-        ..Default::default()
+        max_clippy_warnings: max_warnings
+            .or_else(|| cfg.and_then(|c| c.max_clippy_warnings))
+            .unwrap_or(0),
+        max_clippy_errors: cfg.and_then(|c| c.max_clippy_errors).unwrap_or(0),
+        max_test_failures: cfg.and_then(|c| c.max_test_failures).unwrap_or(0),
+        max_todo_fixme: max_todo.or_else(|| cfg.and_then(|c| c.max_todo_fixme)),
     };
     let outcome = run_pipeline(sh, &thresholds)?;
     Ok(taskit_output::write_output(ctx.output, &outcome)?)
