@@ -12,8 +12,8 @@ use clap::{Parser, Subcommand};
 use std::env;
 use taskit_engine::command::{self, Command};
 use taskit_engine::ctx::Ctx;
+use taskit_engine::patch;
 use taskit_types::config::DEFAULT_COVERAGE_THRESHOLD;
-use taskit_types::error::TaskitError;
 use taskit_types::output_format::OutputFormat;
 use xshell::Shell;
 
@@ -119,6 +119,20 @@ enum Cmd {
     PrePush,
     /// Install git hooks that delegate to taskit
     InstallHooks,
+    /// Install hooks and dev tools (workspace bootstrap)
+    Install,
+    /// Update Cargo.lock dependencies
+    Update {
+        /// Update to latest versions, ignoring semver compatibility
+        #[arg(long)]
+        aggressive: bool,
+    },
+    /// Bump the patch version across all workspace Cargo.toml files
+    Patch,
+    /// Bump the minor version across all workspace Cargo.toml files
+    Minor,
+    /// Bump the major version across all workspace Cargo.toml files
+    Major,
     /// Run cargo-deny (advisories, licenses, bans)
     Audit,
     /// Clean build artifacts
@@ -172,9 +186,9 @@ enum Cmd {
     },
     /// Check workspace metrics against thresholds (pass/fail)
     Inspect {
-        /// Maximum allowed clippy warnings (default: 0)
-        #[arg(long, default_value_t = 0)]
-        max_warnings: usize,
+        /// Maximum allowed clippy warnings (default: from config, or 0)
+        #[arg(long)]
+        max_warnings: Option<usize>,
         /// Maximum allowed unresolved code markers (unchecked if omitted)
         #[arg(long)]
         max_todo: Option<usize>,
@@ -216,24 +230,18 @@ enum Cmd {
 enum FlowCmd {
     /// Show branch positions and ahead/behind counts
     Status,
-    /// Merge staging into release
+    /// Merge main into develop (bring in latest stable)
+    Sync,
+    /// Merge develop into staging
     Promote,
-    /// Merge release into main, then sync main into staging
+    /// Merge staging into release
+    Stage,
+    /// Merge release into main, then sync main into develop
     Finish,
     /// Validate current branch is not protected (for pre-commit hooks)
     Guard,
-    /// Run full promote → CI → finish pipeline (conflict resolution requires BAML — see fa7)
+    /// Run full promote → stage → CI → finish pipeline (conflict resolution requires BAML)
     Auto,
-}
-
-struct NullResolver;
-impl taskit_core::ConflictResolver for NullResolver {
-    fn resolve(
-        &self,
-        _files: &[taskit_types::conflict::ConflictFile],
-    ) -> Result<Vec<taskit_types::conflict::ResolvedFile>, TaskitError> {
-        unreachable!("resolver called on non-Auto flow action")
-    }
 }
 
 /// Map a parsed CLI subcommand to its [`Command`] implementation.
@@ -306,6 +314,17 @@ fn to_command(cmd: Cmd) -> Box<dyn Command> {
         Cmd::PreCommit => Box::new(PreCommit),
         Cmd::PrePush => Box::new(PrePush),
         Cmd::InstallHooks => Box::new(InstallHooks),
+        Cmd::Install => Box::new(Install),
+        Cmd::Update { aggressive } => Box::new(Update { aggressive }),
+        Cmd::Patch => Box::new(Patch {
+            kind: patch::BumpKind::Patch,
+        }),
+        Cmd::Minor => Box::new(Patch {
+            kind: patch::BumpKind::Minor,
+        }),
+        Cmd::Major => Box::new(Patch {
+            kind: patch::BumpKind::Major,
+        }),
         Cmd::Audit => Box::new(Audit),
         Cmd::Clean { older_than } => Box::new(Clean { older_than }),
         Cmd::Version => Box::new(Version),
@@ -341,22 +360,21 @@ fn to_command(cmd: Cmd) -> Box<dyn Command> {
         }),
         Cmd::Release { tag, notes_file } => Box::new(Release { tag, notes_file }),
         Cmd::Flow { sub } => {
-            let (action, resolver): (FlowAction, Box<dyn taskit_core::ConflictResolver>) = match sub
-            {
-                FlowCmd::Status => (FlowAction::Status, Box::new(NullResolver)),
-                FlowCmd::Promote => (FlowAction::Promote, Box::new(NullResolver)),
-                FlowCmd::Finish => (FlowAction::Finish, Box::new(NullResolver)),
-                FlowCmd::Guard => (FlowAction::Guard, Box::new(NullResolver)),
-                FlowCmd::Auto => (
-                    FlowAction::Auto,
-                    Box::new(flow_resolver::BamlConflictResolver),
-                ),
+            let action = match sub {
+                FlowCmd::Status => FlowAction::Status,
+                FlowCmd::Sync => FlowAction::Sync,
+                FlowCmd::Promote => FlowAction::Promote,
+                FlowCmd::Stage => FlowAction::Stage,
+                FlowCmd::Finish => FlowAction::Finish,
+                FlowCmd::Guard => FlowAction::Guard,
+                FlowCmd::Auto => FlowAction::Auto {
+                    resolver: Box::new(flow_resolver::BamlConflictResolver),
+                    ci_runner: Box::new(|c| {
+                        taskit_engine::ci::run_default_internal(c, true, false)
+                    }),
+                },
             };
-            Box::new(Flow {
-                action,
-                resolver,
-                ci_runner: Box::new(|c| taskit_engine::ci::run_default_internal(c, true, false)),
-            })
+            Box::new(Flow { action })
         }
         Cmd::Init { .. } => unreachable!("Init is handled before dispatch"),
     }

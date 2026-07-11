@@ -11,7 +11,8 @@ use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 
 use taskit_types::config::{
-    CiConfig, Config, CoverageConfig, FlowConfig, ProtocolConfig, WorkspaceConfig,
+    CiConfig, CleanConfig, Config, CoverageConfig, FlowConfig, InspectConfig, ProtocolConfig,
+    ReleaseConfig, WorkspaceConfig,
 };
 use taskit_types::error::{TaskitError, TaskitResultExt};
 use taskit_types::output_format::OutputFormat;
@@ -88,6 +89,21 @@ impl Ctx {
     /// The optional `[ci]` section.
     pub fn ci(&self) -> Option<&CiConfig> {
         self.config.ci.as_ref()
+    }
+
+    /// The optional `[inspect]` section.
+    pub fn inspect(&self) -> Option<&InspectConfig> {
+        self.config.inspect.as_ref()
+    }
+
+    /// The optional `[clean]` section.
+    pub fn clean_config(&self) -> Option<&CleanConfig> {
+        self.config.clean.as_ref()
+    }
+
+    /// The optional `[release]` section.
+    pub fn release_config(&self) -> Option<&ReleaseConfig> {
+        self.config.release.as_ref()
     }
 
     /// The `[flow]` section, or defaults when unset.

@@ -3,6 +3,32 @@ use std::path::PathBuf;
 
 pub const DEFAULT_COVERAGE_THRESHOLD: f64 = 80.0;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DiagnosticSeverity {
+    Error,
+    Warning,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConfigDiagnostic {
+    pub severity: DiagnosticSeverity,
+    pub field: String,
+    pub message: String,
+}
+
+fn default_verbose_on_failure() -> bool {
+    true
+}
+
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct OutputConfig {
+    /// Default output format when `--output` flag is not provided.
+    pub default_format: Option<String>,
+    /// Expand failing step output even in compact mode. Default: true.
+    #[serde(default = "default_verbose_on_failure")]
+    pub verbose_on_failure: bool,
+}
+
 #[derive(Debug, Default, Deserialize)]
 pub struct Config {
     #[serde(default)]
@@ -12,6 +38,76 @@ pub struct Config {
     pub coverage: Option<CoverageConfig>,
     pub flow: Option<FlowConfig>,
     pub release: Option<ReleaseConfig>,
+    pub inspect: Option<InspectConfig>,
+    pub clean: Option<CleanConfig>,
+    #[serde(default)]
+    pub output: OutputConfig,
+}
+
+impl Config {
+    /// Validate config fields; returns all diagnostics (errors and warnings).
+    /// Any `DiagnosticSeverity::Error` should be treated as fatal by callers.
+    pub fn validate(&self) -> Vec<ConfigDiagnostic> {
+        let mut diags = Vec::new();
+
+        // coverage threshold must be in (0, 100]
+        if let Some(ref cov) = self.coverage {
+            let t = cov.threshold;
+            if let Some(v) = t
+                && (!v.is_finite() || v <= 0.0 || v > 100.0)
+            {
+                diags.push(ConfigDiagnostic {
+                    severity: DiagnosticSeverity::Error,
+                    field: "coverage.threshold".into(),
+                    message: format!("threshold must be in (0, 100], got {v}"),
+                });
+            }
+        }
+
+        // flow branch names must be non-empty and distinct
+        if let Some(ref flow) = self.flow {
+            let branches = [
+                ("flow.main", flow.main_branch()),
+                ("flow.develop", flow.develop_branch()),
+                ("flow.staging", flow.staging_branch()),
+                ("flow.release", flow.release_branch()),
+            ];
+            for (field, name) in &branches {
+                if name.is_empty() {
+                    diags.push(ConfigDiagnostic {
+                        severity: DiagnosticSeverity::Error,
+                        field: field.to_string(),
+                        message: "branch name must not be empty".into(),
+                    });
+                }
+            }
+            let names: Vec<&str> = branches.iter().map(|(_, n)| *n).collect();
+            let mut seen = std::collections::HashSet::new();
+            for name in &names {
+                if !seen.insert(*name) {
+                    diags.push(ConfigDiagnostic {
+                        severity: DiagnosticSeverity::Error,
+                        field: "flow".into(),
+                        message: format!("duplicate branch name: {name}"),
+                    });
+                }
+            }
+        }
+
+        // release github_repo must be in owner/name format if set
+        if let Some(ref rel) = self.release
+            && let Some(repo) = &rel.github_repo
+            && repo.matches('/').count() != 1
+        {
+            diags.push(ConfigDiagnostic {
+                severity: DiagnosticSeverity::Warning,
+                field: "release.github_repo".into(),
+                message: format!("expected `owner/repo` format, got {repo:?}"),
+            });
+        }
+
+        diags
+    }
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -73,6 +169,8 @@ pub struct CiConfig {
     pub steps: Vec<CiStep>,
     #[serde(default)]
     pub cruxfile: Option<String>,
+    /// Stop the pipeline on the first failing step.
+    pub fail_fast: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -101,6 +199,7 @@ impl CoverageConfig {
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct FlowConfig {
     pub main: Option<String>,
+    pub develop: Option<String>,
     pub staging: Option<String>,
     pub release: Option<String>,
 }
@@ -108,6 +207,11 @@ pub struct FlowConfig {
 impl FlowConfig {
     pub fn main_branch(&self) -> &str {
         self.main.as_deref().unwrap_or("main")
+    }
+
+    /// Primary development branch; work lands here first.
+    pub fn develop_branch(&self) -> &str {
+        self.develop.as_deref().unwrap_or("develop")
     }
 
     pub fn staging_branch(&self) -> &str {
@@ -127,12 +231,37 @@ pub struct ReleaseConfig {
     /// are published in the order listed in `[workspace] crates`.
     #[serde(default)]
     pub publish_order: Vec<String>,
+    /// Skip `cargo doc` generation before publishing.
+    pub skip_docs: Option<bool>,
+    /// Allow publishing with uncommitted changes.
+    pub allow_dirty: Option<bool>,
 }
 
 impl ReleaseConfig {
     pub fn github_repo(&self) -> Option<&str> {
         self.github_repo.as_deref()
     }
+}
+
+/// Metric thresholds for `taskit inspect`. All fields are optional; absent
+/// fields are not checked. CLI flags override values set here.
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct InspectConfig {
+    /// Maximum allowed clippy warnings before `taskit inspect` fails.
+    pub max_clippy_warnings: Option<usize>,
+    /// Maximum allowed clippy errors before `taskit inspect` fails.
+    pub max_clippy_errors: Option<usize>,
+    /// Maximum allowed test failures before `taskit inspect` fails.
+    pub max_test_failures: Option<usize>,
+    /// Maximum allowed TODO/FIXME markers (unchecked if absent).
+    pub max_todo_fixme: Option<usize>,
+}
+
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct CleanConfig {
+    /// Remove artifacts older than this many days (e.g. `"7d"`).
+    /// Uses `cargo sweep` when set; falls back to `cargo clean` otherwise.
+    pub older_than: Option<String>,
 }
 
 #[cfg(test)]
@@ -144,11 +273,13 @@ mod tests {
         #[test]
         fn prop_flow_config_branch_names_nonempty(
             main in proptest::option::of("[a-z][a-z0-9-]{0,20}"),
+            develop in proptest::option::of("[a-z][a-z0-9-]{0,20}"),
             staging in proptest::option::of("[a-z][a-z0-9-]{0,20}"),
             release in proptest::option::of("[a-z][a-z0-9-]{0,20}"),
         ) {
-            let cfg = FlowConfig { main, staging, release };
+            let cfg = FlowConfig { main, develop, staging, release };
             prop_assert!(!cfg.main_branch().is_empty());
+            prop_assert!(!cfg.develop_branch().is_empty());
             prop_assert!(!cfg.staging_branch().is_empty());
             prop_assert!(!cfg.release_branch().is_empty());
         }
@@ -178,14 +309,100 @@ mod tests {
         #[test]
         fn prop_release_config_publish_order_preserved(
             publish_order in proptest::collection::vec("[a-z][a-z0-9-]{1,20}", 0..=5),
+            skip_docs in proptest::option::of(proptest::bool::ANY),
+            allow_dirty in proptest::option::of(proptest::bool::ANY),
         ) {
             let cfg = ReleaseConfig {
                 github_repo: None,
                 publish_order: publish_order.clone(),
+                skip_docs,
+                allow_dirty,
             };
             prop_assert_eq!(cfg.github_repo(), None);
             prop_assert_eq!(cfg.publish_order, publish_order);
+            prop_assert_eq!(cfg.skip_docs, skip_docs);
+            prop_assert_eq!(cfg.allow_dirty, allow_dirty);
         }
+    }
+
+    // ── Config::validate tests ──────────────────────────────────────────────
+
+    #[test]
+    fn validate_clean_config_returns_no_diagnostics() {
+        let cfg = Config::default();
+        assert!(cfg.validate().is_empty());
+    }
+
+    #[test]
+    fn validate_invalid_coverage_threshold_is_error() {
+        let cfg = Config {
+            coverage: Some(CoverageConfig {
+                crate_name: "x".into(),
+                threshold: Some(-5.0),
+            }),
+            ..Default::default()
+        };
+        let diags = cfg.validate();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].severity, DiagnosticSeverity::Error);
+        assert!(diags[0].field.contains("coverage"));
+    }
+
+    #[test]
+    fn validate_duplicate_branch_names_is_error() {
+        let cfg = Config {
+            flow: Some(FlowConfig {
+                main: Some("main".into()),
+                develop: Some("main".into()),
+                staging: None,
+                release: None,
+            }),
+            ..Default::default()
+        };
+        let diags = cfg.validate();
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.severity == DiagnosticSeverity::Error)
+        );
+    }
+
+    #[test]
+    fn validate_malformed_github_repo_is_warning() {
+        let cfg = Config {
+            release: Some(ReleaseConfig {
+                github_repo: Some("no-slash-here".into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let diags = cfg.validate();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].severity, DiagnosticSeverity::Warning);
+    }
+
+    #[test]
+    fn validate_valid_github_repo_has_no_warning() {
+        let cfg = Config {
+            release: Some(ReleaseConfig {
+                github_repo: Some("89jobrien/taskit".into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert!(cfg.validate().is_empty());
+    }
+
+    #[test]
+    fn output_config_verbose_on_failure_defaults_true() {
+        let cfg: OutputConfig = toml::from_str("").unwrap();
+        assert!(cfg.verbose_on_failure);
+    }
+
+    #[test]
+    fn output_config_parses_default_format() {
+        let cfg: OutputConfig = toml::from_str(r#"default_format = "compact""#).unwrap();
+        assert_eq!(cfg.default_format.as_deref(), Some("compact"));
     }
 
     #[test]
@@ -286,6 +503,7 @@ mod tests {
         let cfg = ReleaseConfig {
             github_repo: Some("89jobrien/taskit".into()),
             publish_order: vec!["taskit-types".into()],
+            ..Default::default()
         };
         assert_eq!(cfg.github_repo(), Some("89jobrien/taskit"));
         assert_eq!(cfg.publish_order, vec!["taskit-types"]);
@@ -295,6 +513,7 @@ mod tests {
     fn flow_config_default_branch_names_are_exact() {
         let cfg = FlowConfig::default();
         assert_eq!(cfg.main_branch(), "main");
+        assert_eq!(cfg.develop_branch(), "develop");
         assert_eq!(cfg.staging_branch(), "staging");
         assert_eq!(cfg.release_branch(), "release");
     }
@@ -327,6 +546,65 @@ mod tests {
             threshold: Some(92.5),
         };
         assert_eq!(cfg.threshold(), 92.5);
+    }
+
+    #[test]
+    fn inspect_config_deserializes_all_fields() {
+        let cfg: InspectConfig = toml::from_str(
+            r#"
+            max_clippy_warnings = 5
+            max_clippy_errors   = 2
+            max_test_failures   = 0
+            max_todo_fixme      = 20
+            "#,
+        )
+        .expect("InspectConfig TOML should parse");
+        assert_eq!(cfg.max_clippy_warnings, Some(5));
+        assert_eq!(cfg.max_clippy_errors, Some(2));
+        assert_eq!(cfg.max_test_failures, Some(0));
+        assert_eq!(cfg.max_todo_fixme, Some(20));
+    }
+
+    #[test]
+    fn inspect_config_all_fields_optional() {
+        let cfg: InspectConfig = toml::from_str("").expect("empty InspectConfig should parse");
+        assert!(cfg.max_clippy_warnings.is_none());
+        assert!(cfg.max_clippy_errors.is_none());
+        assert!(cfg.max_test_failures.is_none());
+        assert!(cfg.max_todo_fixme.is_none());
+    }
+
+    #[test]
+    fn clean_config_deserializes_older_than() {
+        let cfg: CleanConfig =
+            toml::from_str(r#"older_than = "7d""#).expect("CleanConfig TOML should parse");
+        assert_eq!(cfg.older_than.as_deref(), Some("7d"));
+    }
+
+    #[test]
+    fn clean_config_older_than_optional() {
+        let cfg: CleanConfig = toml::from_str("").expect("empty CleanConfig should parse");
+        assert!(cfg.older_than.is_none());
+    }
+
+    #[test]
+    fn ci_config_fail_fast_parses() {
+        let cfg: CiConfig =
+            toml::from_str("fail_fast = true").expect("CiConfig fail_fast should parse");
+        assert_eq!(cfg.fail_fast, Some(true));
+    }
+
+    #[test]
+    fn ci_config_fail_fast_defaults_to_none() {
+        let cfg: CiConfig = toml::from_str("").unwrap();
+        assert!(cfg.fail_fast.is_none());
+    }
+
+    #[test]
+    fn release_config_skip_docs_and_allow_dirty_parse() {
+        let cfg: ReleaseConfig = toml::from_str("skip_docs = true\nallow_dirty = false").unwrap();
+        assert_eq!(cfg.skip_docs, Some(true));
+        assert_eq!(cfg.allow_dirty, Some(false));
     }
 
     #[test]

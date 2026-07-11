@@ -14,7 +14,8 @@ use taskit_types::step::PipelineOutcome;
 use crate::ctx::Ctx;
 use crate::{
     audit, check_deps, check_freshness, ci, clean, dev_setup, flow, fmt, health, hooks, inspect,
-    lint, protocol, publish, quick, release, testing, update_claude, version,
+    install, lint, patch, protocol, publish, quick, release, testing, update, update_claude,
+    version,
 };
 
 /// A runnable subcommand. Implementors carry their own parsed arguments and
@@ -181,6 +182,31 @@ impl Command for InstallHooks {
     }
 }
 
+pub struct Install;
+impl Command for Install {
+    fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
+        install::run(ctx)
+    }
+}
+
+pub struct Update {
+    pub aggressive: bool,
+}
+impl Command for Update {
+    fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
+        update::run(ctx, self.aggressive)
+    }
+}
+
+pub struct Patch {
+    pub kind: patch::BumpKind,
+}
+impl Command for Patch {
+    fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
+        patch::run(ctx, self.kind)
+    }
+}
+
 pub struct Audit;
 impl Command for Audit {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
@@ -291,7 +317,7 @@ impl Command for Health {
 }
 
 pub struct Inspect {
-    pub max_warnings: usize,
+    pub max_warnings: Option<usize>,
     pub max_todo: Option<usize>,
 }
 impl Command for Inspect {
@@ -326,28 +352,34 @@ impl Command for Release {
 #[non_exhaustive]
 pub enum FlowAction {
     Status,
+    Sync,
     Promote,
+    Stage,
     Finish,
     Guard,
-    Auto,
+    Auto {
+        resolver: Box<dyn taskit_core::ConflictResolver>,
+        ci_runner: Box<dyn Fn(&Ctx) -> PipelineOutcome + Send + Sync>,
+    },
 }
 
 pub struct Flow {
     pub action: FlowAction,
-    pub resolver: Box<dyn taskit_core::ConflictResolver>,
-    pub ci_runner: Box<dyn Fn(&Ctx) -> PipelineOutcome + Send + Sync>,
 }
 impl Command for Flow {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
         let cfg = ctx.flow();
         match &self.action {
             FlowAction::Status => flow::status(ctx, &cfg),
+            FlowAction::Sync => flow::sync(ctx, &cfg),
             FlowAction::Promote => flow::promote(ctx, &cfg),
+            FlowAction::Stage => flow::stage(ctx, &cfg),
             FlowAction::Finish => flow::finish(ctx, &cfg),
             FlowAction::Guard => flow::guard(ctx, &cfg),
-            FlowAction::Auto => {
-                flow::auto_with_ci(ctx, &cfg, self.resolver.as_ref(), |c| (self.ci_runner)(c))
-            }
+            FlowAction::Auto {
+                resolver,
+                ci_runner,
+            } => flow::auto_with_ci(ctx, &cfg, resolver.as_ref(), |c| ci_runner(c)),
         }
     }
 }

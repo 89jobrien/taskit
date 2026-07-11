@@ -13,6 +13,8 @@ pub fn render_toml(plan: &InitPlan) -> String {
     render_protocol(&mut out, plan);
     render_coverage(&mut out, plan);
     render_ci(&mut out, plan);
+    render_inspect(&mut out);
+    render_clean(&mut out);
     render_flow(&mut out, plan);
     render_release(&mut out, plan);
 
@@ -21,6 +23,7 @@ pub fn render_toml(plan: &InitPlan) -> String {
 
 fn render_workspace(out: &mut String, plan: &InitPlan) {
     out.push_str("[workspace]\n");
+    out.push_str("# root = \"/path/to/workspace\"  # defaults to Cargo.toml location\n");
     out.push_str("crates = [\n");
     for c in &plan.crates {
         if let Some(ref pkg) = c.pkg {
@@ -79,7 +82,7 @@ fn render_protocol(out: &mut String, plan: &InitPlan) {
 # Run `taskit check-protocol-drift --update` to regenerate the lockfile.\n\
 #\n\
 # [protocol]\n\
-# lockfile = \"taskit-protocol.lock\"\n\
+# lockfile = \"taskit-protocol.lock\"  # default\n\
 #\n\
 # [[protocol.surfaces]]\n\
 # name = \"core-api\"\n\
@@ -120,7 +123,8 @@ fn render_ci(out: &mut String, plan: &InitPlan) {
     out.push('\n');
     if !plan.ci_steps.is_empty() {
         out.push_str("[ci]\n");
-        out.push_str("# cruxfile = \"Cruxfile\"\n");
+        out.push_str("# cruxfile  = \"Cruxfile\"  # path to Cruxfile for crux-based pipelines\n");
+        out.push_str("# fail_fast = false        # stop on first failing step\n");
         for step in &plan.ci_steps {
             out.push_str(&format!(
                 "\n[[ci.steps]]\nname = \"{}\"\ncmd = \"{}\"\ngate = {}\n",
@@ -133,7 +137,8 @@ fn render_ci(out: &mut String, plan: &InitPlan) {
 # CI pipeline steps. Run `taskit ci` to execute all steps.\n\
 #\n\
 # [ci]\n\
-# cruxfile = \"Cruxfile\"\n\
+# cruxfile  = \"Cruxfile\"  # path to Cruxfile for crux-based pipelines\n\
+# fail_fast = false        # stop on first failing step\n\
 #\n\
 # [[ci.steps]]\n\
 # name = \"fmt --check\"\n\
@@ -148,37 +153,67 @@ fn render_ci(out: &mut String, plan: &InitPlan) {
     }
 }
 
+fn render_inspect(out: &mut String) {
+    out.push('\n');
+    out.push_str(
+        "\
+# Metric thresholds for `taskit inspect`. CLI flags override these.\n\
+#\n\
+# [inspect]\n\
+# max_clippy_warnings = 0\n\
+# max_clippy_errors   = 0\n\
+# max_test_failures   = 0\n\
+# max_todo_fixme      = 20   # omit to skip the TODO/FIXME check\n",
+    );
+}
+
+fn render_clean(out: &mut String) {
+    out.push('\n');
+    out.push_str(
+        "\
+# Default retention policy for `taskit clean`. CLI --older-than overrides.\n\
+#\n\
+# [clean]\n\
+# older_than = \"7d\"  # use `cargo sweep`; omit to run `cargo clean`\n",
+    );
+}
+
 fn render_flow(out: &mut String, plan: &InitPlan) {
     out.push('\n');
     if let Some(ref flow) = plan.flow {
-        let is_default =
-            flow.main == "main" && flow.staging == "staging" && flow.release == "release";
+        let is_default = flow.main == "main"
+            && flow.develop == "develop"
+            && flow.staging == "staging"
+            && flow.release == "release";
 
         if is_default {
             out.push_str(
                 "\
-# Git flow: main (stable) -> staging (work) -> release (publish) -> main\n\
+# Git flow: main -> develop (work) -> staging (integration) -> release (publish) -> main\n\
 # These are the defaults; uncomment to customize branch names.\n\
 #\n\
 # [flow]\n\
 # main = \"main\"\n\
+# develop = \"develop\"\n\
 # staging = \"staging\"\n\
 # release = \"release\"\n",
             );
         } else {
             out.push_str("[flow]\n");
             out.push_str(&format!("main = \"{}\"\n", flow.main));
+            out.push_str(&format!("develop = \"{}\"\n", flow.develop));
             out.push_str(&format!("staging = \"{}\"\n", flow.staging));
             out.push_str(&format!("release = \"{}\"\n", flow.release));
         }
     } else {
         out.push_str(
             "\
-# Git flow: main (stable) -> staging (work) -> release (publish) -> main\n\
+# Git flow: main -> develop (work) -> staging (integration) -> release (publish) -> main\n\
 # Uncomment to enable `taskit flow` subcommands.\n\
 #\n\
 # [flow]\n\
 # main = \"main\"\n\
+# develop = \"develop\"\n\
 # staging = \"staging\"\n\
 # release = \"release\"\n",
         );
@@ -201,14 +236,18 @@ fn render_release(out: &mut String, plan: &InitPlan) {
             }
             out.push_str("]\n");
         }
+        out.push_str("# skip_docs   = false  # skip `cargo doc` before publishing\n");
+        out.push_str("# allow_dirty = false  # publish with uncommitted changes\n");
     } else {
         out.push_str(
             "\
-# Release configuration for `taskit release`.\n\
+# Release configuration for `taskit publish` and `taskit release`.\n\
 #\n\
 # [release]\n\
-# github_repo = \"owner/repo\"\n\
-# publish_order = [\"my-types\", \"my-core\", \"my-cli\"]\n",
+# github_repo  = \"owner/repo\"\n\
+# publish_order = [\"my-types\", \"my-core\", \"my-cli\"]\n\
+# skip_docs    = false\n\
+# allow_dirty  = false\n",
         );
     }
 }
@@ -236,6 +275,7 @@ mod tests {
             deny_toml: false,
             ctx_scaffold: false,
             mdbook: false,
+            xtask: false,
         }
     }
 
@@ -255,7 +295,10 @@ mod tests {
         assert!(toml.contains("# [protocol]"));
         assert!(toml.contains("# [[workspace.propagation]]"));
         assert!(toml.contains("# [[ci.steps]]"));
+        assert!(toml.contains("# fail_fast"));
         assert!(toml.contains("# offline_skip"));
+        assert!(toml.contains("# [inspect]"));
+        assert!(toml.contains("# [clean]"));
     }
 
     #[test]
@@ -330,6 +373,8 @@ mod tests {
         // Default flow should be commented since values match defaults
         assert!(toml.contains("# [flow]"));
         assert!(toml.contains("# main = \"main\""));
+        assert!(toml.contains("# develop = \"develop\""));
+        assert!(toml.contains("# staging = \"staging\""));
     }
 
     #[test]
@@ -337,13 +382,15 @@ mod tests {
         let mut plan = minimal_plan();
         plan.flow = Some(FlowPlan {
             main: "trunk".into(),
-            staging: "develop".into(),
+            develop: "work".into(),
+            staging: "int".into(),
             release: "prod".into(),
         });
         let toml = render_toml(&plan);
         assert!(toml.contains("[flow]"));
         assert!(toml.contains("main = \"trunk\""));
-        assert!(toml.contains("staging = \"develop\""));
+        assert!(toml.contains("develop = \"work\""));
+        assert!(toml.contains("staging = \"int\""));
         assert!(toml.contains("release = \"prod\""));
     }
 
@@ -395,12 +442,32 @@ mod tests {
         plan.ci_steps = InitPlan::default_steps();
         plan.flow = Some(FlowPlan::default());
         let toml_str = render_toml(&plan);
-        // The generated TOML should parse (ignoring comments)
         let parsed: Result<taskit_types::config::Config, _> = toml::from_str(&toml_str);
         assert!(
             parsed.is_ok(),
             "generated TOML should parse: {:?}",
             parsed.err()
         );
+    }
+
+    #[test]
+    fn render_roundtrip_with_inspect_and_clean_parses() {
+        // Active (uncommented) [inspect] and [clean] sections must round-trip through the parser.
+        let toml_str = "\
+[workspace]\ncrates = []\n\n\
+[inspect]\nmax_clippy_warnings = 5\nmax_clippy_errors = 0\nmax_test_failures = 0\nmax_todo_fixme = 20\n\n\
+[clean]\nolder_than = \"7d\"\n";
+        let parsed: Result<taskit_types::config::Config, _> = toml::from_str(toml_str);
+        assert!(
+            parsed.is_ok(),
+            "[inspect]/[clean] TOML should parse: {:?}",
+            parsed.err()
+        );
+        let cfg = parsed.unwrap();
+        let inspect = cfg.inspect.expect("[inspect] should be present");
+        assert_eq!(inspect.max_clippy_warnings, Some(5));
+        assert_eq!(inspect.max_todo_fixme, Some(20));
+        let clean = cfg.clean.expect("[clean] should be present");
+        assert_eq!(clean.older_than.as_deref(), Some("7d"));
     }
 }

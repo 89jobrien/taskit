@@ -3,6 +3,11 @@
   "algorithm": "sha256-normalized-core-contract-v1",
   "surfaces": [
     {
+      "name": "taskit-core-conflict_resolver",
+      "path": "crates/taskit-core/src/conflict_resolver.rs",
+      "hash": "cdf5830e7849543ff67dea53c93103e9b25dcd98e06ac2a6e0ad303bd9f8aad9"
+    },
+    {
       "name": "taskit-core-pipeline_runner",
       "path": "crates/taskit-core/src/pipeline_runner.rs",
       "hash": "454c0f6689096009749183fc6cbcb9ce22c28454ba32c0f15fc2583fac78fcb2"
@@ -15,7 +20,7 @@
     {
       "name": "taskit-engine-command",
       "path": "crates/taskit-engine/src/command.rs",
-      "hash": "47716f153b7dc4eea70a3485a43a15a5a8f0cecebcbb019cadeabd8968528e02"
+      "hash": "151345e68becbffa38bee98dfc08c2acd09b3f51deb520e9605007a14ca30508"
     },
     {
       "name": "taskit-engine-discovery",
@@ -30,12 +35,12 @@
     {
       "name": "taskit-output-formatter",
       "path": "crates/taskit-output/src/formatter.rs",
-      "hash": "f0f0abf35b1684c83dd77991455c00efcd2978096e6fd3c86a2cf33f5f784db6"
+      "hash": "d13c96c2f1fc89ecf37b6b868d6a90809a4847f9c022f6e178763f0170a0d7f2"
     },
     {
       "name": "taskit-init-plan",
       "path": "crates/taskit-init/src/plan.rs",
-      "hash": "0cb90d2ae0b161d6e2a8b18a7adbc359a72b70e916bd3592944a0eb68397475f"
+      "hash": "3ceeaad1a026a496646f68bfb39d55974112d35be1700a37ca42e3d63378fdf8"
     }
   ]
 }

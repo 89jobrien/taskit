@@ -75,6 +75,9 @@ pub fn run(force: bool, interactive: bool, dry_run: bool) -> Result<(), TaskitEr
     if init_plan.mdbook {
         scaffold::write_mdbook(&init_plan, &project_name, force, dry_run)?;
     }
+    if init_plan.xtask {
+        scaffold::write_xtask(force, dry_run)?;
+    }
 
     eprintln!();
     eprintln!("taskit initialized for {project_name}!");

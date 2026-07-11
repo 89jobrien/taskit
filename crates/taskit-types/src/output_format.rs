@@ -3,6 +3,8 @@
 pub enum OutputFormat {
     #[default]
     Human,
+    /// One line per step; expands failed steps when verbose_on_failure is set.
+    Compact,
     Json,
     Github,
     Junit,
@@ -24,6 +26,7 @@ mod tests {
     fn all_variants_are_distinct() {
         let variants = [
             OutputFormat::Human,
+            OutputFormat::Compact,
             OutputFormat::Json,
             OutputFormat::Github,
             OutputFormat::Junit,
@@ -38,7 +41,15 @@ mod tests {
 
     #[test]
     fn value_enum_string_round_trips() {
-        for name in ["human", "json", "github", "junit", "diagnostic", "sarif"] {
+        for name in [
+            "human",
+            "compact",
+            "json",
+            "github",
+            "junit",
+            "diagnostic",
+            "sarif",
+        ] {
             let parsed =
                 OutputFormat::from_str(name, true).expect("known output format should parse");
             let possible = parsed

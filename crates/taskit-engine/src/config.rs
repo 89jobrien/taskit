@@ -78,6 +78,9 @@ pub fn discover_with(
         coverage: None,
         flow: None,
         release: None,
+        inspect: None,
+        clean: None,
+        output: Default::default(),
     })
 }
 
@@ -103,6 +106,25 @@ pub fn load() -> Result<Workspace, TaskitError> {
         if let Ok(discovered) = discover(&root) {
             merge_discovered(&mut config, discovered);
         }
+
+        // Validate config and emit warnings; treat errors as fatal.
+        let diags = config.validate();
+        for d in &diags {
+            use taskit_types::config::DiagnosticSeverity;
+            match d.severity {
+                DiagnosticSeverity::Warning => {
+                    taskit_output::taskit_warn!("config warning [{}]: {}", d.field, d.message);
+                }
+                DiagnosticSeverity::Error => {
+                    return Err(taskit_types::error::ConfigError::Invalid {
+                        message: format!("[{}] {}", d.field, d.message),
+                        hint: format!("check the `{}` field in taskit.toml", d.field),
+                    }
+                    .into());
+                }
+            }
+        }
+
         return Ok(Workspace { root, config });
     }
 

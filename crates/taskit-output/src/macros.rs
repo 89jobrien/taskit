@@ -37,3 +37,11 @@ macro_rules! taskit_err {
         $crate::sink().emit(&$crate::Message::Error(format!($($arg)*)));
     };
 }
+
+/// Emit a warning message through the active sink.
+#[macro_export]
+macro_rules! taskit_warn {
+    ($($arg:tt)*) => {
+        $crate::sink().emit(&$crate::Message::Progress(format!("warning: {}", format!($($arg)*))));
+    };
+}
