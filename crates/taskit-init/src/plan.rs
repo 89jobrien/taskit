@@ -17,6 +17,7 @@ pub struct InitPlan {
     pub deny_toml: bool,
     pub ctx_scaffold: bool,
     pub mdbook: bool,
+    pub xtask: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -150,6 +151,7 @@ pub fn plan_from_discovery() -> Result<InitPlan, TaskitError> {
         deny_toml: true,
         ctx_scaffold: true,
         mdbook: true,
+        xtask: true,
     })
 }
 
@@ -277,6 +279,12 @@ pub fn plan_interactive() -> Result<InitPlan, TaskitError> {
 
     plan.mdbook = Confirm::new()
         .with_prompt("Generate docs/ mdBook scaffold?")
+        .default(true)
+        .interact()
+        .map_err(TaskitError::other)?;
+
+    plan.xtask = Confirm::new()
+        .with_prompt("Generate / augment xtask/ crate with taskit task dispatchers?")
         .default(true)
         .interact()
         .map_err(TaskitError::other)?;

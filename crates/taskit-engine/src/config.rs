@@ -78,6 +78,8 @@ pub fn discover_with(
         coverage: None,
         flow: None,
         release: None,
+        inspect: None,
+        clean: None,
     })
 }
 

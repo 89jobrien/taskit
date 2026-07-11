@@ -12,6 +12,8 @@ pub struct Config {
     pub coverage: Option<CoverageConfig>,
     pub flow: Option<FlowConfig>,
     pub release: Option<ReleaseConfig>,
+    pub inspect: Option<InspectConfig>,
+    pub clean: Option<CleanConfig>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -73,6 +75,8 @@ pub struct CiConfig {
     pub steps: Vec<CiStep>,
     #[serde(default)]
     pub cruxfile: Option<String>,
+    /// Stop the pipeline on the first failing step.
+    pub fail_fast: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -127,12 +131,35 @@ pub struct ReleaseConfig {
     /// are published in the order listed in `[workspace] crates`.
     #[serde(default)]
     pub publish_order: Vec<String>,
+    /// Skip `cargo doc` generation before publishing.
+    pub skip_docs: Option<bool>,
+    /// Allow publishing with uncommitted changes.
+    pub allow_dirty: Option<bool>,
 }
 
 impl ReleaseConfig {
     pub fn github_repo(&self) -> Option<&str> {
         self.github_repo.as_deref()
     }
+}
+
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct InspectConfig {
+    /// Maximum allowed clippy warnings before `taskit inspect` fails.
+    pub max_clippy_warnings: Option<usize>,
+    /// Maximum allowed clippy errors before `taskit inspect` fails.
+    pub max_clippy_errors: Option<usize>,
+    /// Maximum allowed test failures before `taskit inspect` fails.
+    pub max_test_failures: Option<usize>,
+    /// Maximum allowed TODO/FIXME markers (unchecked if absent).
+    pub max_todo_fixme: Option<usize>,
+}
+
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct CleanConfig {
+    /// Remove artifacts older than this many days (e.g. `"7d"`).
+    /// Uses `cargo sweep` when set; falls back to `cargo clean` otherwise.
+    pub older_than: Option<String>,
 }
 
 #[cfg(test)]
@@ -182,6 +209,8 @@ mod tests {
             let cfg = ReleaseConfig {
                 github_repo: None,
                 publish_order: publish_order.clone(),
+                skip_docs: None,
+                allow_dirty: None,
             };
             prop_assert_eq!(cfg.github_repo(), None);
             prop_assert_eq!(cfg.publish_order, publish_order);
@@ -286,6 +315,8 @@ mod tests {
         let cfg = ReleaseConfig {
             github_repo: Some("89jobrien/taskit".into()),
             publish_order: vec!["taskit-types".into()],
+            skip_docs: None,
+            allow_dirty: None,
         };
         assert_eq!(cfg.github_repo(), Some("89jobrien/taskit"));
         assert_eq!(cfg.publish_order, vec!["taskit-types"]);

@@ -13,6 +13,8 @@ pub fn render_toml(plan: &InitPlan) -> String {
     render_protocol(&mut out, plan);
     render_coverage(&mut out, plan);
     render_ci(&mut out, plan);
+    render_inspect(&mut out);
+    render_clean(&mut out);
     render_flow(&mut out, plan);
     render_release(&mut out, plan);
 
@@ -21,6 +23,7 @@ pub fn render_toml(plan: &InitPlan) -> String {
 
 fn render_workspace(out: &mut String, plan: &InitPlan) {
     out.push_str("[workspace]\n");
+    out.push_str("# root = \"/path/to/workspace\"  # defaults to Cargo.toml location\n");
     out.push_str("crates = [\n");
     for c in &plan.crates {
         if let Some(ref pkg) = c.pkg {
@@ -79,7 +82,7 @@ fn render_protocol(out: &mut String, plan: &InitPlan) {
 # Run `taskit check-protocol-drift --update` to regenerate the lockfile.\n\
 #\n\
 # [protocol]\n\
-# lockfile = \"taskit-protocol.lock\"\n\
+# lockfile = \"taskit-protocol.lock\"  # default\n\
 #\n\
 # [[protocol.surfaces]]\n\
 # name = \"core-api\"\n\
@@ -120,7 +123,8 @@ fn render_ci(out: &mut String, plan: &InitPlan) {
     out.push('\n');
     if !plan.ci_steps.is_empty() {
         out.push_str("[ci]\n");
-        out.push_str("# cruxfile = \"Cruxfile\"\n");
+        out.push_str("# cruxfile  = \"Cruxfile\"  # path to Cruxfile for crux-based pipelines\n");
+        out.push_str("# fail_fast = false        # stop on first failing step\n");
         for step in &plan.ci_steps {
             out.push_str(&format!(
                 "\n[[ci.steps]]\nname = \"{}\"\ncmd = \"{}\"\ngate = {}\n",
@@ -133,7 +137,7 @@ fn render_ci(out: &mut String, plan: &InitPlan) {
 # CI pipeline steps. Run `taskit ci` to execute all steps.\n\
 #\n\
 # [ci]\n\
-# cruxfile = \"Cruxfile\"\n\
+# cruxfile = \"Cruxfile\"  # path to Cruxfile for crux-based pipelines\n\
 #\n\
 # [[ci.steps]]\n\
 # name = \"fmt --check\"\n\
@@ -146,6 +150,31 @@ fn render_ci(out: &mut String, plan: &InitPlan) {
 # gate = false\n",
         );
     }
+}
+
+fn render_inspect(out: &mut String) {
+    out.push('\n');
+    out.push_str(
+        "\
+# Metric thresholds for `taskit inspect`. CLI flags override these.\n\
+#\n\
+# [inspect]\n\
+# max_clippy_warnings = 0\n\
+# max_clippy_errors   = 0\n\
+# max_test_failures   = 0\n\
+# max_todo_fixme      = 20   # omit to skip the TODO/FIXME check\n",
+    );
+}
+
+fn render_clean(out: &mut String) {
+    out.push('\n');
+    out.push_str(
+        "\
+# Default retention policy for `taskit clean`. CLI --older-than overrides.\n\
+#\n\
+# [clean]\n\
+# older_than = \"7d\"  # use `cargo sweep`; omit to run `cargo clean`\n",
+    );
 }
 
 fn render_flow(out: &mut String, plan: &InitPlan) {
@@ -201,14 +230,18 @@ fn render_release(out: &mut String, plan: &InitPlan) {
             }
             out.push_str("]\n");
         }
+        out.push_str("# skip_docs   = false  # skip `cargo doc` before publishing\n");
+        out.push_str("# allow_dirty = false  # publish with uncommitted changes\n");
     } else {
         out.push_str(
             "\
-# Release configuration for `taskit release`.\n\
+# Release configuration for `taskit publish` and `taskit release`.\n\
 #\n\
 # [release]\n\
-# github_repo = \"owner/repo\"\n\
-# publish_order = [\"my-types\", \"my-core\", \"my-cli\"]\n",
+# github_repo  = \"owner/repo\"\n\
+# publish_order = [\"my-types\", \"my-core\", \"my-cli\"]\n\
+# skip_docs    = false\n\
+# allow_dirty  = false\n",
         );
     }
 }
@@ -236,6 +269,7 @@ mod tests {
             deny_toml: false,
             ctx_scaffold: false,
             mdbook: false,
+            xtask: false,
         }
     }
 
