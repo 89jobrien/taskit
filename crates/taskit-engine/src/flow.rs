@@ -342,12 +342,15 @@ pub fn auto(
 }
 
 /// Internal entry point for `flow auto`, injectable CI function for testing.
+///
+/// Resumes from `.taskit-state.json` if present, skipping phases already completed.
 pub fn auto_with_ci(
     ctx: &Ctx,
     flow: &FlowConfig,
     resolver: &dyn ConflictResolver,
     run_ci: impl Fn(&Ctx) -> taskit_types::step::PipelineOutcome,
 ) -> Result<(), TaskitError> {
+    use taskit_types::flow_state::{FlowPhase, FlowState};
     use taskit_types::step::StepStatus;
 
     let sh = &ctx.sh;
@@ -356,50 +359,113 @@ pub fn auto_with_ci(
     let release = flow.release_branch();
     let main = flow.main_branch();
 
-    require_branch(sh, develop)?;
-    require_clean(sh, develop)?;
-    require_branch_exists(sh, staging)?;
-    require_branch_exists(sh, release)?;
-    require_branch_exists(sh, main)?;
+    // Load any persisted state from a prior interrupted run.
+    let saved = crate::flow_state_store::load(&ctx.root);
 
-    // 1. Promote develop → staging
-    taskit_output::taskit_progress!("auto: promoting {develop} → {staging}");
-    checkout(ctx, staging)?;
-    merge_with_resolution(
-        ctx,
-        develop,
-        &format!("flow: promote {develop} into {staging}"),
-        resolver,
-    )?;
-
-    // 2. Stage staging → release
-    taskit_output::taskit_progress!("auto: staging {staging} → {release}");
-    checkout(ctx, release)?;
-    merge_with_resolution(
-        ctx,
-        staging,
-        &format!("flow: stage {staging} into {release}"),
-        resolver,
-    )?;
-
-    // 3. CI gate on release
-    taskit_output::taskit_progress!("auto: running CI on {release}");
-    let outcome = run_ci(ctx);
-    if !outcome.passed {
-        let failed: Vec<String> = outcome
-            .results
-            .iter()
-            .filter(|s| s.status == StepStatus::Fail)
-            .map(|s| s.name.clone())
-            .collect();
-        taskit_output::taskit_err!(
-            "auto: CI failed on {release} — staying on {release} for investigation"
-        );
-        return Err(FlowError::CiFailed { failed }.into());
+    let resume_phase = saved.as_ref().map(|s| &s.phase);
+    if let Some(phase) = resume_phase {
+        taskit_output::taskit_progress!("auto: resuming from {phase:?}");
     }
-    taskit_output::taskit_ok!("auto: CI passed on {release}");
 
-    // 4. Finish release → main, sync main → develop
+    // ── Phase 1: Promoting ────────────────────────────────────────────────
+
+    if resume_phase.is_none() || resume_phase == Some(&FlowPhase::Promoting) {
+        if resume_phase.is_none() {
+            // Fresh run — validate preconditions.
+            require_branch(sh, develop)?;
+            require_clean(sh, develop)?;
+            require_branch_exists(sh, staging)?;
+            require_branch_exists(sh, release)?;
+            require_branch_exists(sh, main)?;
+
+            let state = FlowState::promoting(staging, release, main);
+            if !ctx.dry_run {
+                crate::flow_state_store::save(&ctx.root, &state)?;
+            }
+        }
+
+        taskit_output::taskit_progress!("auto: promoting {develop} → {staging}");
+        checkout(ctx, staging)?;
+        merge_with_resolution(
+            ctx,
+            develop,
+            &format!("flow: promote {develop} into {staging}"),
+            resolver,
+        )?;
+
+        taskit_output::taskit_progress!("auto: staging {staging} → {release}");
+        checkout(ctx, release)?;
+        merge_with_resolution(
+            ctx,
+            staging,
+            &format!("flow: stage {staging} into {release}"),
+            resolver,
+        )?;
+
+        // Advance state to CiGate.
+        if !ctx.dry_run {
+            let state = FlowState {
+                phase: FlowPhase::CiGate,
+                staging: staging.to_string(),
+                release: release.to_string(),
+                main: main.to_string(),
+                merge_sha: None,
+                failed_steps: vec![],
+            };
+            crate::flow_state_store::save(&ctx.root, &state)?;
+        }
+    }
+
+    // ── Phase 2: CI gate ─────────────────────────────────────────────────
+
+    if resume_phase.is_none()
+        || resume_phase == Some(&FlowPhase::Promoting)
+        || resume_phase == Some(&FlowPhase::CiGate)
+    {
+        taskit_output::taskit_progress!("auto: running CI on {release}");
+        let outcome = run_ci(ctx);
+        if !outcome.passed {
+            let failed: Vec<String> = outcome
+                .results
+                .iter()
+                .filter(|s| s.status == StepStatus::Fail)
+                .map(|s| s.name.clone())
+                .collect();
+            // Persist failure state so the user can re-run after fixing CI.
+            if !ctx.dry_run {
+                let state = FlowState {
+                    phase: FlowPhase::CiGate,
+                    staging: staging.to_string(),
+                    release: release.to_string(),
+                    main: main.to_string(),
+                    merge_sha: None,
+                    failed_steps: failed.clone(),
+                };
+                crate::flow_state_store::save(&ctx.root, &state)?;
+            }
+            taskit_output::taskit_err!(
+                "auto: CI failed on {release} — staying on {release} for investigation"
+            );
+            return Err(FlowError::CiFailed { failed }.into());
+        }
+        taskit_output::taskit_ok!("auto: CI passed on {release}");
+
+        // Advance to Finishing.
+        if !ctx.dry_run {
+            let state = FlowState {
+                phase: FlowPhase::Finishing,
+                staging: staging.to_string(),
+                release: release.to_string(),
+                main: main.to_string(),
+                merge_sha: None,
+                failed_steps: vec![],
+            };
+            crate::flow_state_store::save(&ctx.root, &state)?;
+        }
+    }
+
+    // ── Phase 3: Finishing ────────────────────────────────────────────────
+
     taskit_output::taskit_progress!("auto: finishing {release} → {main}");
     checkout(ctx, main)?;
     merge_with_resolution(
@@ -417,6 +483,11 @@ pub fn auto_with_ci(
         &format!("flow: sync {main} into {develop}"),
         resolver,
     )?;
+
+    // Success — clear the state file.
+    if !ctx.dry_run {
+        crate::flow_state_store::clear(&ctx.root)?;
+    }
 
     taskit_output::taskit_ok!("auto: done. {develop} is in sync with {main}.");
     Ok(())

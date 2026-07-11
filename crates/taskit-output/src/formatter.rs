@@ -16,6 +16,9 @@ pub trait OutputFormatter {
 pub fn formatter_for(format: OutputFormat) -> Box<dyn OutputFormatter> {
     match format {
         OutputFormat::Human => Box::new(HumanFormatter),
+        OutputFormat::Compact => Box::new(CompactFormatter {
+            verbose_on_failure: true,
+        }),
         OutputFormat::Json => Box::new(JsonFormatter),
         OutputFormat::Github => Box::new(GithubFormatter),
         OutputFormat::Junit => Box::new(JunitFormatter),
@@ -82,6 +85,42 @@ impl OutputFormatter for HumanFormatter {
             out.push_str(&render_run_context_text(ctx));
         }
 
+        out
+    }
+}
+
+// -- Compact -----------------------------------------------------------------
+
+pub struct CompactFormatter {
+    pub verbose_on_failure: bool,
+}
+
+impl OutputFormatter for CompactFormatter {
+    fn render(&self, outcome: &PipelineOutcome) -> String {
+        let mut out = String::new();
+        for s in &outcome.results {
+            let icon = match s.status {
+                StepStatus::Pass => "✓",
+                StepStatus::Fail => "✗",
+                StepStatus::Skipped => "-",
+            };
+            out.push_str(&format!(
+                "{icon} {} ({:.1}s)\n",
+                s.name,
+                s.duration.as_secs_f64()
+            ));
+            if self.verbose_on_failure && s.status == StepStatus::Fail {
+                if let Some(ref err) = s.error {
+                    out.push_str(&format!("  {err}\n"));
+                }
+                if let Some(ref repro) = s.context.reproduction {
+                    out.push_str(&format!("  → {repro}\n"));
+                }
+            }
+        }
+        if out.is_empty() {
+            out.push_str("(no steps)\n");
+        }
         out
     }
 }
@@ -618,6 +657,7 @@ pub fn write_output(format: OutputFormat, outcome: &PipelineOutcome) -> Result<(
     let rendered = formatter.render(outcome);
     match format {
         OutputFormat::Json => print!("{rendered}"),
+        OutputFormat::Compact => eprint!("{rendered}"),
         OutputFormat::Junit => {
             let path = "target/taskit-results.xml";
             std::fs::write(path, &rendered).ok();
@@ -986,6 +1026,58 @@ mod tests {
         // STEP_NAME ("compile") does not match any keyword in sarif_tool_name,
         // so the derived tool name is the fallback "taskit".
         assert_formatter_contract(&SarifFormatter, "taskit");
+    }
+
+    #[test]
+    fn compact_formatter_contract() {
+        assert_formatter_contract(
+            &CompactFormatter {
+                verbose_on_failure: true,
+            },
+            STEP_NAME,
+        );
+    }
+
+    #[test]
+    fn compact_formatter_shows_icon_and_duration() {
+        let out = CompactFormatter {
+            verbose_on_failure: false,
+        }
+        .render(&sample_outcome());
+        assert!(out.contains("✓"), "passing step should have ✓");
+        assert!(out.contains("✗"), "failing step should have ✗");
+        assert!(out.contains("fmt"));
+        assert!(out.contains("test"));
+    }
+
+    #[test]
+    fn compact_formatter_verbose_on_failure_shows_error() {
+        let out = CompactFormatter {
+            verbose_on_failure: true,
+        }
+        .render(&sample_outcome());
+        assert!(
+            out.contains("3 tests failed"),
+            "error message should appear"
+        );
+    }
+
+    #[test]
+    fn compact_formatter_no_verbose_hides_error() {
+        let out = CompactFormatter {
+            verbose_on_failure: false,
+        }
+        .render(&sample_outcome());
+        assert!(!out.contains("3 tests failed"), "error should be hidden");
+    }
+
+    #[test]
+    fn compact_formatter_empty_outcome_shows_placeholder() {
+        let out = CompactFormatter {
+            verbose_on_failure: false,
+        }
+        .render(&empty_outcome());
+        assert!(out.contains("(no steps)"));
     }
 
     // -- Diagnostic context rendering ----------------------------------------

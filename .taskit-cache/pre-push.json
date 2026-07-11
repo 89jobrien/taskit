@@ -1,6 +1,8 @@
 {
-  "head_sha": "4b587170d5f02c3a64916d1ccc06c5d445a2cd5e",
+  "head_sha": "30c726560f32be9f3239d3717cc091589c7c05fb",
   "crates": [
-    "taskit-engine"
+    "taskit-engine",
+    "taskit-init",
+    "taskit-types"
   ]
 }

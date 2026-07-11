@@ -11,6 +11,7 @@ pub mod ctx;
 pub mod dev_setup;
 pub mod discovery;
 pub mod flow;
+pub mod flow_state_store;
 pub mod fmt;
 pub mod health;
 pub mod hooks;

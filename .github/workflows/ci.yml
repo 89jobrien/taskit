@@ -17,21 +17,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install system dependencies
-        run: sudo apt-get install -y protobuf-compiler
-
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
 
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-nextest,cargo-llvm-cov,cargo-deny,cargo-machete
+      - uses: taiki-e/install-action@nextest
 
       - uses: Swatinem/rust-cache@v2
 
       - name: Install taskit
-        run: cargo install --path . --locked
+        run: cargo install taskit || cargo install --path .
 
       - name: Run CI pipeline
         run: taskit ci --fail-fast

@@ -3,6 +3,32 @@ use std::path::PathBuf;
 
 pub const DEFAULT_COVERAGE_THRESHOLD: f64 = 80.0;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DiagnosticSeverity {
+    Error,
+    Warning,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConfigDiagnostic {
+    pub severity: DiagnosticSeverity,
+    pub field: String,
+    pub message: String,
+}
+
+fn default_verbose_on_failure() -> bool {
+    true
+}
+
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct OutputConfig {
+    /// Default output format when `--output` flag is not provided.
+    pub default_format: Option<String>,
+    /// Expand failing step output even in compact mode. Default: true.
+    #[serde(default = "default_verbose_on_failure")]
+    pub verbose_on_failure: bool,
+}
+
 #[derive(Debug, Default, Deserialize)]
 pub struct Config {
     #[serde(default)]
@@ -14,6 +40,75 @@ pub struct Config {
     pub release: Option<ReleaseConfig>,
     pub inspect: Option<InspectConfig>,
     pub clean: Option<CleanConfig>,
+    #[serde(default)]
+    pub output: OutputConfig,
+}
+
+impl Config {
+    /// Validate config fields; returns all diagnostics (errors and warnings).
+    /// Any `DiagnosticSeverity::Error` should be treated as fatal by callers.
+    pub fn validate(&self) -> Vec<ConfigDiagnostic> {
+        let mut diags = Vec::new();
+
+        // coverage threshold must be in (0, 100]
+        if let Some(ref cov) = self.coverage {
+            let t = cov.threshold;
+            if let Some(v) = t {
+                if !v.is_finite() || v <= 0.0 || v > 100.0 {
+                    diags.push(ConfigDiagnostic {
+                        severity: DiagnosticSeverity::Error,
+                        field: "coverage.threshold".into(),
+                        message: format!("threshold must be in (0, 100], got {v}"),
+                    });
+                }
+            }
+        }
+
+        // flow branch names must be non-empty and distinct
+        if let Some(ref flow) = self.flow {
+            let branches = [
+                ("flow.main", flow.main_branch()),
+                ("flow.develop", flow.develop_branch()),
+                ("flow.staging", flow.staging_branch()),
+                ("flow.release", flow.release_branch()),
+            ];
+            for (field, name) in &branches {
+                if name.is_empty() {
+                    diags.push(ConfigDiagnostic {
+                        severity: DiagnosticSeverity::Error,
+                        field: field.to_string(),
+                        message: "branch name must not be empty".into(),
+                    });
+                }
+            }
+            let names: Vec<&str> = branches.iter().map(|(_, n)| *n).collect();
+            let mut seen = std::collections::HashSet::new();
+            for name in &names {
+                if !seen.insert(*name) {
+                    diags.push(ConfigDiagnostic {
+                        severity: DiagnosticSeverity::Error,
+                        field: "flow".into(),
+                        message: format!("duplicate branch name: {name}"),
+                    });
+                }
+            }
+        }
+
+        // release github_repo must be in owner/name format if set
+        if let Some(ref rel) = self.release {
+            if let Some(repo) = &rel.github_repo {
+                if repo.matches('/').count() != 1 {
+                    diags.push(ConfigDiagnostic {
+                        severity: DiagnosticSeverity::Warning,
+                        field: "release.github_repo".into(),
+                        message: format!("expected `owner/repo` format, got {repo:?}"),
+                    });
+                }
+            }
+        }
+
+        diags
+    }
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -229,6 +324,86 @@ mod tests {
             prop_assert_eq!(cfg.skip_docs, skip_docs);
             prop_assert_eq!(cfg.allow_dirty, allow_dirty);
         }
+    }
+
+    // ── Config::validate tests ──────────────────────────────────────────────
+
+    #[test]
+    fn validate_clean_config_returns_no_diagnostics() {
+        let cfg = Config::default();
+        assert!(cfg.validate().is_empty());
+    }
+
+    #[test]
+    fn validate_invalid_coverage_threshold_is_error() {
+        let cfg = Config {
+            coverage: Some(CoverageConfig {
+                crate_name: "x".into(),
+                threshold: Some(-5.0),
+            }),
+            ..Default::default()
+        };
+        let diags = cfg.validate();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].severity, DiagnosticSeverity::Error);
+        assert!(diags[0].field.contains("coverage"));
+    }
+
+    #[test]
+    fn validate_duplicate_branch_names_is_error() {
+        let cfg = Config {
+            flow: Some(FlowConfig {
+                main: Some("main".into()),
+                develop: Some("main".into()),
+                staging: None,
+                release: None,
+            }),
+            ..Default::default()
+        };
+        let diags = cfg.validate();
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.severity == DiagnosticSeverity::Error)
+        );
+    }
+
+    #[test]
+    fn validate_malformed_github_repo_is_warning() {
+        let cfg = Config {
+            release: Some(ReleaseConfig {
+                github_repo: Some("no-slash-here".into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let diags = cfg.validate();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].severity, DiagnosticSeverity::Warning);
+    }
+
+    #[test]
+    fn validate_valid_github_repo_has_no_warning() {
+        let cfg = Config {
+            release: Some(ReleaseConfig {
+                github_repo: Some("89jobrien/taskit".into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert!(cfg.validate().is_empty());
+    }
+
+    #[test]
+    fn output_config_verbose_on_failure_defaults_true() {
+        let cfg: OutputConfig = toml::from_str("").unwrap();
+        assert!(cfg.verbose_on_failure);
+    }
+
+    #[test]
+    fn output_config_parses_default_format() {
+        let cfg: OutputConfig = toml::from_str(r#"default_format = "compact""#).unwrap();
+        assert_eq!(cfg.default_format.as_deref(), Some("compact"));
     }
 
     #[test]

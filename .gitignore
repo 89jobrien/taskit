@@ -14,3 +14,4 @@ src/baml_client/
 .ctx/HANDOFF.*.state.json
 !.ctx/handoff.*.config.toml.example
 # handoff-end
+.taskit-state.json
