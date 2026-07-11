@@ -326,7 +326,9 @@ impl Command for Release {
 #[non_exhaustive]
 pub enum FlowAction {
     Status,
+    Sync,
     Promote,
+    Stage,
     Finish,
     Guard,
     Auto,
@@ -342,7 +344,9 @@ impl Command for Flow {
         let cfg = ctx.flow();
         match &self.action {
             FlowAction::Status => flow::status(ctx, &cfg),
+            FlowAction::Sync => flow::sync(ctx, &cfg),
             FlowAction::Promote => flow::promote(ctx, &cfg),
+            FlowAction::Stage => flow::stage(ctx, &cfg),
             FlowAction::Finish => flow::finish(ctx, &cfg),
             FlowAction::Guard => flow::guard(ctx, &cfg),
             FlowAction::Auto => {

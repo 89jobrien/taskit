@@ -181,34 +181,39 @@ fn render_clean(out: &mut String) {
 fn render_flow(out: &mut String, plan: &InitPlan) {
     out.push('\n');
     if let Some(ref flow) = plan.flow {
-        let is_default =
-            flow.main == "main" && flow.staging == "staging" && flow.release == "release";
+        let is_default = flow.main == "main"
+            && flow.develop == "develop"
+            && flow.staging == "staging"
+            && flow.release == "release";
 
         if is_default {
             out.push_str(
                 "\
-# Git flow: main (stable) -> staging (work) -> release (publish) -> main\n\
+# Git flow: main -> develop (work) -> staging (integration) -> release (publish) -> main\n\
 # These are the defaults; uncomment to customize branch names.\n\
 #\n\
 # [flow]\n\
 # main = \"main\"\n\
+# develop = \"develop\"\n\
 # staging = \"staging\"\n\
 # release = \"release\"\n",
             );
         } else {
             out.push_str("[flow]\n");
             out.push_str(&format!("main = \"{}\"\n", flow.main));
+            out.push_str(&format!("develop = \"{}\"\n", flow.develop));
             out.push_str(&format!("staging = \"{}\"\n", flow.staging));
             out.push_str(&format!("release = \"{}\"\n", flow.release));
         }
     } else {
         out.push_str(
             "\
-# Git flow: main (stable) -> staging (work) -> release (publish) -> main\n\
+# Git flow: main -> develop (work) -> staging (integration) -> release (publish) -> main\n\
 # Uncomment to enable `taskit flow` subcommands.\n\
 #\n\
 # [flow]\n\
 # main = \"main\"\n\
+# develop = \"develop\"\n\
 # staging = \"staging\"\n\
 # release = \"release\"\n",
         );
@@ -368,6 +373,8 @@ mod tests {
         // Default flow should be commented since values match defaults
         assert!(toml.contains("# [flow]"));
         assert!(toml.contains("# main = \"main\""));
+        assert!(toml.contains("# develop = \"develop\""));
+        assert!(toml.contains("# staging = \"staging\""));
     }
 
     #[test]
@@ -375,13 +382,15 @@ mod tests {
         let mut plan = minimal_plan();
         plan.flow = Some(FlowPlan {
             main: "trunk".into(),
-            staging: "develop".into(),
+            develop: "work".into(),
+            staging: "int".into(),
             release: "prod".into(),
         });
         let toml = render_toml(&plan);
         assert!(toml.contains("[flow]"));
         assert!(toml.contains("main = \"trunk\""));
-        assert!(toml.contains("staging = \"develop\""));
+        assert!(toml.contains("develop = \"work\""));
+        assert!(toml.contains("staging = \"int\""));
         assert!(toml.contains("release = \"prod\""));
     }
 

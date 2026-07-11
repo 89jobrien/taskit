@@ -48,6 +48,7 @@ pub struct CiStepPlan {
 #[derive(Debug, Clone)]
 pub struct FlowPlan {
     pub main: String,
+    pub develop: String,
     pub staging: String,
     pub release: String,
 }
@@ -62,6 +63,7 @@ impl Default for FlowPlan {
     fn default() -> Self {
         Self {
             main: "main".into(),
+            develop: "develop".into(),
             staging: "staging".into(),
             release: "release".into(),
         }
@@ -203,6 +205,11 @@ pub fn plan_interactive() -> Result<InitPlan, TaskitError> {
             .default("main".into())
             .interact_text()
             .map_err(TaskitError::other)?;
+        let develop: String = Input::new()
+            .with_prompt("Develop branch")
+            .default("develop".into())
+            .interact_text()
+            .map_err(TaskitError::other)?;
         let staging: String = Input::new()
             .with_prompt("Staging branch")
             .default("staging".into())
@@ -215,6 +222,7 @@ pub fn plan_interactive() -> Result<InitPlan, TaskitError> {
             .map_err(TaskitError::other)?;
         Some(FlowPlan {
             main,
+            develop,
             staging,
             release,
         })
@@ -566,6 +574,7 @@ mod tests {
         assert!(plan.flow.is_some());
         let flow = plan.flow.unwrap();
         assert_eq!(flow.main, "main");
+        assert_eq!(flow.develop, "develop");
         assert_eq!(flow.staging, "staging");
         assert_eq!(flow.release, "release");
     }
@@ -574,6 +583,7 @@ mod tests {
     fn flow_plan_default() {
         let f = FlowPlan::default();
         assert_eq!(f.main, "main");
+        assert_eq!(f.develop, "develop");
         assert_eq!(f.staging, "staging");
         assert_eq!(f.release, "release");
     }

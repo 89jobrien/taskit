@@ -105,6 +105,7 @@ impl CoverageConfig {
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct FlowConfig {
     pub main: Option<String>,
+    pub develop: Option<String>,
     pub staging: Option<String>,
     pub release: Option<String>,
 }
@@ -112,6 +113,11 @@ pub struct FlowConfig {
 impl FlowConfig {
     pub fn main_branch(&self) -> &str {
         self.main.as_deref().unwrap_or("main")
+    }
+
+    /// Primary development branch; work lands here first.
+    pub fn develop_branch(&self) -> &str {
+        self.develop.as_deref().unwrap_or("develop")
     }
 
     pub fn staging_branch(&self) -> &str {
@@ -173,11 +179,13 @@ mod tests {
         #[test]
         fn prop_flow_config_branch_names_nonempty(
             main in proptest::option::of("[a-z][a-z0-9-]{0,20}"),
+            develop in proptest::option::of("[a-z][a-z0-9-]{0,20}"),
             staging in proptest::option::of("[a-z][a-z0-9-]{0,20}"),
             release in proptest::option::of("[a-z][a-z0-9-]{0,20}"),
         ) {
-            let cfg = FlowConfig { main, staging, release };
+            let cfg = FlowConfig { main, develop, staging, release };
             prop_assert!(!cfg.main_branch().is_empty());
+            prop_assert!(!cfg.develop_branch().is_empty());
             prop_assert!(!cfg.staging_branch().is_empty());
             prop_assert!(!cfg.release_branch().is_empty());
         }
@@ -331,6 +339,7 @@ mod tests {
     fn flow_config_default_branch_names_are_exact() {
         let cfg = FlowConfig::default();
         assert_eq!(cfg.main_branch(), "main");
+        assert_eq!(cfg.develop_branch(), "develop");
         assert_eq!(cfg.staging_branch(), "staging");
         assert_eq!(cfg.release_branch(), "release");
     }

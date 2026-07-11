@@ -216,13 +216,17 @@ enum Cmd {
 enum FlowCmd {
     /// Show branch positions and ahead/behind counts
     Status,
-    /// Merge staging into release
+    /// Merge main into develop (bring in latest stable)
+    Sync,
+    /// Merge develop into staging
     Promote,
-    /// Merge release into main, then sync main into staging
+    /// Merge staging into release
+    Stage,
+    /// Merge release into main, then sync main into develop
     Finish,
     /// Validate current branch is not protected (for pre-commit hooks)
     Guard,
-    /// Run full promote → CI → finish pipeline (conflict resolution requires BAML — see fa7)
+    /// Run full promote → stage → CI → finish pipeline (conflict resolution requires BAML)
     Auto,
 }
 
@@ -344,7 +348,9 @@ fn to_command(cmd: Cmd) -> Box<dyn Command> {
             let (action, resolver): (FlowAction, Box<dyn taskit_core::ConflictResolver>) = match sub
             {
                 FlowCmd::Status => (FlowAction::Status, Box::new(NullResolver)),
+                FlowCmd::Sync => (FlowAction::Sync, Box::new(NullResolver)),
                 FlowCmd::Promote => (FlowAction::Promote, Box::new(NullResolver)),
+                FlowCmd::Stage => (FlowAction::Stage, Box::new(NullResolver)),
                 FlowCmd::Finish => (FlowAction::Finish, Box::new(NullResolver)),
                 FlowCmd::Guard => (FlowAction::Guard, Box::new(NullResolver)),
                 FlowCmd::Auto => (
