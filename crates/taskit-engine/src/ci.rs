@@ -349,43 +349,32 @@ mod tests {
 
     // --- effective_fail_fast resolution logic ---
 
+    fn resolve_fail_fast(cli: bool, config: Option<bool>) -> bool {
+        cli || config.unwrap_or(false)
+    }
+
     #[test]
     fn effective_fail_fast_cli_false_config_true() {
-        let cli = false;
-        let config_val: Option<bool> = Some(true);
-        let effective = cli || config_val.unwrap_or(false);
-        assert!(effective);
+        assert!(resolve_fail_fast(false, Some(true)));
     }
 
     #[test]
     fn effective_fail_fast_cli_true_config_false() {
-        let cli = true;
-        let config_val: Option<bool> = Some(false);
-        let effective = cli || config_val.unwrap_or(false);
-        assert!(effective);
+        assert!(resolve_fail_fast(true, Some(false)));
     }
 
     #[test]
     fn effective_fail_fast_cli_true_config_none() {
-        let cli = true;
-        let config_val: Option<bool> = None;
-        let effective = cli || config_val.unwrap_or(false);
-        assert!(effective);
+        assert!(resolve_fail_fast(true, None));
     }
 
     #[test]
     fn effective_fail_fast_both_false() {
-        let cli = false;
-        let config_val: Option<bool> = Some(false);
-        let effective = cli || config_val.unwrap_or(false);
-        assert!(!effective);
+        assert!(!resolve_fail_fast(false, Some(false)));
     }
 
     #[test]
     fn effective_fail_fast_both_none() {
-        let cli = false;
-        let config_val: Option<bool> = None;
-        let effective = cli || config_val.unwrap_or(false);
-        assert!(!effective);
+        assert!(!resolve_fail_fast(false, None));
     }
 }

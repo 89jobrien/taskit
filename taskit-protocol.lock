@@ -15,7 +15,7 @@
     {
       "name": "taskit-engine-command",
       "path": "crates/taskit-engine/src/command.rs",
-      "hash": "47716f153b7dc4eea70a3485a43a15a5a8f0cecebcbb019cadeabd8968528e02"
+      "hash": "0cadeb282a062239f6768b364a70d6e1b18b4278100da5c66e3d49b8a2efc23f"
     },
     {
       "name": "taskit-engine-discovery",
@@ -35,7 +35,7 @@
     {
       "name": "taskit-init-plan",
       "path": "crates/taskit-init/src/plan.rs",
-      "hash": "0cb90d2ae0b161d6e2a8b18a7adbc359a72b70e916bd3592944a0eb68397475f"
+      "hash": "96296d7a47f074f104974e907a5059e3d0df4983f47830a4adb596ad0e2d0aaf"
     }
   ]
 }

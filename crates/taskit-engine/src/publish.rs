@@ -118,32 +118,28 @@ mod tests {
 
     // --- Finding 6: config fallback logic tests ---
 
+    fn resolve_flag(cli: bool, config: Option<bool>) -> bool {
+        cli || config.unwrap_or(false)
+    }
+
     #[test]
     fn effective_skip_docs_cli_wins() {
-        let cli = true;
-        let cfg_val = Some(false);
-        assert!(cli || cfg_val.unwrap_or(false));
+        assert!(resolve_flag(true, Some(false)));
     }
 
     #[test]
     fn effective_skip_docs_config_used_when_cli_false() {
-        let cli = false;
-        let cfg_val = Some(true);
-        assert!(cli || cfg_val.unwrap_or(false));
+        assert!(resolve_flag(false, Some(true)));
     }
 
     #[test]
     fn effective_allow_dirty_none_config_defaults_false() {
-        let cli = false;
-        let cfg_val: Option<bool> = None;
-        assert!(!(cli || cfg_val.unwrap_or(false)));
+        assert!(!resolve_flag(false, None));
     }
 
     #[test]
     fn effective_allow_dirty_cli_true_no_config() {
-        let cli = true;
-        let cfg_val: Option<bool> = None;
-        assert!(cli || cfg_val.unwrap_or(false));
+        assert!(resolve_flag(true, None));
     }
 
     #[test]
