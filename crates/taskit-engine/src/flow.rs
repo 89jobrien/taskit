@@ -568,6 +568,7 @@ mod tests {
             develop: Some("work".into()),
             staging: Some("int".into()),
             release: Some("rc".into()),
+            ..Default::default()
         };
         assert_eq!(f.main_branch(), "production");
         assert_eq!(f.develop_branch(), "work");

@@ -13,7 +13,7 @@ use std::env;
 use taskit_engine::command::{self, Command};
 use taskit_engine::ctx::Ctx;
 use taskit_engine::patch;
-use taskit_types::config::DEFAULT_COVERAGE_THRESHOLD;
+use taskit_types::config::{ConflictResolverKind, DEFAULT_COVERAGE_THRESHOLD};
 use taskit_types::output_format::OutputFormat;
 use xshell::Shell;
 
@@ -240,12 +240,32 @@ enum FlowCmd {
     Guard,
 }
 
+struct NoOpResolver;
+impl taskit_core::ConflictResolver for NoOpResolver {
+    fn resolve(
+        &self,
+        _files: &[taskit_types::conflict::ConflictFile],
+    ) -> Result<Vec<taskit_types::conflict::ResolvedFile>, taskit_types::error::TaskitError> {
+        Err(taskit_types::error::TaskitError::other(
+            "merge conflict: automatic resolution disabled (conflict_resolver = none); \
+             resolve manually, then re-run `taskit flow auto`",
+        ))
+    }
+}
+
+fn make_resolver(kind: &ConflictResolverKind) -> Box<dyn taskit_core::ConflictResolver> {
+    match kind {
+        ConflictResolverKind::Baml => Box::new(flow_resolver::BamlConflictResolver),
+        ConflictResolverKind::None => Box::new(NoOpResolver),
+    }
+}
+
 /// Map a parsed CLI subcommand to its [`Command`] implementation.
 ///
 /// This is the single dispatch seam: adding a subcommand means adding a
 /// `Command` impl in `taskit-engine` and one arm here. `Init` is handled
 /// before this point (it runs without a loaded config).
-fn to_command(cmd: Cmd) -> Box<dyn Command> {
+fn to_command(cmd: Cmd, resolver_kind: &ConflictResolverKind) -> Box<dyn Command> {
     use command::*;
     match cmd {
         Cmd::Fmt { check, affected } => Box::new(Fmt { check, affected }),
@@ -361,7 +381,7 @@ fn to_command(cmd: Cmd) -> Box<dyn Command> {
                 FlowCmd::Sync => FlowAction::Sync,
                 FlowCmd::Promote => FlowAction::Promote,
                 FlowCmd::Auto => FlowAction::Auto {
-                    resolver: Box::new(flow_resolver::BamlConflictResolver),
+                    resolver: make_resolver(resolver_kind),
                     ci_runner: Box::new(|c| {
                         taskit_engine::ci::run_default_internal(c, true, false)
                     }),
@@ -400,6 +420,12 @@ fn main() -> miette::Result<()> {
         cli.dry_run,
         cli.output,
     );
-    let command = to_command(cli.cmd);
+    let resolver_kind = ctx
+        .config
+        .flow
+        .as_ref()
+        .map(|f| f.conflict_resolver.clone())
+        .unwrap_or_default();
+    let command = to_command(cli.cmd, &resolver_kind);
     command.run(&ctx).map_err(Into::into)
 }
