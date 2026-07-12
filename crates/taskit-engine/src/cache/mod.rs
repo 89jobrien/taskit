@@ -15,7 +15,7 @@ use std::{collections::BTreeMap, fs, path::Path};
 use taskit_types::error::TaskitError;
 
 const CACHE_DIR: &str = ".taskit-cache";
-pub const MASTER_FILE: &str = ".taskit-cache/master-hash";
+pub(crate) const MASTER_FILE: &str = ".taskit-cache/master-hash";
 
 #[derive(Serialize, Deserialize, Default, PartialEq, Debug)]
 pub struct MasterHash {
@@ -67,7 +67,7 @@ pub fn verify_dirs(cache_dir: &Path, master_file: &Path) -> Result<bool, TaskitE
 
 /// Walk `cache_dir`, hash every `.json` file (sorted by path), and combine
 /// into a single deterministic SHA-256 digest.
-pub fn compute(cache_dir: &Path) -> Result<String, TaskitError> {
+pub(crate) fn compute(cache_dir: &Path) -> Result<String, TaskitError> {
     let mut entries: BTreeMap<String, String> = BTreeMap::new();
 
     let Ok(rd) = fs::read_dir(cache_dir) else {
@@ -92,7 +92,7 @@ pub fn compute(cache_dir: &Path) -> Result<String, TaskitError> {
     Ok(hex::encode(outer.finalize()))
 }
 
-pub fn file_hash(path: &Path) -> Option<String> {
+pub(crate) fn file_hash(path: &Path) -> Option<String> {
     let content = fs::read(path).ok()?;
     let mut h = Sha256::new();
     h.update(&content);

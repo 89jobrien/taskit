@@ -14,9 +14,9 @@ pub struct DiscoveredCrate {
 
 /// A discovered protocol surface from convention scanning.
 #[derive(Debug, Clone)]
-pub struct DiscoveredSurface {
-    pub name: String,
-    pub path: String,
+pub(crate) struct DiscoveredSurface {
+    pub(crate) name: String,
+    pub(crate) path: String,
 }
 
 /// Port: abstracts cargo metadata retrieval for testability.
@@ -68,7 +68,7 @@ const SURFACE_PATTERNS: &[(&str, &str)] = &[
 ///
 /// Walks the directory tree, skipping `target/` and hidden directories.
 /// Files matching known patterns or `*.proto` are returned as surfaces.
-pub fn scan_surfaces(workspace_root: &Path) -> Result<Vec<DiscoveredSurface>, TaskitError> {
+pub(crate) fn scan_surfaces(workspace_root: &Path) -> Result<Vec<DiscoveredSurface>, TaskitError> {
     let mut surfaces = Vec::new();
     walk_for_surfaces(workspace_root, workspace_root, &mut surfaces)?;
     surfaces.sort_by(|a, b| a.path.cmp(&b.path));
