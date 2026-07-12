@@ -1,5 +1,5 @@
 target/
-src/baml_client/
+# src/baml_client/ is committed — generated from baml_src/ via `baml generate`
 .DS_Store
 .pytest_cache/
 .ruff_cache/
