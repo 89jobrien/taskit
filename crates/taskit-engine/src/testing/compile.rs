@@ -262,7 +262,10 @@ fn collect_rs_files(
 }
 
 fn is_ignored_dir_name(name: &str) -> bool {
-    matches!(name, "target" | ".git" | "node_modules" | ".taskit-cache")
+    matches!(
+        name,
+        "target" | ".git" | "node_modules" | ".taskit-cache" | "fuzz"
+    )
 }
 // ── helpers ───────────────────────────────────────────────────────────────────
 
