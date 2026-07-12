@@ -196,12 +196,25 @@ impl CoverageConfig {
     }
 }
 
+#[derive(Debug, Default, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ConflictResolverKind {
+    /// LLM-assisted resolver via BAML (requires API key at runtime).
+    #[default]
+    Baml,
+    /// No automatic resolution; fail on conflict and prompt for manual fix.
+    None,
+}
+
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct FlowConfig {
     pub main: Option<String>,
     pub develop: Option<String>,
     pub staging: Option<String>,
     pub release: Option<String>,
+    /// Conflict resolver used by `flow auto`. Defaults to `baml`.
+    #[serde(default)]
+    pub conflict_resolver: ConflictResolverKind,
 }
 
 impl FlowConfig {
@@ -277,7 +290,7 @@ mod tests {
             staging in proptest::option::of("[a-z][a-z0-9-]{0,20}"),
             release in proptest::option::of("[a-z][a-z0-9-]{0,20}"),
         ) {
-            let cfg = FlowConfig { main, develop, staging, release };
+            let cfg = FlowConfig { main, develop, staging, release, ..Default::default() };
             prop_assert!(!cfg.main_branch().is_empty());
             prop_assert!(!cfg.develop_branch().is_empty());
             prop_assert!(!cfg.staging_branch().is_empty());
@@ -356,6 +369,7 @@ mod tests {
                 develop: Some("main".into()),
                 staging: None,
                 release: None,
+                ..Default::default()
             }),
             ..Default::default()
         };
