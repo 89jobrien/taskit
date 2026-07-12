@@ -47,6 +47,13 @@ fn workspace_member_crates(root: &Path) -> Result<BTreeMap<PathBuf, String>, Tas
             .as_std_path()
             .canonicalize()
             .err_context_with(|| format!("failed to resolve {}", manifest_dir))?;
+        // Skip crates whose directory is under an ignored subtree (e.g. fuzz/).
+        if canonical_dir
+            .components()
+            .any(|c| is_ignored_dir_name(&c.as_os_str().to_string_lossy()))
+        {
+            continue;
+        }
         crates.insert(canonical_dir, pkg.name.clone());
     }
     Ok(crates)
