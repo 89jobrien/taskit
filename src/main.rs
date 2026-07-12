@@ -24,8 +24,8 @@ struct Cli {
     #[arg(long, global = true)]
     dry_run: bool,
     /// Output format: human (default), json, github, junit
-    #[arg(long, global = true, default_value = "human")]
-    output: OutputFormat,
+    #[arg(long, global = true)]
+    output: Option<OutputFormat>,
     #[command(subcommand)]
     cmd: Cmd,
 }
@@ -413,12 +413,22 @@ fn main() -> miette::Result<()> {
         .map_err(miette::Report::from)?;
     taskit_output::set_sink(Box::new(taskit_output::StderrSink));
 
+    let output_format = cli.output.unwrap_or_else(|| {
+        workspace
+            .config
+            .output
+            .default_format
+            .as_deref()
+            .and_then(|s| clap::ValueEnum::from_str(s, true).ok())
+            .unwrap_or_default()
+    });
+
     let ctx = Ctx::new(
         sh,
         workspace_root,
         workspace.config,
         cli.dry_run,
-        cli.output,
+        output_format,
     );
     let resolver_kind = ctx
         .config
