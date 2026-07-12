@@ -97,8 +97,9 @@ mod tests {
     }
 
     #[test]
-    fn tool_exists_cmd_returns_true_for_sh_with_version() {
-        assert!(tool_exists_cmd("sh", &["--version"]));
+    fn tool_exists_cmd_returns_true_for_true_cmd() {
+        // `true` is a POSIX utility that always exits 0, available on all platforms.
+        assert!(tool_exists_cmd("true", &[]));
     }
 
     // --- run_per_crate branching logic ---
