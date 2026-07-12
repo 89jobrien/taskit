@@ -8,7 +8,7 @@ pub mod thread_sink;
 // Re-exports for convenience
 pub use formatter::{
     DiagnosticFormatter, GithubFormatter, HumanFormatter, JsonFormatter, JunitFormatter,
-    OutputFormatter, SarifFormatter, formatter_for, pipeline_error, write_output,
+    OutputFormatter, SarifFormatter, formatter_for, write_output,
 };
 pub use message::{Message, StepEvent};
 pub use sink::MessageSink;
