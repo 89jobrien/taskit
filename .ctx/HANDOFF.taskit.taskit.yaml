@@ -1,0 +1,13 @@
+project: taskit
+id: taskit
+updated: 2026-07-12
+items: []
+log:
+- date: '20260712.011950'
+  summary: Full repo health audit; fixed cargo deny license, dead code, over-exposed public surface, OutputConfig dead field; CI fully green after 6 cascading fixes (tools, baml_client, protoc, taskit-fuzz, stale binary, sh --version)
+  commits: []
+  session: 2
+- date: '20260709.200615'
+  summary: done=60 running=0 pending=4 blocked=0
+  commits: []
+  session: 1

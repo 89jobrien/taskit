@@ -10,8 +10,8 @@ target/
 
 # handoff-begin
 .ctx/*
-.ctx/HANDOFF.godmode.*.yaml
+!.ctx/HANDOFF.*.yaml
+.ctx/HANDOFF.*.state.yaml
 .ctx/HANDOFF.*.state.json
-!.ctx/handoff.*.config.toml.example
 # handoff-end
 .taskit-state.json
