@@ -1,37 +1,34 @@
-use std::time::Duration;
-use taskit_types::step::{PipelineOutcome, StepResult, StepStatus};
-
-/// Build a `PipelineOutcome` with a single step.
-pub fn single_step_outcome(
-    name: &str,
-    passed: bool,
-    duration: Duration,
-    error: Option<String>,
-) -> PipelineOutcome {
-    let status = if passed {
-        StepStatus::Pass
-    } else {
-        StepStatus::Fail
-    };
-    PipelineOutcome {
-        results: vec![StepResult {
-            name: name.to_string(),
-            status,
-            duration,
-            error,
-            gate: false,
-            diagnostics: vec![],
-            context: Default::default(),
-        }],
-        total: duration,
-        passed,
-        context: None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::time::Duration;
+    use taskit_types::step::{PipelineOutcome, StepResult, StepStatus};
+
+    fn single_step_outcome(
+        name: &str,
+        passed: bool,
+        duration: Duration,
+        error: Option<String>,
+    ) -> PipelineOutcome {
+        let status = if passed {
+            StepStatus::Pass
+        } else {
+            StepStatus::Fail
+        };
+        PipelineOutcome {
+            results: vec![StepResult {
+                name: name.to_string(),
+                status,
+                duration,
+                error,
+                gate: false,
+                diagnostics: vec![],
+                context: Default::default(),
+            }],
+            total: duration,
+            passed,
+            context: None,
+        }
+    }
 
     #[test]
     fn passing_outcome() {

@@ -7,14 +7,6 @@ use taskit_types::error::{FlowError, TaskitError};
 use taskit_types::output_format::OutputFormat;
 use xshell::{Shell, cmd};
 
-#[allow(dead_code)]
-struct NoOpResolver;
-impl ConflictResolver for NoOpResolver {
-    fn resolve(&self, _files: &[ConflictFile]) -> Result<Vec<ResolvedFile>, TaskitError> {
-        Ok(vec![])
-    }
-}
-
 struct PanicResolver;
 impl ConflictResolver for PanicResolver {
     fn resolve(&self, _files: &[ConflictFile]) -> Result<Vec<ResolvedFile>, TaskitError> {

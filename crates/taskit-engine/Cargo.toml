@@ -20,7 +20,7 @@ toml = "0.8"
 
 [dev-dependencies]
 proptest = "1"
-taskit-core = { workspace = true, features = ["test-support"] }
+taskit-core.workspace = true
 taskit-macros.workspace = true
 taskit-testing.workspace = true
 tempfile = "3"

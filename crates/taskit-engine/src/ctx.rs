@@ -189,16 +189,6 @@ impl Ctx {
         })
     }
 
-    /// Best-effort run (ignores errors), or in dry-run mode print instead.
-    #[allow(dead_code)]
-    pub fn run_ok(&self, cmd: Cmd<'_>) {
-        if self.dry_run {
-            taskit_output::taskit_dry!("{cmd}");
-        } else {
-            let _ = cmd.run();
-        }
-    }
-
     /// Suppress child stdout/stderr for the duration of `f`.
     ///
     /// Used by `taskit quick` so only progress spinners are visible. The
