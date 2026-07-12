@@ -146,6 +146,18 @@ pub enum FlowError {
     )]
     WrongBranch { expected: String, actual: String },
 
+    #[error("branch '{branch}' is not a flow branch")]
+    #[diagnostic(
+        code(taskit::flow::not_a_flow_branch),
+        help("flow promote must be run on {develop}, {staging}, or {release}")
+    )]
+    NotAFlowBranch {
+        branch: String,
+        develop: String,
+        staging: String,
+        release: String,
+    },
+
     #[error("branch '{branch}' is protected -- direct commits are blocked")]
     #[diagnostic(
         code(taskit::flow::protected),
