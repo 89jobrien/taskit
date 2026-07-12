@@ -192,16 +192,15 @@ fn flow_promote_merges_develop_to_staging() {
 }
 
 #[test]
-fn flow_promote_fails_on_wrong_branch() {
+fn flow_promote_fails_on_non_flow_branch() {
     let (_dir, ctx, flow) = setup_flow_repo();
-    // We are on main — promote requires develop.
+    // We are on main — promote requires a flow branch (develop/staging/release).
     let result = flow::promote(&ctx, &flow);
     match result {
-        Err(TaskitError::Flow(FlowError::WrongBranch { expected, actual })) => {
-            assert_eq!(expected, "develop");
-            assert_eq!(actual, "main");
+        Err(TaskitError::Flow(FlowError::NotAFlowBranch { branch, .. })) => {
+            assert_eq!(branch, "main");
         }
-        other => panic!("expected WrongBranch, got {other:?}"),
+        other => panic!("expected NotAFlowBranch, got {other:?}"),
     }
 }
 
@@ -227,7 +226,7 @@ fn flow_promote_leaves_user_on_staging() {
 }
 
 #[test]
-fn flow_stage_merges_staging_to_release() {
+fn flow_promote_from_staging_merges_to_release() {
     let (_dir, ctx, flow) = setup_flow_repo();
 
     // Add a commit on staging.
@@ -238,9 +237,9 @@ fn flow_stage_merges_staging_to_release() {
 
     let staging_sha = branch_sha(&ctx.sh, "staging");
 
-    flow::stage(&ctx, &flow).expect("flow::stage");
+    flow::promote(&ctx, &flow).expect("flow::promote from staging");
 
-    // After stage we are on release; staging commit must be reachable.
+    // After promote from staging we are on release; staging commit must be reachable.
     let reachable = cmd!(ctx.sh, "git merge-base --is-ancestor {staging_sha} release")
         .run()
         .is_ok();
@@ -252,26 +251,12 @@ fn flow_stage_merges_staging_to_release() {
     assert_eq!(
         branch.trim(),
         "release",
-        "stage should leave user on release"
+        "promote from staging should leave user on release"
     );
 }
 
 #[test]
-fn flow_stage_fails_on_wrong_branch() {
-    let (_dir, ctx, flow) = setup_flow_repo();
-    // We are on main — stage requires staging.
-    let result = flow::stage(&ctx, &flow);
-    match result {
-        Err(TaskitError::Flow(FlowError::WrongBranch { expected, actual })) => {
-            assert_eq!(expected, "staging");
-            assert_eq!(actual, "main");
-        }
-        other => panic!("expected WrongBranch, got {other:?}"),
-    }
-}
-
-#[test]
-fn flow_finish_merges_release_to_main_and_syncs_develop() {
+fn flow_promote_from_release_merges_to_main_and_syncs_develop() {
     let (_dir, ctx, flow) = setup_flow_repo();
 
     // Add a commit directly on release.
@@ -282,9 +267,9 @@ fn flow_finish_merges_release_to_main_and_syncs_develop() {
 
     let release_sha = branch_sha(&ctx.sh, "release");
 
-    flow::finish(&ctx, &flow).expect("flow::finish");
+    flow::promote(&ctx, &flow).expect("flow::promote from release");
 
-    // After finish we are on develop. Verify main contains the release commit.
+    // After promote from release we are on develop. Verify main contains the release commit.
     let main_reachable = cmd!(ctx.sh, "git merge-base --is-ancestor {release_sha} main")
         .run()
         .is_ok();
@@ -297,26 +282,8 @@ fn flow_finish_merges_release_to_main_and_syncs_develop() {
         .is_ok();
     assert!(
         develop_reachable,
-        "main not yet synced into develop after finish"
+        "main not yet synced into develop after promote from release"
     );
-}
-
-#[test]
-fn flow_finish_auto_switches_from_develop() {
-    let (_dir, ctx, flow) = setup_flow_repo();
-
-    // Seed release with a commit.
-    cmd!(ctx.sh, "git checkout release")
-        .run()
-        .expect("checkout release");
-    commit_file(&ctx.sh, "hotfix.txt", "hotfix\n", "fix: hotfix");
-
-    // Switch to develop — finish should auto-switch to release.
-    cmd!(ctx.sh, "git checkout develop")
-        .run()
-        .expect("checkout develop");
-
-    flow::finish(&ctx, &flow).expect("flow::finish should succeed from develop");
 }
 
 #[test]

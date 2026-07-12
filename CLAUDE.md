@@ -19,7 +19,9 @@ taskit quick                    # fast local feedback
 taskit ci                       # full CI pipeline
 taskit ci --fail-fast           # stop on first failure
 taskit ci --include-network     # include network tests
-taskit flow auto                # promote -> CI -> finish, LLM conflict resolution
+taskit flow auto                # full pipeline: promote + CI gate + finish to main,
+                                #   with LLM conflict resolution; resumes from
+                                #   .taskit-state.json if interrupted
 taskit init                     # generate taskit.toml + Cruxfile
 taskit init --force             # overwrite existing
 taskit init --interactive       # interactive prompts
@@ -47,12 +49,12 @@ taskit --dry-run <subcommand>   # print without executing
 | `publish [--skip-docs] [--allow-dirty]`                  | Generate docs and publish to crates.io |
 | `init [--force] [--interactive]`                         | Generate taskit.toml, Cruxfile, hooks  |
 | `flow status`                                            | Show current branch / staging state    |
-| `flow promote`                                           | Merge main -> staging                  |
-| `flow finish`                                            | Merge staging -> main after CI         |
-| `flow guard`                                             | Assert branch invariants               |
-| `flow auto`                                              | Promote -> CI -> finish; LLM conflict  |
-|                                                          | resolution via BamlConflictResolver;   |
+| `flow sync`                                              | Merge main -> develop                  |
+| `flow promote`                                           | Full pipeline: develop -> staging ->   |
+|                                                          | release -> main with CI gate; LLM      |
+|                                                          | conflict resolution via BAML;          |
 |                                                          | escalates via FlowError::NeedsHuman    |
+| `flow guard`                                             | Assert branch invariants               |
 
 ## Architecture
 
@@ -98,7 +100,7 @@ taskit (root bin)
 - **`taskit-engine/ci.rs`** -- CI pipeline assembly and step dispatch
 - **`taskit-engine/step.rs`** -- Pipeline builder with step/gate/fail-fast
 - **`taskit-engine/pipeline_runner.rs`** -- BuiltinRunner, SubprocessCruxRunner
-- **`taskit-engine/flow.rs`** -- flow commands: status, promote, finish, guard, auto
+- **`taskit-engine/flow.rs`** -- flow commands: status, promote, sync, guard, auto (auto = promote + CI + finish with resumption)
 - **`taskit-init/plan.rs`** -- InitPlan, plan_from_discovery, plan_interactive
 - **`taskit-init/render_toml.rs`** -- Hand-built TOML renderer
 - **`taskit-init/render_cruxfile.rs`** -- Cruxfile YAML generator
@@ -128,6 +130,8 @@ Key optional sections and their top-level fields:
 |              | `cargo clean`)                                                      |
 | `[release]`  | `github_repo`, `publish_order`, `skip_docs` (bool), `allow_dirty` |
 |              | (bool)                                                              |
+| `[flow]`     | `main`, `develop`, `staging`, `release` (branch names);           |
+|              | `conflict_resolver` (`baml` \| `none` — default: `baml`)           |
 
 CLI flags always override the corresponding config values.
 

@@ -6,6 +6,23 @@ All notable changes to this project will be documented in this file.
 
 ### Features
 
+- **flow promote**: position-aware one-stage advance — develop→staging, staging→release,
+  release→main+sync; removes the need to know which branch you're on
+- **flow auto**: now runs the full pipeline (all stages) end-to-end; `promote` handles
+  single-stage advance; `auto` is restored as the full-pipeline alias
+- **ConflictResolverKind**: config-driven resolver selection (`baml` | `none`) read from
+  `[flow] conflict_resolver` in `taskit.toml`; `flow auto` uses this setting; defaults to
+  `baml` when unset
+- **FlowError::NotAFlowBranch**: new variant signalled when `flow promote` is run from a
+  branch not in the configured flow sequence
+
+### Removed
+
+- **FlowCmd::Stage** and **FlowCmd::Finish**: subcommands collapsed into `flow promote`;
+  position-aware promote covers both cases
+
+### Features
+
 - **flow auto**: agentic pipeline (`taskit flow auto`) that promotes staging to release,
   runs the full CI gate, and finishes the merge — with configurable conflict resolution
   (7b082a2, 7898349, 0b8d0a6)
