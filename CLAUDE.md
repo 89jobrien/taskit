@@ -74,17 +74,17 @@ taskit (root bin)
 
 ### Crate Responsibilities
 
-| Crate              | Role                                                           |
-| ------------------ | -------------------------------------------------------------- |
-| `taskit`           | Binary entry point; CLI parsing (clap), dispatch, adapters     |
-| `taskit-types`     | Leaf crate: Config, TaskitError, StepResult, ConflictFile      |
-| `taskit-core`      | Ports only: PipelineRunner, ConflictResolver traits            |
-| `taskit-engine`    | CI pipeline, config loading, flow commands, step engine        |
-| `taskit-init`      | InitPlan discovery, TOML/Cruxfile rendering, interactive UI    |
-| `taskit-crux`      | EmbeddedCruxRunner stub (feature-gated)                        |
-| `taskit-macros`    | Proc-macros for derive utilities used across crates            |
-| `taskit-output`    | OutputFormatter trait and format implementations               |
-| `taskit-testing`   | Shared test helpers; PipelineRunner conformance harness        |
+| Crate            | Role                                                        |
+| ---------------- | ----------------------------------------------------------- |
+| `taskit`         | Binary entry point; CLI parsing (clap), dispatch, adapters  |
+| `taskit-types`   | Leaf crate: Config, TaskitError, StepResult, ConflictFile   |
+| `taskit-core`    | Ports only: PipelineRunner, ConflictResolver traits         |
+| `taskit-engine`  | CI pipeline, config loading, flow commands, step engine     |
+| `taskit-init`    | InitPlan discovery, TOML/Cruxfile rendering, interactive UI |
+| `taskit-crux`    | EmbeddedCruxRunner stub (feature-gated)                     |
+| `taskit-macros`  | Proc-macros for derive utilities used across crates         |
+| `taskit-output`  | OutputFormatter trait and format implementations            |
+| `taskit-testing` | Shared test helpers; PipelineRunner conformance harness     |
 
 ### Key Modules
 
@@ -121,17 +121,17 @@ surfaces from `[[protocol.surfaces]]`. Use `taskit check-protocol-drift
 
 Key optional sections and their top-level fields:
 
-| Section      | Fields                                                              |
-| ------------ | ------------------------------------------------------------------- |
-| `[ci]`       | `steps`, `cruxfile`, `fail_fast` (bool — stop on first failure)    |
-| `[inspect]`  | `max_clippy_warnings`, `max_clippy_errors`, `max_test_failures`,   |
-|              | `max_todo_fixme` (all `usize`; absent = not checked)               |
-| `[clean]`    | `older_than` (e.g. `"7d"` — uses `cargo sweep`; absent = full     |
-|              | `cargo clean`)                                                      |
-| `[release]`  | `github_repo`, `publish_order`, `skip_docs` (bool), `allow_dirty` |
-|              | (bool)                                                              |
-| `[flow]`     | `main`, `develop`, `staging`, `release` (branch names);           |
-|              | `conflict_resolver` (`baml` \| `none` — default: `baml`)           |
+| Section     | Fields                                                            |
+| ----------- | ----------------------------------------------------------------- |
+| `[ci]`      | `steps`, `cruxfile`, `fail_fast` (bool — stop on first failure)   |
+| `[inspect]` | `max_clippy_warnings`, `max_clippy_errors`, `max_test_failures`,  |
+|             | `max_todo_fixme` (all `usize`; absent = not checked)              |
+| `[clean]`   | `older_than` (e.g. `"7d"` — uses `cargo sweep`; absent = full     |
+|             | `cargo clean`)                                                    |
+| `[release]` | `github_repo`, `publish_order`, `skip_docs` (bool), `allow_dirty` |
+|             | (bool)                                                            |
+| `[flow]`    | `main`, `develop`, `staging`, `release` (branch names);           |
+|             | `conflict_resolver` (`baml` \| `none` — default: `baml`)          |
 
 CLI flags always override the corresponding config values.
 
