@@ -1,6 +1,6 @@
 [package]
 name = "taskit-init"
-version = "0.7.0"
+version = "0.8.0"
 edition.workspace = true
 license.workspace = true
 description = "Config and Cruxfile generator for taskit"

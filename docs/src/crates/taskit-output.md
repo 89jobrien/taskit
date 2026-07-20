@@ -12,9 +12,13 @@ pipeline progress, step results, and summary tables route through this interface
 
 | Impl | Format | When |
 |------|--------|------|
-| `PrettyFormatter` | Human-readable with colour and tables | Default TTY output |
-| `JsonFormatter` | Newline-delimited JSON events | `--output json` |
-| `MinimalFormatter` | One line per step | `--output minimal` / CI logs |
+| `HumanFormatter` | Human-readable summary table | `--output human` / default |
+| `CompactFormatter` | One line per step, with failure details | `--output compact` |
+| `JsonFormatter` | Structured JSON document | `--output json` |
+| `GithubFormatter` | GitHub Actions annotations and summary | `--output github` |
+| `JunitFormatter` | JUnit XML written to `target/taskit-results.xml` | `--output junit` |
+| `DiagnosticFormatter` | Diagnostic-oriented text output | `--output diagnostic` |
+| `SarifFormatter` | SARIF written to `target/taskit-results.sarif` | `--output sarif` |
 
 ## Dry-run macro
 

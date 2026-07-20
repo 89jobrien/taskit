@@ -7,7 +7,7 @@ All configuration lives in `taskit.toml` at the workspace root. Generate a start
 
 ```toml
 [workspace]
-offline_skip = ["integration-tests"]   # crates to skip when --offline
+offline_skip = "test(/.*network.*/)"   # nextest filter expression used by --offline
 ```
 
 ```toml
@@ -24,8 +24,17 @@ dependents.
 ```toml
 [ci]
 fail_fast = false
-steps = ["fmt", "lint", "compile-tests", "test", "check-deps", "check-protocol-drift"]
 cruxfile = "Cruxfile"   # optional; enables crux-based step execution
+
+[[ci.steps]]
+name = "fmt --check"
+cmd = "fmt --check"
+gate = false
+
+[[ci.steps]]
+name = "lint"
+cmd = "lint"
+gate = false
 ```
 
 ## `[inspect]`
@@ -51,8 +60,8 @@ older_than = "7d"   # pass to cargo-sweep; absent = full cargo clean
 
 ```toml
 [coverage]
-threshold = 80        # minimum line coverage percentage
-exclude = ["taskit-macros", "taskit-crux"]
+crate_name = "taskit-engine"
+threshold = 80.0        # minimum line coverage percentage
 ```
 
 ## `[flow]`
@@ -84,11 +93,11 @@ allow_dirty   = false
 ```toml
 [[protocol.surfaces]]
 name = "pipeline-runner"
-file = "crates/taskit-core/src/pipeline_runner.rs"
+path = "crates/taskit-core/src/pipeline_runner.rs"
 
 [[protocol.surfaces]]
 name = "conflict-resolver"
-file = "crates/taskit-core/src/conflict_resolver.rs"
+path = "crates/taskit-core/src/conflict_resolver.rs"
 ```
 
 Each surface is SHA-256 hashed and stored in `taskit-protocol.lock`. CI fails when the hash

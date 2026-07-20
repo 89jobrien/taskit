@@ -1,7 +1,8 @@
 # taskit-types
 
-Leaf crate. Owns all shared domain types. No business logic, no I/O, no dependencies
-outside the standard library and derive crates (`serde`, `thiserror`, `miette`).
+Leaf crate. Owns shared domain types. No business logic and no I/O-heavy adapters. Runtime
+dependencies are limited to CLI/config/error support such as `clap`, `serde`, `thiserror`, and
+`miette`.
 
 ## Modules
 
@@ -11,14 +12,15 @@ outside the standard library and derive crates (`serde`, `thiserror`, `miette`).
 
 ```
 Config
-  workspace: WorkspaceConfig   crates, propagation rules, offline_skip
-  ci:        CiConfig          steps, cruxfile path, fail_fast
-  inspect:   InspectConfig     max_clippy_warnings, max_todo_fixme, ...
-  clean:     CleanConfig       older_than: Option<String>
-  flow:      FlowConfig        main/develop/staging/release names, conflict_resolver
-  release:   ReleaseConfig     github_repo, publish_order, skip_docs, allow_dirty
-  protocol:  ProtocolConfig    surfaces: Vec<ProtocolSurface>
-  coverage:  CoverageConfig    threshold, exclude
+  workspace: WorkspaceConfig         crates, propagation rules, offline_skip
+  protocol:  Option<ProtocolConfig> surfaces, lockfile
+  ci:        Option<CiConfig>       [[ci.steps]], cruxfile, fail_fast
+  coverage:  Option<CoverageConfig> crate_name, threshold
+  flow:      Option<FlowConfig>     main/develop/staging/release names, conflict_resolver
+  release:   Option<ReleaseConfig>  github_repo, publish_order, skip_docs, allow_dirty
+  inspect:   Option<InspectConfig>  max_clippy_warnings, max_todo_fixme, ...
+  clean:     Option<CleanConfig>    older_than
+  output:    OutputConfig           default_format, verbose_on_failure
 ```
 
 ### `error.rs`
@@ -40,7 +42,7 @@ Config
 ### `step.rs`
 
 - `StepResult` — name, `StepStatus`, duration, optional error string, gate flag
-- `StepStatus` — `Pass | Fail | Skip`
+- `StepStatus` — `Pass | Fail | Skipped`
 - `PipelineOutcome` — all results, total duration, `passed` bool, optional context
 
 ### `conflict.rs`
@@ -50,7 +52,7 @@ Config
 
 ### `output_format.rs`
 
-`OutputFormat` — `Pretty | Json | Minimal`
+`OutputFormat` — `Human | Compact | Json | Github | Junit | Diagnostic | Sarif`
 
 ### `flow_state.rs`
 

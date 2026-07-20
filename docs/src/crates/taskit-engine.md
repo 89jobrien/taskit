@@ -7,8 +7,9 @@ The engine crate wires everything together. All public functions return
 
 ### `config.rs`
 
-- `load(path)` — parse `taskit.toml` into `Config`
-- `discover()` — walk up from cwd to find `taskit.toml`
+- `load()` — find `taskit.toml` from cwd, parse it, merge discovered workspace metadata, and
+  return a `Workspace`
+- `discover(workspace_root)` — build a conventional `Config` from cargo metadata
 
 ### `ci.rs`
 
@@ -32,15 +33,15 @@ Git branching workflow commands:
 
 | Function | Description |
 |----------|-------------|
-| `flow_status` | Print current branch and ahead/behind counts |
-| `flow_sync` | Merge main → develop |
-| `flow_promote` | develop → staging → release → main (--no-ff merges with LLM conflict resolution) |
-| `flow_guard` | Assert branch invariants; fails if violated |
-| `flow_auto` | Promote + CI gate + finish; resumes from `.taskit-state.json` |
+| `status` | Print current branch and ahead/behind counts |
+| `sync` | Merge main → develop |
+| `promote` | Advance the current flow branch one step with `--no-ff` merges |
+| `guard` | Assert branch invariants; fails if violated |
+| `auto` | develop → staging → release → main with CI gate and resumable state |
 
-`merge_with_resolution` handles the merge-conflict loop: on conflict it calls
+`merge_with_resolution` handles the `flow auto` merge-conflict loop: on conflict it calls
 `ConflictResolver`, stages resolved files, and commits. Unresolvable conflicts raise
-`FlowError::NeedsHuman`.
+`FlowError::NeedsHuman`. The one-step `promote` path uses plain `--no-ff` merges.
 
 `parse_conflict_paths` parses `git status --porcelain` for `UU`/`AA`/`DD`/`AU`/`UA` markers.
 

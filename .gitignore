@@ -6,6 +6,8 @@ target/
 .venv/
 .taskit-cache/
 .claude/settings.local.json
+.claude/worktrees/
+.kgx/
 *.local.md
 
 # handoff-begin

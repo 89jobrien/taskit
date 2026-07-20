@@ -305,7 +305,6 @@ pub fn write_mdbook(
 title = \"{project_name}\"
 authors = []
 language = \"en\"
-multilingual = false
 src = \"src\"
 
 [build]

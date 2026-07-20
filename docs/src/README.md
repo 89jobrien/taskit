@@ -8,7 +8,7 @@ workflows — all driven by a `taskit.toml` at the workspace root.
 
 ```bash
 taskit init          # scaffold taskit.toml, Cruxfile, hooks, CI, docs
-taskit quick         # fast local feedback (fmt + lint + test)
+taskit quick         # fast local feedback (fmt + lint + compile-tests + test)
 taskit ci            # full CI pipeline
 taskit flow auto     # promote develop → staging → release → main with CI gate
 ```

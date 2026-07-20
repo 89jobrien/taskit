@@ -6,7 +6,7 @@
 taskit ci                    # full pipeline
 taskit ci --fail-fast        # stop on first failure
 taskit ci --include-network  # include network-dependent steps
-taskit quick                 # fast feedback: fmt-check + lint + test only
+taskit quick                 # fast feedback: fmt-check + lint + compile-tests + test
 ```
 
 ## Default steps
@@ -31,11 +31,24 @@ Override the default step list in `taskit.toml`:
 ```toml
 [ci]
 fail_fast = false
-steps = ["fmt", "lint", "test", "audit"]
-```
 
-Valid step names correspond to taskit subcommands (`fmt`, `lint`, `test`, `coverage`,
-`compile-tests`, `check-deps`, `check-protocol-drift`, `audit`).
+[[ci.steps]]
+name = "fmt --check"
+cmd = "fmt --check"
+gate = false
+
+[[ci.steps]]
+name = "lint"
+cmd = "lint"
+gate = false
+
+[[ci.steps]]
+name = "test"
+cmd = "test"
+gate = false
+```
+Supported config step commands are `fmt`, `lint`, `test`, `coverage`, `compile-tests`,
+`check-deps`, `check-protocol-drift`, `self-check`, and `health`.
 
 ## Affected-crate mode
 
@@ -52,5 +65,4 @@ taskit test --affected
 | Code | Meaning |
 |------|---------|
 | 0 | All steps passed |
-| 1 | One or more steps failed |
-| 2 | Gate failed — pipeline aborted early |
+| 1 | One or more steps failed, including gate failures that aborted later steps |

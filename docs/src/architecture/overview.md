@@ -1,36 +1,42 @@
 # Architecture Overview
 
-taskit uses hexagonal architecture across an 8-crate workspace. The dependency graph flows
-strictly from leaf to adapter — inner crates never depend on outer ones.
+taskit uses hexagonal architecture across the root binary and supporting crates. The core
+direction is from shared types and ports toward adapters; the binary wires adapters together.
 
 ## Dependency graph
 
 ```
 taskit (bin)
-  └── taskit-engine
-        ├── taskit-core          ← ports only
-        │     └── taskit-types   ← leaf: Config, Error, StepResult
-        ├── taskit-init
-        │     └── taskit-types
-        ├── taskit-output
-        │     └── taskit-types
-        └── taskit-types
+  ├── taskit-engine
+  │     ├── taskit-core          ← ports only
+  │     │     └── taskit-types   ← shared config, errors, outcomes
+  │     ├── taskit-output
+  │     │     └── taskit-types
+  │     └── taskit-types
+  ├── taskit-init
+  │     └── taskit-types
+  ├── taskit-output
+  ├── taskit-core
+  └── taskit-types
 
-taskit-crux (optional, `crux` feature)
+taskit-crux
   └── taskit-core
 
 taskit-testing (dev/test only)
-  └── taskit-core
-```
+  └── taskit-types
 
-`taskit-macros` is a proc-macro crate depended on by `taskit-types` for derive utilities.
+taskit-macros (proc-macro)
+  └── syn / quote / proc-macro2
+```
+`taskit-macros` is available for derive utilities but is not currently a runtime dependency of
+`taskit-types`.
 
 ## Layers
 
 ### Layer 1 — Types (leaf)
 
-`taskit-types` owns all shared domain types. Nothing depends on it except every other crate.
-No business logic; no I/O.
+`taskit-types` owns shared domain types. It is intentionally low-level and contains no business
+logic or I/O-heavy adapters.
 
 Key types: `Config`, `WorkspaceConfig`, `CiConfig`, `FlowConfig`, `TaskitError`, `StepResult`,
 `PipelineOutcome`, `ConflictFile`, `OutputFormat`.
@@ -51,8 +57,8 @@ and flow commands. All public functions return `Result<T, TaskitError>`.
 `taskit-init` handles discovery and file generation for `taskit init`. It is deliberately
 separate from the engine to keep the engine free of generation concerns.
 
-`taskit-output` owns formatting — progress bars, summary tables, dry-run output. Plugins in
-via the `OutputFormatter` trait.
+`taskit-output` owns formatting, message sinks, summary tables, and dry-run output through the
+`OutputFormatter` trait.
 
 ### Layer 4 — Binary
 

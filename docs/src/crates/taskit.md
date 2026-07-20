@@ -23,7 +23,12 @@ conflicted file and returns `Vec<ResolvedFile>`. Unresolvable cases propagate
 | Flag | Description |
 |------|-------------|
 | `--dry-run` | Print commands without executing |
-| `--output <fmt>` | `pretty` (default) \| `json` \| `minimal` |
-| `--config <path>` | Override `taskit.toml` location |
+| `--output <fmt>` | Select output format |
 
-See [Common Subcommands](../README.md#quick-start) for the full command list.
+Supported output formats: `human` (default), `compact`, `json`, `github`, `junit`,
+`diagnostic`, and `sarif`.
+
+`taskit.toml` is discovered by walking up from the current directory; there is no global
+`--config` flag.
+
+See [Quick start](../README.md#quick-start) for common subcommands.
