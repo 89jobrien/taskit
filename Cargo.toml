@@ -50,10 +50,9 @@ taskit-output.workspace = true
 clap.workspace = true
 miette = { version = "7", features = ["fancy"] }
 xshell.workspace = true
+# TODO(audit): baml 0.218.0 -> 0.221.0 available; check flow_resolver.rs for
+# breaking client/prompt API changes before bumping.
 baml = "0.218.0"
 
 [package.metadata.cargo-machete]
 ignored = ["baml"]
-
-[features]
-crux = ["taskit-output/crux"]

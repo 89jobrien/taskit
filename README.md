@@ -110,8 +110,7 @@ cmd  = "check-protocol-drift"
 | `test-report`                                                          | Generate unified coverage report                    |
 | `snapshot-review`                                                      | Review pending insta snapshots                      |
 | `flow status`                                                          | Show current branch / staging state                 |
-| `flow promote`                                                         | Merge main -> staging                               |
-| `flow finish`                                                          | Merge staging -> main after CI                      |
+| `flow promote`                                                         | Advance one stage: develop -> staging -> release -> main |
 | `flow guard`                                                           | Assert branch invariants                            |
 | `flow auto`                                                            | Full promote -> CI -> finish pipeline with LLM      |
 |                                                                        | conflict resolution (BamlConflictResolver / BAML);  |

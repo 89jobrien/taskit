@@ -1,3 +1,7 @@
+// TODO(audit): 968 lines — split candidate. Also the crate-exclusion logic
+// here has been patched 3x for different directory types (ebe2117, bb15aec,
+// af1fa56) because it's a denylist-by-name; consider a general rule instead
+// (e.g. skip anything cargo-metadata excludes / dot-prefixed dirs).
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},

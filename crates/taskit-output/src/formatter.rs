@@ -1,3 +1,4 @@
+// TODO(audit): 1,251 lines — largest module in the workspace, split candidate.
 use miette::NamedSource;
 use serde::Serialize;
 

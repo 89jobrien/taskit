@@ -1,3 +1,4 @@
+// TODO(audit): 831 lines — split candidate.
 use std::path::Path;
 
 use crate::emit_file;

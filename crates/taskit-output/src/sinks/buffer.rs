@@ -3,6 +3,8 @@ use std::sync::{Arc, Mutex};
 use crate::message::Message;
 use crate::sink::MessageSink;
 
+// TODO(audit): only constructed in this crate's own tests — not adopted in
+// any production output path yet.
 /// Collects messages into a Vec for testing or buffered output.
 #[derive(Clone)]
 pub struct BufferSink {

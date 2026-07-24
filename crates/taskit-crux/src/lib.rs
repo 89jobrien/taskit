@@ -5,6 +5,10 @@ use taskit_core::pipeline_runner::PipelineRunner;
 use taskit_types::error::TaskitError;
 use taskit_types::step::{PipelineOutcome, StepResult, StepStatus};
 
+// TODO(audit): zero callers outside this file — SubprocessCruxRunner in
+// taskit-engine/src/pipeline_runner.rs is what's actually wired into CI
+// dispatch. Cross-check docs/designs/2026-06-27-init-pipeline-runner-design.md
+// before removing; may be intentional forward scaffolding.
 /// Adapter: runs a Cruxfile via embedded crux-script runtime.
 ///
 /// Currently a stub — full implementation requires the `crux-script` crate.
