@@ -191,6 +191,10 @@ fn checkout(ctx: &Ctx, branch: &str) -> Result<(), TaskitError> {
     Ok(())
 }
 
+fn sync_commit_message(main: &str, develop: &str) -> String {
+    format!("flow: sync {main} into {develop}")
+}
+
 pub fn status(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     let main = flow.main_branch();
@@ -230,7 +234,7 @@ pub fn sync(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
     require_branch_exists(sh, main)?;
 
     taskit_output::taskit_progress!("Syncing {main} -> {develop}");
-    merge_no_ff(ctx, main, &format!("flow: sync {main} into {develop}"))?;
+    merge_no_ff(ctx, main, &sync_commit_message(main, develop))?;
     taskit_output::taskit_ok!("Done. {develop} is up to date with {main}.");
     Ok(())
 }
@@ -286,7 +290,7 @@ pub fn promote(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
             &format!("flow: promote {release} into {main}"),
         )?;
         checkout(ctx, develop)?;
-        merge_no_ff(ctx, main, &format!("flow: sync {main} into {develop}"))?;
+        merge_no_ff(ctx, main, &sync_commit_message(main, develop))?;
         taskit_output::taskit_ok!("Done. Now on {develop}. All branches are in sync.");
     } else {
         return Err(FlowError::NotAFlowBranch {
@@ -472,12 +476,7 @@ pub fn auto_with_ci(
 
     taskit_output::taskit_progress!("auto: syncing {main} → {develop}");
     checkout(ctx, develop)?;
-    merge_with_resolution(
-        ctx,
-        main,
-        &format!("flow: sync {main} into {develop}"),
-        resolver,
-    )?;
+    merge_with_resolution(ctx, main, &sync_commit_message(main, develop), resolver)?;
 
     // Success — clear the state file.
     if !ctx.dry_run {

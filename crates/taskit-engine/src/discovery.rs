@@ -193,7 +193,11 @@ impl MetadataSource for CargoMetadataSource {
 
         let mut edges = Vec::new();
         for pkg_id in &metadata.workspace_members {
-            let pkg = metadata.packages.iter().find(|p| &p.id == pkg_id).unwrap();
+            let pkg = metadata
+                .packages
+                .iter()
+                .find(|p| &p.id == pkg_id)
+                .ok_or_else(|| TaskitError::other("workspace member not found in packages"))?;
             for dep in &pkg.dependencies {
                 if member_names.contains(&dep.name) {
                     edges.push((dep.name.clone(), pkg.name.clone()));

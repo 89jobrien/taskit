@@ -91,7 +91,7 @@ pub fn load() -> Result<Workspace, TaskitError> {
     if let Some(config_path) = find_config_file(&cwd) {
         let root = config_path
             .parent()
-            .expect("config file always has a parent directory")
+            .ok_or_else(|| TaskitError::other("config file path has no parent directory"))?
             .to_path_buf();
         let mut config = parse_config(&config_path)?;
         let root = match &config.workspace.root {

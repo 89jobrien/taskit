@@ -681,7 +681,7 @@ mod tests {
     // --- property tests ---
 
     mod prop_tests {
-        use super::super::*;
+        use super::super::{DiscoveredMember, topo_sort_members};
         use proptest::prelude::*;
 
         /// Generate a list of members with no deps (names are unique via BTreeSet dedup).

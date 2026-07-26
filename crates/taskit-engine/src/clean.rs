@@ -7,7 +7,7 @@ pub fn run(ctx: &Ctx, older_than: Option<&str>) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     // CLI flag wins; fall back to [clean] older_than in taskit.toml.
     let config_days = ctx.clean_config().and_then(|c| c.older_than.as_deref());
-    let effective = older_than.or(config_days);
+    let effective = effective_older_than(older_than, config_days);
     if let Some(days) = effective {
         let days_num = days.strip_suffix('d').unwrap_or(days);
         if days_num.parse::<u64>().is_err() {
@@ -27,6 +27,12 @@ pub fn run(ctx: &Ctx, older_than: Option<&str>) -> Result<(), TaskitError> {
     Ok(())
 }
 
+fn effective_older_than<'a>(
+    cli_arg: Option<&'a str>,
+    config_days: Option<&'a str>,
+) -> Option<&'a str> {
+    cli_arg.or(config_days)
+}
 /// Remove taskit-generated artifacts outside of target/.
 fn prune_artifacts() -> Result<(), TaskitError> {
     let artifacts = [".taskit-cache", "target/taskit-results.xml"];
@@ -111,20 +117,20 @@ mod tests {
     }
 
     #[test]
-    fn clean_config_older_than_used_when_cli_none() {
+    fn effective_older_than_uses_config_when_cli_none() {
         // When CLI passes None, the effective value comes from config.
         let config_days: Option<&str> = Some("7d");
         let cli_arg: Option<&str> = None;
-        let effective = cli_arg.or(config_days);
+        let effective = effective_older_than(cli_arg, config_days);
         assert_eq!(effective, Some("7d"));
     }
 
     #[test]
-    fn clean_no_config_and_no_cli_uses_cargo_clean() {
+    fn effective_older_than_returns_none_without_config_or_cli() {
         // When both are None, effective is None → cargo clean path is taken.
         let config_days: Option<&str> = None;
         let cli_arg: Option<&str> = None;
-        let effective = cli_arg.or(config_days);
+        let effective = effective_older_than(cli_arg, config_days);
         assert!(effective.is_none());
     }
 }

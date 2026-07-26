@@ -10,7 +10,12 @@ mod flow_resolver;
 
 use clap::{Parser, Subcommand};
 use std::env;
-use taskit_engine::command::{self, Command};
+use taskit_engine::command::{
+    Audit, Bench, CheckDeps, CheckFreshness, CheckProtocolDrift, CheckProtocolSites, Ci, Clean,
+    Command, CompileTests, Coverage, DevSetup, Flow, FlowAction, Fmt, Fuzz, Health, Inspect,
+    Install, InstallHooks, Lint, Patch, PreCommit, PrePush, Proptest, Publish, Quick, Release,
+    SelfCheck, SelfTest, SnapshotReview, Test, TestReport, Update, UpdateClaudeVersion, Version,
+};
 use taskit_engine::ctx::Ctx;
 use taskit_engine::patch;
 use taskit_types::config::{ConflictResolverKind, DEFAULT_COVERAGE_THRESHOLD};
@@ -266,7 +271,6 @@ fn make_resolver(kind: &ConflictResolverKind) -> Box<dyn taskit_core::ConflictRe
 /// `Command` impl in `taskit-engine` and one arm here. `Init` is handled
 /// before this point (it runs without a loaded config).
 fn to_command(cmd: Cmd, resolver_kind: &ConflictResolverKind) -> Box<dyn Command> {
-    use command::*;
     match cmd {
         Cmd::Fmt { check, affected } => Box::new(Fmt { check, affected }),
         Cmd::Lint {

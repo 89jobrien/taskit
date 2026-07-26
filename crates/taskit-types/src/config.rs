@@ -16,6 +16,24 @@ pub struct ConfigDiagnostic {
     pub message: String,
 }
 
+impl ConfigDiagnostic {
+    fn error(field: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            severity: DiagnosticSeverity::Error,
+            field: field.into(),
+            message: message.into(),
+        }
+    }
+
+    fn warning(field: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            severity: DiagnosticSeverity::Warning,
+            field: field.into(),
+            message: message.into(),
+        }
+    }
+}
+
 fn default_verbose_on_failure() -> bool {
     true
 }
@@ -56,11 +74,10 @@ impl Config {
             if let Some(v) = t
                 && (!v.is_finite() || v <= 0.0 || v > 100.0)
             {
-                diags.push(ConfigDiagnostic {
-                    severity: DiagnosticSeverity::Error,
-                    field: "coverage.threshold".into(),
-                    message: format!("threshold must be in (0, 100], got {v}"),
-                });
+                diags.push(ConfigDiagnostic::error(
+                    "coverage.threshold",
+                    format!("threshold must be in (0, 100], got {v}"),
+                ));
             }
         }
 
@@ -74,22 +91,20 @@ impl Config {
             ];
             for (field, name) in &branches {
                 if name.is_empty() {
-                    diags.push(ConfigDiagnostic {
-                        severity: DiagnosticSeverity::Error,
-                        field: field.to_string(),
-                        message: "branch name must not be empty".into(),
-                    });
+                    diags.push(ConfigDiagnostic::error(
+                        field.to_string(),
+                        "branch name must not be empty",
+                    ));
                 }
             }
             let names: Vec<&str> = branches.iter().map(|(_, n)| *n).collect();
             let mut seen = std::collections::HashSet::new();
             for name in &names {
                 if !seen.insert(*name) {
-                    diags.push(ConfigDiagnostic {
-                        severity: DiagnosticSeverity::Error,
-                        field: "flow".into(),
-                        message: format!("duplicate branch name: {name}"),
-                    });
+                    diags.push(ConfigDiagnostic::error(
+                        "flow",
+                        format!("duplicate branch name: {name}"),
+                    ));
                 }
             }
         }
@@ -99,11 +114,10 @@ impl Config {
             && let Some(repo) = &rel.github_repo
             && repo.matches('/').count() != 1
         {
-            diags.push(ConfigDiagnostic {
-                severity: DiagnosticSeverity::Warning,
-                field: "release.github_repo".into(),
-                message: format!("expected `owner/repo` format, got {repo:?}"),
-            });
+            diags.push(ConfigDiagnostic::warning(
+                "release.github_repo",
+                format!("expected `owner/repo` format, got {repo:?}"),
+            ));
         }
 
         diags

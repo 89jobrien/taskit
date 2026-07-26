@@ -19,15 +19,25 @@ impl BufferSink {
     }
 
     pub fn messages(&self) -> Vec<Message> {
-        self.messages.lock().unwrap().clone()
+        self.with_messages(|messages| messages.clone())
     }
 
     pub fn len(&self) -> usize {
-        self.messages.lock().unwrap().len()
+        self.with_messages(|messages| messages.len())
     }
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    fn with_messages<T>(&self, f: impl FnOnce(&mut Vec<Message>) -> T) -> T {
+        match self.messages.lock() {
+            Ok(mut messages) => f(&mut messages),
+            Err(poisoned) => {
+                let mut messages = poisoned.into_inner();
+                f(&mut messages)
+            }
+        }
     }
 }
 
@@ -39,7 +49,7 @@ impl Default for BufferSink {
 
 impl MessageSink for BufferSink {
     fn emit(&self, msg: &Message) {
-        self.messages.lock().unwrap().push(msg.clone());
+        self.with_messages(|messages| messages.push(msg.clone()));
     }
 
     fn flush(&self) {

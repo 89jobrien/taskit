@@ -130,21 +130,22 @@ mod tests {
     }
 
     #[test]
-    fn in_temp_dir_basic() {
+    fn in_temp_dir_macro_restores_cwd_after_basic_body() {
         let before = std::env::current_dir().unwrap();
-        in_temp_dir! {
+        let file_existed = in_temp_dir! {
             std::fs::write("test.txt", "hello").unwrap();
-            assert!(std::path::Path::new("test.txt").exists());
-        }
+            std::path::Path::new("test.txt").exists()
+        };
         let after = std::env::current_dir().unwrap();
+        assert!(file_existed);
         assert_eq!(after, before);
     }
 
     #[test]
-    fn in_temp_dir_with_binding() {
-        in_temp_dir! { dir =>
-            assert!(dir.exists());
-            assert!(dir.is_dir());
-        }
+    fn in_temp_dir_macro_exposes_bound_temp_directory() {
+        let dir_state = in_temp_dir! { dir =>
+            (dir.exists(), dir.is_dir())
+        };
+        assert_eq!(dir_state, (true, true));
     }
 }

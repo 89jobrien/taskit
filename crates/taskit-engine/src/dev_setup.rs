@@ -37,9 +37,12 @@ fn confirm(prompt: &str) -> bool {
     if stdin().read_line(&mut line).is_err() {
         return false;
     }
-    matches!(line.trim(), "y" | "Y")
+    confirm_response_accepted(line.trim())
 }
 
+fn confirm_response_accepted(response: &str) -> bool {
+    matches!(response, "y" | "Y")
+}
 /// Ensure `cargo-binstall` is available, bootstrapping via `cargo install` if
 /// the user consents. Returns an error if it is absent and the user declines.
 fn ensure_binstall(ctx: &Ctx) -> Result<(), TaskitError> {
@@ -216,15 +219,15 @@ mod tests {
     // --- confirm response parsing ---
 
     #[test]
-    fn confirm_response_y_and_uppercase_y_accepted() {
-        assert!(matches!("y", "y" | "Y"));
-        assert!(matches!("Y", "y" | "Y"));
+    fn confirm_response_accepted_accepts_y_and_uppercase_y() {
+        assert!(confirm_response_accepted("y"));
+        assert!(confirm_response_accepted("Y"));
     }
 
     #[test]
-    fn confirm_response_n_and_other_rejected() {
-        assert!(!matches!("n", "y" | "Y"));
-        assert!(!matches!("", "y" | "Y"));
-        assert!(!matches!("yes", "y" | "Y"));
+    fn confirm_response_accepted_rejects_n_empty_and_yes() {
+        assert!(!confirm_response_accepted("n"));
+        assert!(!confirm_response_accepted(""));
+        assert!(!confirm_response_accepted("yes"));
     }
 }
