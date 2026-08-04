@@ -660,12 +660,14 @@ pub fn write_output(format: OutputFormat, outcome: &PipelineOutcome) -> Result<(
         OutputFormat::Json => print!("{rendered}"),
         OutputFormat::Compact => eprint!("{rendered}"),
         OutputFormat::Junit => {
-            let path = "target/taskit-results.xml";
+            let path = "target/taskit/taskit-results.xml";
+            std::fs::create_dir_all("target/taskit").ok();
             std::fs::write(path, &rendered).ok();
             eprintln!("JUnit results written to {path}");
         }
         OutputFormat::Sarif => {
-            let path = "target/taskit-results.sarif";
+            let path = "target/taskit/taskit-results.sarif";
+            std::fs::create_dir_all("target/taskit").ok();
             std::fs::write(path, &rendered).ok();
             eprintln!("SARIF results written to {path}");
         }

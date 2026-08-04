@@ -7,8 +7,8 @@ use crate::ctx::Ctx;
 
 // ── pre-push hash cache ───────────────────────────────────────────────────────
 
-const PRE_COMMIT_CACHE: &str = ".taskit-cache/pre-commit.json";
-const PRE_PUSH_CACHE: &str = ".taskit-cache/pre-push.json";
+const PRE_COMMIT_CACHE: &str = "target/taskit/cache/pre-commit.json";
+const PRE_PUSH_CACHE: &str = "target/taskit/cache/pre-push.json";
 
 /// A passing pre-push run is keyed by the HEAD commit SHA plus the sorted
 /// list of affected crate names.  If both match on a subsequent push to the

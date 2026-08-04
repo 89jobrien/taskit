@@ -14,8 +14,8 @@ use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, fs, path::Path};
 use taskit_types::error::TaskitError;
 
-const CACHE_DIR: &str = ".taskit-cache";
-pub(crate) const MASTER_FILE: &str = ".taskit-cache/master-hash";
+const CACHE_DIR: &str = "target/taskit/cache";
+pub(crate) const MASTER_FILE: &str = "target/taskit/cache/master-hash";
 
 #[derive(Serialize, Deserialize, Default, PartialEq, Debug)]
 pub struct MasterHash {

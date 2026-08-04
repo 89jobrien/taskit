@@ -33,9 +33,9 @@ fn effective_older_than<'a>(
 ) -> Option<&'a str> {
     cli_arg.or(config_days)
 }
-/// Remove taskit-generated artifacts outside of target/.
+/// Remove taskit-generated artifacts under target/taskit/.
 fn prune_artifacts() -> Result<(), TaskitError> {
-    let artifacts = [".taskit-cache", "target/taskit-results.xml"];
+    let artifacts = ["target/taskit"];
     for path in artifacts {
         let p = std::path::Path::new(path);
         if p.is_dir() {

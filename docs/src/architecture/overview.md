@@ -101,4 +101,4 @@ Each promotion is a `--no-ff` merge. LLM conflict resolution (`BamlConflictResol
 any merge conflict. Unresolvable conflicts escalate via `FlowError::NeedsHuman`.
 
 `taskit flow auto` is the full pipeline: promote + CI gate + finish, with state persisted to
-`.taskit-state.json` for resumption after interruption.
+`target/taskit/state.json` for resumption after interruption.

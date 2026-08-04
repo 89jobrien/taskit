@@ -19,7 +19,7 @@ taskit flow auto     # promote develop → staging → release → main with CI 
 - **Hexagonal** — port traits in `taskit-core`, adapters in `taskit-engine`; easy to test
 - **Fail-fast** — gates abort the pipeline immediately; non-gates report and continue
 - **Rich diagnostics** — `miette`-powered errors with source spans, help text, and codes
-- **Resumable** — `flow auto` persists state to `.taskit-state.json` and resumes on re-run
+- **Resumable** — `flow auto` persists state to `target/taskit/state.json` and resumes on re-run
 
 ## Workspace layout
 

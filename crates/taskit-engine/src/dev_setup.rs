@@ -137,14 +137,15 @@ pub fn self_check() -> Result<(), TaskitError> {
         ));
     }
     match crate::cache::verify() {
-        Ok(true) => {
-            taskit_output::taskit_ok!("{:<COL_TOOL$} OK      cache integrity", ".taskit-cache")
-        }
+        Ok(true) => taskit_output::taskit_ok!(
+            "{:<COL_TOOL$} OK      cache integrity",
+            "target/taskit/cache"
+        ),
         Ok(false) => taskit_output::taskit_progress!(
             "{:<COL_TOOL$} DRIFT   run any taskit command to rebuild",
-            ".taskit-cache"
+            "target/taskit/cache"
         ),
-        Err(e) => taskit_output::taskit_err!("{:<COL_TOOL$} ERROR   {e}", ".taskit-cache"),
+        Err(e) => taskit_output::taskit_err!("{:<COL_TOOL$} ERROR   {e}", "target/taskit/cache"),
     }
     Ok(())
 }

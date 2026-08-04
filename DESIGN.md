@@ -160,8 +160,8 @@ taskit ci
 
 ## Cache
 
-`.taskit-cache/` stores ephemeral per-step caches (pre-commit, pre-push,
-compile, self-test). A master hash file (`.taskit-cache/master-hash`)
+`target/taskit/cache/` stores ephemeral per-step caches (pre-commit, pre-push,
+compile, self-test). A master hash file (`target/taskit/cache/master-hash`)
 tracks SHA-256 integrity over all `.json` cache files. `taskit self-check`
 verifies cache integrity. The cache is ephemeral and can be deleted at
 any time via `taskit clean`.

@@ -21,7 +21,7 @@ taskit ci --fail-fast           # stop on first failure
 taskit ci --include-network     # include network tests
 taskit flow auto                # full pipeline: promote + CI gate + finish to main,
                                 #   with LLM conflict resolution; resumes from
-                                #   .taskit-state.json if interrupted
+                                #   target/taskit/state.json if interrupted
 taskit init                     # generate taskit.toml + Cruxfile
 taskit init --force             # overwrite existing
 taskit init --interactive       # interactive prompts

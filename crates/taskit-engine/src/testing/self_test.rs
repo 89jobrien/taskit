@@ -6,7 +6,7 @@ use xshell::cmd;
 
 use crate::ctx::Ctx;
 
-const CACHE_FILE: &str = ".taskit-cache/self-test.json";
+const CACHE_FILE: &str = "target/taskit/cache/self-test.json";
 const TASKIT_SRC: &str = "src";
 const TASKIT_CARGO_TOML: &str = "Cargo.toml";
 

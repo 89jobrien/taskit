@@ -57,4 +57,4 @@ Config
 ### `flow_state.rs`
 
 `FlowState` — serialised checkpoint for `flow auto` resumption; written to
-`.taskit-state.json` between promotion steps.
+`target/taskit/state.json` between promotion steps.
