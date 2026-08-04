@@ -14,6 +14,7 @@ const PUBLISH_ORDER: &[&str] = &[
     "taskit-engine",
     "taskit-init",
     "taskit-crux",
+    "taskit-tui",
     "taskit",
 ];
 
@@ -80,7 +81,7 @@ mod tests {
 
     #[test]
     fn publish_order_has_all_crates() {
-        assert_eq!(PUBLISH_ORDER.len(), 9);
+        assert_eq!(PUBLISH_ORDER.len(), 10);
         for name in [
             "taskit-types",
             "taskit-macros",
@@ -90,6 +91,7 @@ mod tests {
             "taskit-engine",
             "taskit-init",
             "taskit-crux",
+            "taskit-tui",
             "taskit",
         ] {
             assert!(PUBLISH_ORDER.contains(&name), "missing {name}");
@@ -114,6 +116,16 @@ mod tests {
     #[test]
     fn engine_before_root() {
         assert!(pos("taskit-engine") < pos("taskit"));
+    }
+
+    #[test]
+    fn engine_before_tui() {
+        assert!(pos("taskit-engine") < pos("taskit-tui"));
+    }
+
+    #[test]
+    fn tui_before_root() {
+        assert!(pos("taskit-tui") < pos("taskit"));
     }
 
     // --- Finding 6: config fallback logic tests ---
