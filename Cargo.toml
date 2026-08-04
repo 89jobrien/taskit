@@ -17,12 +17,15 @@ taskit-crux = { version = "0.8.0", path = "crates/taskit-crux" }
 taskit-testing = { version = "0.8.0", path = "crates/taskit-testing" }
 taskit-macros = { version = "0.8.0", path = "crates/taskit-macros" }
 taskit-output = { version = "0.8.0", path = "crates/taskit-output" }
+taskit-tui = { version = "0.8.0", path = "crates/taskit-tui" }
 clap = { version = "4", features = ["derive"] }
 tempfile = "3"
 xshell = "0.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 cargo_metadata = "0.19"
+ratatui = "0.29"
+crossterm = "0.28"
 
 [package]
 name = "taskit"
@@ -47,6 +50,7 @@ taskit-core.workspace = true
 taskit-engine.workspace = true
 taskit-init.workspace = true
 taskit-output.workspace = true
+taskit-tui.workspace = true
 clap.workspace = true
 miette = { version = "7", features = ["fancy"] }
 xshell.workspace = true

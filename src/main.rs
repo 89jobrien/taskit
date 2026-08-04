@@ -12,13 +12,14 @@ use clap::{Parser, Subcommand};
 use std::env;
 use taskit_engine::command::{
     Audit, Bench, CheckDeps, CheckFreshness, CheckProtocolDrift, CheckProtocolSites, Ci, Clean,
-    Command, CompileTests, Coverage, DevSetup, Flow, FlowAction, Fmt, Fuzz, Health, Inspect,
+    Command, CompileTests, Coverage, DevSetup, Drift, Flow, FlowAction, Fmt, Fuzz, Health, Inspect,
     Install, InstallHooks, Lint, Patch, PreCommit, PrePush, Proptest, Publish, Quick, Release,
     SelfCheck, SelfTest, SnapshotReview, Test, TestReport, Update, UpdateClaudeVersion, Version,
 };
 use taskit_engine::ctx::Ctx;
 use taskit_engine::patch;
 use taskit_types::config::{ConflictResolverKind, DEFAULT_COVERAGE_THRESHOLD};
+use taskit_types::error::TaskitError;
 use taskit_types::output_format::OutputFormat;
 use xshell::Shell;
 
@@ -189,6 +190,15 @@ enum Cmd {
         #[arg(long)]
         update: bool,
     },
+    /// Compare a telemetry metric's latest reading against its historical baseline
+    Drift {
+        /// Metric name (e.g. "ci_duration_ms")
+        #[arg(long)]
+        metric: String,
+        /// Lookback window in days
+        #[arg(long, default_value_t = 7)]
+        window: u64,
+    },
     /// Check workspace metrics against thresholds (pass/fail)
     Inspect {
         /// Maximum allowed clippy warnings (default: from config, or 0)
@@ -220,6 +230,8 @@ enum Cmd {
         #[command(subcommand)]
         sub: FlowCmd,
     },
+    /// Live terminal dashboard: workspace health, CI telemetry, and drift
+    Dashboard,
     /// Generate taskit.toml and Cruxfile for the current workspace
     Init {
         /// Overwrite existing taskit.toml
@@ -255,6 +267,13 @@ impl taskit_core::ConflictResolver for NoOpResolver {
             "merge conflict: automatic resolution disabled (conflict_resolver = none); \
              resolve manually, then re-run `taskit flow auto`",
         ))
+    }
+}
+
+struct Dashboard;
+impl Command for Dashboard {
+    fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
+        taskit_tui::run(ctx)
     }
 }
 
@@ -364,6 +383,10 @@ fn to_command(cmd: Cmd, resolver_kind: &ConflictResolverKind) -> Box<dyn Command
         Cmd::TestReport => Box::new(TestReport),
         Cmd::SnapshotReview => Box::new(SnapshotReview),
         Cmd::Health { update } => Box::new(Health { update }),
+        Cmd::Drift { metric, window } => Box::new(Drift {
+            metric,
+            window_days: window,
+        }),
         Cmd::Inspect {
             max_warnings,
             max_todo,
@@ -394,6 +417,7 @@ fn to_command(cmd: Cmd, resolver_kind: &ConflictResolverKind) -> Box<dyn Command
             };
             Box::new(Flow { action })
         }
+        Cmd::Dashboard => Box::new(Dashboard),
         Cmd::Init { .. } => unreachable!("Init is handled before dispatch"),
     }
 }

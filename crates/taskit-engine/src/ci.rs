@@ -68,6 +68,13 @@ pub fn run(ctx: &Ctx, fail_fast: bool, include_network: bool) -> Result<(), Task
         }
         None => run_default_pipeline(ctx, effective_fail_fast, offline, capture),
     };
+    let _ = crate::telemetry::record(
+        ctx,
+        &[
+            ("ci_duration_ms", outcome.total.as_millis() as f64),
+            ("ci_passed", if outcome.passed { 1.0 } else { 0.0 }),
+        ],
+    );
     Ok(taskit_output::write_output(output_format, &outcome)?)
 }
 

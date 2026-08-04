@@ -20,7 +20,7 @@
     {
       "name": "taskit-engine-command",
       "path": "crates/taskit-engine/src/command.rs",
-      "hash": "9a5364f4a5234395738dfaa8b30d5baedd7f3f14913faeff8cdb47a9372a9b21"
+      "hash": "98069ba8b51af6463f732122c6cb906ef961f861fcb8e01b4120791398d82768"
     },
     {
       "name": "taskit-engine-discovery",
@@ -35,7 +35,7 @@
     {
       "name": "taskit-output-formatter",
       "path": "crates/taskit-output/src/formatter.rs",
-      "hash": "d13c96c2f1fc89ecf37b6b868d6a90809a4847f9c022f6e178763f0170a0d7f2"
+      "hash": "f35e664df81809a1860d9e53edd206d56ba4953154fd65b9eea329118da13c72"
     },
     {
       "name": "taskit-init-plan",

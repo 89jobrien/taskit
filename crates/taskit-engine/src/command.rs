@@ -13,9 +13,9 @@ use taskit_types::step::PipelineOutcome;
 
 use crate::ctx::Ctx;
 use crate::{
-    audit, check_deps, check_freshness, ci, clean, dev_setup, flow, fmt, health, hooks, inspect,
-    install, lint, patch, protocol, publish, quick, release, testing, update, update_claude,
-    version,
+    audit, check_deps, check_freshness, ci, clean, dev_setup, drift, flow, fmt, health, hooks,
+    inspect, install, lint, patch, protocol, publish, quick, release, testing, update,
+    update_claude, version,
 };
 
 /// A runnable subcommand. Implementors carry their own parsed arguments and
@@ -313,6 +313,16 @@ pub struct Health {
 impl Command for Health {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
         health::run(ctx, self.update)
+    }
+}
+
+pub struct Drift {
+    pub metric: String,
+    pub window_days: u64,
+}
+impl Command for Drift {
+    fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
+        drift::run(ctx, &self.metric, self.window_days)
     }
 }
 

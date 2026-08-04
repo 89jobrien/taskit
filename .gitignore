@@ -4,11 +4,11 @@ target/
 .pytest_cache/
 .ruff_cache/
 .venv/
-.taskit-cache/
 .claude/settings.local.json
 .claude/worktrees/
 .kgx/
 *.local.md
+.taskit/
 
 # handoff-begin
 .ctx/*
@@ -16,5 +16,4 @@ target/
 .ctx/HANDOFF.*.state.yaml
 .ctx/HANDOFF.*.state.json
 # handoff-end
-.taskit-state.json
 docs/dist/
