@@ -8,7 +8,7 @@
 mod baml_client;
 mod flow_resolver;
 
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use std::env;
 use taskit_engine::command::{
     Audit, Bench, CheckDeps, CheckFreshness, CheckProtocolDrift, CheckProtocolSites, Ci, Clean,
@@ -423,6 +423,20 @@ fn to_command(cmd: Cmd, resolver_kind: &ConflictResolverKind) -> Box<dyn Command
 }
 
 fn main() -> miette::Result<()> {
+    // Not a real clap subcommand: kept out of the parsed `Cmd` tree entirely so
+    // it never shows up in `clap_complete`-generated completions (clap's
+    // `#[command(hide = true)]` only affects --help text, not completion
+    // generators, which still walk hidden subcommands).
+    if std::env::args().nth(1).as_deref() == Some("completions") {
+        clap_complete::generate(
+            clap_complete_nushell::Nushell,
+            &mut Cli::command(),
+            "taskit",
+            &mut std::io::stdout(),
+        );
+        return Ok(());
+    }
+
     let cli = Cli::parse();
 
     // Init runs before config loading (taskit.toml may not exist yet).
