@@ -153,11 +153,17 @@ pub fn pre_push(ctx: &Ctx) -> Result<(), TaskitError> {
         return Ok(());
     }
 
-    let mut crate_names: Vec<String> = affected
+    let mut crate_entries: Vec<(String, bool)> = affected
         .iter()
-        .map(|d| crate::affected::pkg_name(d, ws).to_string())
+        .map(|d| {
+            let pkg = crate::affected::pkg_name(d, ws).to_string();
+            let has_lib = Path::new(d).join("src/lib.rs").exists();
+            (pkg, has_lib)
+        })
         .collect();
-    crate_names.sort();
+    crate_entries.sort();
+
+    let crate_names: Vec<String> = crate_entries.iter().map(|(pkg, _)| pkg.clone()).collect();
 
     let sha = head_sha(sh)?;
     let cached = load_pre_push_cache();
@@ -174,15 +180,19 @@ pub fn pre_push(ctx: &Ctx) -> Result<(), TaskitError> {
         return Ok(());
     }
 
-    for pkg in &crate_names {
+    for (pkg, has_lib) in &crate_entries {
         taskit_output::taskit_progress!("--- {pkg} ---");
         ctx.run(cmd!(
             sh,
             "cargo clippy --locked --quiet -p {pkg} --all-targets -- -D warnings"
         ))?;
+        // Test-only crates (e.g. an `integration` package with only
+        // `[[test]]` targets) have no `src/lib.rs`, so `--lib` would fail to
+        // build rather than report "no tests" — target `--tests` instead.
+        let target_flag = if *has_lib { "--lib" } else { "--tests" };
         ctx.run(cmd!(
             sh,
-            "cargo nextest run --locked -p {pkg} --lib --no-tests warn --status-level none --final-status-level fail --hide-progress-bar --fail-fast"
+            "cargo nextest run --locked -p {pkg} {target_flag} --no-tests warn --status-level none --final-status-level fail --hide-progress-bar --fail-fast"
         ))?;
         if let Some(c) = cov
             && *pkg == c.crate_name
