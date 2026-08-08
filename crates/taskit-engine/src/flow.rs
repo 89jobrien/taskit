@@ -130,16 +130,18 @@ pub(crate) fn read_conflict_file(sh: &Shell, path: &str) -> Result<ConflictFile,
 /// Attempt a `--no-ff` merge; on conflict invoke `resolver`; on escalation return the error.
 /// On successful resolution, stages all resolved files and completes the merge via
 /// `git commit --no-edit`.
+/// Returns the number of conflicted files resolved (0 on the fast,
+/// no-conflict path).
 pub fn merge_with_resolution(
     ctx: &Ctx,
     branch: &str,
     message: &str,
     resolver: &dyn ConflictResolver,
-) -> Result<(), TaskitError> {
+) -> Result<usize, TaskitError> {
     let sh = &ctx.sh;
     if ctx.dry_run {
         taskit_output::taskit_dry!("git merge --no-ff {branch} -m \"{message}\"");
-        return Ok(());
+        return Ok(0);
     }
     let output = cmd!(sh, "git merge --no-ff {branch} -m {message}")
         .quiet()
@@ -147,7 +149,7 @@ pub fn merge_with_resolution(
         .output()
         .map_err(TaskitError::other)?;
     if output.status.success() {
-        return Ok(());
+        return Ok(0);
     }
     let porcelain = cmd!(sh, "git status --porcelain")
         .read()
@@ -165,6 +167,7 @@ pub fn merge_with_resolution(
         .map(|p| read_conflict_file(sh, p))
         .collect::<Result<_, _>>()?;
     let resolved = resolver.resolve(&files)?;
+    let conflict_count = resolved.len();
     for r in &resolved {
         let abs_path = ctx.root.join(&r.path);
         std::fs::write(&abs_path, &r.content).map_err(TaskitError::other)?;
@@ -173,12 +176,15 @@ pub fn merge_with_resolution(
             .run()
             .map_err(TaskitError::other)?;
     }
-    cmd!(sh, "git commit --no-edit").run().map_err(|e| {
-        FlowError::MergeFailed {
-            reason: e.to_string(),
-        }
-        .into()
-    })
+    cmd!(sh, "git commit --no-edit")
+        .run()
+        .map(|()| conflict_count)
+        .map_err(|e| {
+            FlowError::MergeFailed {
+                reason: e.to_string(),
+            }
+            .into()
+        })
 }
 
 fn merge_no_ff(ctx: &Ctx, branch: &str, message: &str) -> Result<(), TaskitError> {
@@ -564,6 +570,53 @@ pub fn auto_with_ci(
 }
 
 #[cfg(test)]
+pub(crate) mod tests_support {
+    use super::*;
+    use taskit_types::config::Config;
+    use taskit_types::output_format::OutputFormat;
+
+    /// Minimal repo with `main`/`staging`/`release`, `staging` one commit
+    /// ahead — enough for a fast-path (no-conflict) merge.
+    pub(crate) fn merge_test_repo() -> (tempfile::TempDir, Ctx, FlowConfig) {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let sh = Shell::new().expect("shell");
+        sh.change_dir(dir.path());
+        cmd!(sh, "git init -b main").run().expect("git init");
+        cmd!(sh, "git config user.email test@example.com")
+            .run()
+            .expect("email");
+        cmd!(sh, "git config user.name Test").run().expect("name");
+        sh.write_file("README.md", "# test\n").expect("write");
+        cmd!(sh, "git add README.md").run().expect("add");
+        cmd!(sh, "git commit -m init").run().expect("commit");
+        cmd!(sh, "git branch staging")
+            .run()
+            .expect("branch staging");
+        cmd!(sh, "git branch release")
+            .run()
+            .expect("branch release");
+        cmd!(sh, "git checkout staging")
+            .run()
+            .expect("checkout staging");
+        sh.write_file("feature.txt", "feature\n").expect("write");
+        cmd!(sh, "git add feature.txt").run().expect("add");
+        cmd!(sh, "git commit -m feat").run().expect("commit");
+        cmd!(sh, "git checkout release")
+            .run()
+            .expect("checkout release");
+
+        let ctx = Ctx::new(
+            sh,
+            dir.path().to_path_buf(),
+            Config::default(),
+            false,
+            OutputFormat::Human,
+        );
+        (dir, ctx, FlowConfig::default())
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use taskit_types::conflict::ResolvedFile;
@@ -668,6 +721,16 @@ mod tests {
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
         assert!(msg.contains("src/lib.rs"), "got: {msg}");
+    }
+
+    #[test]
+    fn merge_with_resolution_fast_path_returns_zero_conflicts() {
+        let (_dir, ctx, _flow) = tests_support::merge_test_repo();
+        // No conflict: `staging` merges cleanly into `release`, so the
+        // resolver must not be called.
+        let count = merge_with_resolution(&ctx, "staging", "flow: fast path", &AlwaysResolve)
+            .expect("fast-path merge should succeed");
+        assert_eq!(count, 0);
     }
 
     #[test]
