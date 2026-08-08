@@ -12,16 +12,18 @@ pub enum Tab {
     Overview,
     Crates,
     History,
+    Flow,
 }
 
 impl Tab {
-    pub const ALL: [Tab; 3] = [Tab::Overview, Tab::Crates, Tab::History];
+    pub const ALL: [Tab; 4] = [Tab::Overview, Tab::Crates, Tab::History, Tab::Flow];
 
     pub fn title(self) -> &'static str {
         match self {
             Tab::Overview => "Overview",
             Tab::Crates => "Crates",
             Tab::History => "History",
+            Tab::Flow => "Flow",
         }
     }
 }
@@ -96,6 +98,7 @@ impl App {
             Tab::Overview => 0,
             Tab::Crates => self.crate_names.len(),
             Tab::History => snapshot.records.len(),
+            Tab::Flow => 0,
         };
         u16::try_from(rows.saturating_sub(1)).unwrap_or(u16::MAX)
     }
@@ -151,12 +154,16 @@ mod tests {
         app.next_tab();
         assert_eq!(app.active_tab, Tab::History);
         app.next_tab();
+        assert_eq!(app.active_tab, Tab::Flow);
+        app.next_tab();
         assert_eq!(app.active_tab, Tab::Overview);
     }
 
     #[test]
     fn prev_tab_cycles_backward_and_wraps() {
         let mut app = app(Tab::Overview, 0);
+        app.prev_tab();
+        assert_eq!(app.active_tab, Tab::Flow);
         app.prev_tab();
         assert_eq!(app.active_tab, Tab::History);
         app.prev_tab();
@@ -230,6 +237,16 @@ mod tests {
         app.scroll_bottom();
         app.clamp_scroll(&snapshot);
         assert_eq!(app.scroll, 0, "Overview has no scrollable rows");
+    }
+
+    #[test]
+    fn clamp_scroll_flow_tab_has_no_scrollable_content() {
+        let mut app = app(Tab::Flow, 50);
+        let snapshot = snapshot_with_records(50);
+
+        app.scroll_bottom();
+        app.clamp_scroll(&snapshot);
+        assert_eq!(app.scroll, 0, "Flow has no scrollable rows");
     }
 
     #[test]

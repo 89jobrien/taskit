@@ -6,6 +6,8 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Gauge, Paragraph, Sparkline, Tabs};
 
+use taskit_types::config::ConflictResolverKind;
+
 use crate::app::{App, Tab};
 use crate::snapshot::Snapshot;
 
@@ -25,6 +27,7 @@ pub fn render(frame: &mut Frame, app: &App, snapshot: &Snapshot) {
         Tab::Overview => render_overview(frame, chunks[1], snapshot),
         Tab::Crates => render_crates(frame, chunks[1], app),
         Tab::History => render_history(frame, chunks[1], app, snapshot),
+        Tab::Flow => render_flow(frame, chunks[1], snapshot),
     }
 
     render_footer(frame, chunks[2], app, snapshot);
@@ -304,9 +307,145 @@ fn render_history(frame: &mut Frame, area: Rect, app: &App, snapshot: &Snapshot)
     );
 }
 
+fn render_flow(frame: &mut Frame, area: Rect, snapshot: &Snapshot) {
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Length(6),
+            Constraint::Length(5),
+            Constraint::Min(0),
+        ])
+        .split(area);
+
+    render_flow_header(frame, rows[0], snapshot);
+    render_flow_hops(frame, rows[1], snapshot);
+    render_flow_resume_state(frame, rows[2], snapshot);
+    render_flow_auto_telemetry(frame, rows[3], snapshot);
+}
+
+fn render_flow_header(frame: &mut Frame, area: Rect, snapshot: &Snapshot) {
+    let block = Block::default().title("Flow").borders(Borders::ALL);
+    let current_branch = snapshot
+        .flow_status
+        .as_ref()
+        .map(|s| s.current_branch.as_str())
+        .unwrap_or("(unknown)");
+    let resolver = match snapshot.flow_conflict_resolver {
+        ConflictResolverKind::Baml => "baml",
+        ConflictResolverKind::None => "none",
+    };
+    let lines = vec![Line::from(format!(
+        "Current branch: {current_branch}   •   conflict resolver: {resolver}"
+    ))];
+    frame.render_widget(Paragraph::new(lines).block(block), area);
+}
+
+fn render_flow_hops(frame: &mut Frame, area: Rect, snapshot: &Snapshot) {
+    let block = Block::default()
+        .title("Pipeline (main → develop → staging → release → main)")
+        .borders(Borders::ALL);
+    let Some(status) = &snapshot.flow_status else {
+        frame.render_widget(
+            Paragraph::new("Flow status unavailable (not a git repository?).").block(block),
+            area,
+        );
+        return;
+    };
+    let lines: Vec<Line> = status
+        .hops
+        .iter()
+        .map(|hop| {
+            if !hop.branches_exist {
+                Line::from(Span::styled(
+                    format!("{} -> {}: (branch missing)", hop.from, hop.to),
+                    Style::default().fg(Color::Yellow),
+                ))
+            } else {
+                Line::from(format!(
+                    "{} -> {}: {} ahead, {} behind",
+                    hop.from, hop.to, hop.ahead, hop.behind
+                ))
+            }
+        })
+        .collect();
+    frame.render_widget(Paragraph::new(lines).block(block), area);
+}
+
+fn render_flow_resume_state(frame: &mut Frame, area: Rect, snapshot: &Snapshot) {
+    let block = Block::default()
+        .title("Resumable State")
+        .borders(Borders::ALL);
+    let Some(state) = &snapshot.flow_state else {
+        frame.render_widget(
+            Paragraph::new("No interrupted `flow auto` run — nothing to resume.").block(block),
+            area,
+        );
+        return;
+    };
+    let mut lines = vec![Line::from(Span::styled(
+        format!("Resuming: {:?}", state.phase),
+        Style::default().fg(Color::Yellow),
+    ))];
+    lines.push(Line::from(state.hint()));
+    if !state.failed_steps.is_empty() {
+        lines.push(Line::from(format!(
+            "Failed steps: {}",
+            state.failed_steps.join(", ")
+        )));
+    }
+    frame.render_widget(Paragraph::new(lines).block(block), area);
+}
+
+fn render_flow_auto_telemetry(frame: &mut Frame, area: Rect, snapshot: &Snapshot) {
+    let block = Block::default()
+        .title("flow auto runs (7d)")
+        .borders(Borders::ALL);
+    if snapshot.flow_auto_duration_history.is_empty() {
+        frame.render_widget(
+            Paragraph::new("No `flow auto` runs recorded yet.").block(block),
+            area,
+        );
+        return;
+    }
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let sub_rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(2), Constraint::Min(0)])
+        .split(inner);
+
+    let last_result = snapshot.flow_auto_result_history.last().copied();
+    let last_conflicts = snapshot.flow_auto_conflicts_last.unwrap_or(0);
+    let lines = vec![
+        match last_result {
+            Some(1) => Line::from(Span::styled(
+                "Last flow auto: PASS",
+                Style::default().fg(Color::Green),
+            )),
+            Some(_) => Line::from(Span::styled(
+                "Last flow auto: FAIL",
+                Style::default().fg(Color::Red),
+            )),
+            None => Line::from("Last flow auto: (no data)"),
+        },
+        Line::from(format!("Last run conflicts resolved: {last_conflicts}")),
+    ];
+    frame.render_widget(Paragraph::new(lines), sub_rows[0]);
+
+    frame.render_widget(
+        Sparkline::default()
+            .block(Block::default().title("duration trend"))
+            .data(&snapshot.flow_auto_duration_history)
+            .style(Style::default().fg(Color::Cyan)),
+        sub_rows[1],
+    );
+}
+
 fn render_footer(frame: &mut Frame, area: Rect, app: &App, snapshot: &Snapshot) {
     let nav_hint = match app.active_tab {
-        Tab::Overview => "tab/←→ switch tabs",
+        Tab::Overview | Tab::Flow => "tab/←→ switch tabs",
         _ => "tab/←→ switch tabs  •  j/k, PgUp/PgDn, g/G scroll",
     };
     let footer = Paragraph::new(format!(
