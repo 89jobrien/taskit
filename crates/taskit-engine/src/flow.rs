@@ -16,8 +16,12 @@ fn current_branch(sh: &Shell) -> Result<String, TaskitError> {
 }
 
 fn branch_exists(sh: &Shell, branch: &str) -> Result<bool, TaskitError> {
+    // `.ignore_status()` is required: xshell's `.output()` treats a nonzero
+    // exit as an `Err` by default, but a nonexistent branch is exactly the
+    // (non-error) `false` case this function needs to report.
     let result = cmd!(sh, "git rev-parse --verify --quiet {branch}")
         .quiet()
+        .ignore_status()
         .output()
         .map_err(TaskitError::other)?;
     Ok(result.status.success())
@@ -214,18 +218,33 @@ fn sync_commit_message(main: &str, develop: &str) -> String {
     format!("flow: sync {main} into {develop}")
 }
 
-pub fn status(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
+#[derive(Debug, Clone, PartialEq)]
+pub struct FlowHop {
+    pub from: String,
+    pub to: String,
+    pub ahead: usize,
+    pub behind: usize,
+    pub branches_exist: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FlowStatusReport {
+    pub current_branch: String,
+    /// main→develop→staging→release→main, in that order.
+    pub hops: Vec<FlowHop>,
+}
+
+/// Pure data variant of `status()` — `status()` calls this and prints each
+/// hop, with no output change from before this function existed.
+pub fn status_report(ctx: &Ctx, flow: &FlowConfig) -> Result<FlowStatusReport, TaskitError> {
     let sh = &ctx.sh;
     let main = flow.main_branch();
     let develop = flow.develop_branch();
     let staging = flow.staging_branch();
     let release = flow.release_branch();
-    let current = current_branch(sh)?;
+    let current_branch = current_branch(sh)?;
 
-    taskit_output::taskit_progress!("Flow status (current branch: {current})");
-    taskit_output::taskit_progress!("");
-
-    // main → develop → staging → release → main
+    let mut hops = Vec::with_capacity(4);
     for (from, to) in [
         (main, develop),
         (develop, staging),
@@ -233,11 +252,49 @@ pub fn status(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
         (release, main),
     ] {
         if !branch_exists(sh, from)? || !branch_exists(sh, to)? {
-            taskit_output::taskit_progress!("{from} -> {to}: (branch missing)");
+            hops.push(FlowHop {
+                from: from.to_string(),
+                to: to.to_string(),
+                ahead: 0,
+                behind: 0,
+                branches_exist: false,
+            });
             continue;
         }
         let (ahead, behind) = ahead_behind(sh, from, to)?;
-        taskit_output::taskit_progress!("{from} -> {to}: {ahead} ahead, {behind} behind");
+        hops.push(FlowHop {
+            from: from.to_string(),
+            to: to.to_string(),
+            ahead,
+            behind,
+            branches_exist: true,
+        });
+    }
+
+    Ok(FlowStatusReport {
+        current_branch,
+        hops,
+    })
+}
+
+pub fn status(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
+    let report = status_report(ctx, flow)?;
+
+    taskit_output::taskit_progress!("Flow status (current branch: {})", report.current_branch);
+    taskit_output::taskit_progress!("");
+
+    for hop in &report.hops {
+        if !hop.branches_exist {
+            taskit_output::taskit_progress!("{} -> {}: (branch missing)", hop.from, hop.to);
+        } else {
+            taskit_output::taskit_progress!(
+                "{} -> {}: {} ahead, {} behind",
+                hop.from,
+                hop.to,
+                hop.ahead,
+                hop.behind
+            );
+        }
     }
     Ok(())
 }
@@ -746,6 +803,51 @@ release = "rc"
         assert_eq!(cfg.develop_branch(), "dev");
         assert_eq!(cfg.staging_branch(), "staging");
         assert_eq!(cfg.release_branch(), "release");
+    }
+
+    #[test]
+    fn status_report_flags_missing_branches_and_computes_ahead_behind() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let sh = xshell::Shell::new().expect("shell");
+        sh.change_dir(dir.path());
+        cmd!(sh, "git init -b main").run().expect("git init");
+        cmd!(sh, "git config user.email test@example.com")
+            .run()
+            .expect("email");
+        cmd!(sh, "git config user.name Test").run().expect("name");
+        sh.write_file("README.md", "# test\n").expect("write");
+        cmd!(sh, "git add README.md").run().expect("add");
+        cmd!(sh, "git commit -m init").run().expect("commit");
+        cmd!(sh, "git branch develop")
+            .run()
+            .expect("branch develop");
+        // staging/release intentionally not created.
+
+        let ctx = Ctx::new(
+            sh,
+            dir.path().to_path_buf(),
+            taskit_types::config::Config::default(),
+            false,
+            taskit_types::output_format::OutputFormat::Human,
+        );
+        let flow = default_flow();
+
+        let report = status_report(&ctx, &flow).expect("status_report should succeed");
+        assert_eq!(report.current_branch, "main");
+        assert_eq!(report.hops.len(), 4);
+
+        let main_to_develop = &report.hops[0];
+        assert_eq!(main_to_develop.from, "main");
+        assert_eq!(main_to_develop.to, "develop");
+        assert!(main_to_develop.branches_exist);
+        assert_eq!(main_to_develop.ahead, 0);
+        assert_eq!(main_to_develop.behind, 0);
+
+        let develop_to_staging = &report.hops[1];
+        assert!(
+            !develop_to_staging.branches_exist,
+            "staging doesn't exist yet"
+        );
     }
 
     // ── auto_with_ci tests (CI gate path) ─────────────────────────────────────
