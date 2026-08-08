@@ -44,6 +44,50 @@ impl Drift {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProtocolDriftStatus {
+    pub configured: bool,
+    pub drifted_surfaces: Vec<String>,
+}
+
+/// Read-only variant of the protocol-drift check: recomputes current surface
+/// hashes and compares against the persisted lockfile. Never writes the
+/// lockfile. Reports "not configured" (no surfaces) and "no lockfile yet"
+/// via `configured`/`drifted_surfaces` rather than `Err`, so a caller that
+/// polls this every tick (the TUI dashboard) doesn't need to distinguish
+/// those from a real error.
+pub fn check(ctx: &Ctx) -> Result<ProtocolDriftStatus, TaskitError> {
+    let root = ctx.root();
+    let config = ctx.proto();
+    let surfaces: &[SurfaceEntry] = config.map(|c| c.surfaces.as_slice()).unwrap_or(&[]);
+
+    if surfaces.is_empty() {
+        return Ok(ProtocolDriftStatus {
+            configured: false,
+            drifted_surfaces: Vec::new(),
+        });
+    }
+
+    let lock_rel = config
+        .map(|c| c.lockfile_path())
+        .unwrap_or(DEFAULT_LOCK_PATH);
+    let lock_path = root.join(lock_rel);
+
+    let current = calculate_lockfile(root, surfaces)?;
+    let Ok(expected) = read_lockfile(&lock_path) else {
+        return Ok(ProtocolDriftStatus {
+            configured: true,
+            drifted_surfaces: Vec::new(),
+        });
+    };
+    let drift = compare_lockfiles(&expected, &current);
+
+    Ok(ProtocolDriftStatus {
+        configured: true,
+        drifted_surfaces: drift.into_iter().map(|d| d.name).collect(),
+    })
+}
+
 /// Run the protocol-drift check.
 ///
 /// `config` is the `[protocol]` section from `taskit.toml`, or `None` in
@@ -573,5 +617,87 @@ mod tests {
         let result = read_lockfile(&path);
         assert!(result.is_ok());
         assert_eq!(result.unwrap().surfaces.len(), 0);
+    }
+
+    // --- check ---
+
+    fn test_ctx(root: &Path, surfaces: Option<Vec<SurfaceEntry>>) -> Ctx {
+        use taskit_types::config::{Config, ProtocolConfig};
+        use taskit_types::output_format::OutputFormat;
+        let protocol = surfaces.map(|surfaces| ProtocolConfig {
+            surfaces,
+            lockfile: None,
+        });
+        let config = Config {
+            protocol,
+            ..Config::default()
+        };
+        Ctx::new(
+            xshell::Shell::new().expect("shell"),
+            root.to_path_buf(),
+            config,
+            false,
+            OutputFormat::Human,
+        )
+    }
+
+    #[test]
+    fn check_reports_not_configured_when_no_surfaces() {
+        let dir = TempDir::new().expect("tempdir");
+        let ctx = test_ctx(dir.path(), None);
+        let status = check(&ctx).expect("check should succeed with no surfaces");
+        assert!(!status.configured);
+        assert!(status.drifted_surfaces.is_empty());
+    }
+
+    #[test]
+    fn check_reports_configured_with_no_lockfile_yet() {
+        let dir = TempDir::new().expect("tempdir");
+        fs::write(dir.path().join("types.rs"), "pub struct Foo {}").unwrap();
+        let surfaces = vec![SurfaceEntry {
+            name: "types".into(),
+            path: "types.rs".into(),
+        }];
+        let ctx = test_ctx(dir.path(), Some(surfaces));
+        let status = check(&ctx).expect("check should succeed with no lockfile yet");
+        assert!(status.configured);
+        assert!(status.drifted_surfaces.is_empty());
+    }
+
+    #[test]
+    fn check_reports_in_sync_when_hashes_match() {
+        let dir = TempDir::new().expect("tempdir");
+        fs::write(dir.path().join("types.rs"), "pub struct Foo {}").unwrap();
+        let surfaces = vec![SurfaceEntry {
+            name: "types".into(),
+            path: "types.rs".into(),
+        }];
+        let lockfile = calculate_lockfile(dir.path(), &surfaces).expect("calculate_lockfile");
+        write_lockfile(&dir.path().join(DEFAULT_LOCK_PATH), &lockfile).expect("write_lockfile");
+
+        let ctx = test_ctx(dir.path(), Some(surfaces));
+        let status = check(&ctx).expect("check should succeed");
+        assert!(status.configured);
+        assert!(status.drifted_surfaces.is_empty());
+    }
+
+    #[test]
+    fn check_reports_drifted_surfaces() {
+        let dir = TempDir::new().expect("tempdir");
+        fs::write(dir.path().join("types.rs"), "pub struct Foo {}").unwrap();
+        let surfaces = vec![SurfaceEntry {
+            name: "types".into(),
+            path: "types.rs".into(),
+        }];
+        let lockfile = calculate_lockfile(dir.path(), &surfaces).expect("calculate_lockfile");
+        write_lockfile(&dir.path().join(DEFAULT_LOCK_PATH), &lockfile).expect("write_lockfile");
+
+        // Change the surface file after the lockfile was written.
+        fs::write(dir.path().join("types.rs"), "pub struct Foo { pub x: u8 }").unwrap();
+
+        let ctx = test_ctx(dir.path(), Some(surfaces));
+        let status = check(&ctx).expect("check should succeed");
+        assert!(status.configured);
+        assert_eq!(status.drifted_surfaces, vec!["types".to_string()]);
     }
 }
