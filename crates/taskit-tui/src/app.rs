@@ -133,6 +133,13 @@ mod tests {
                     metrics: Vec::new(),
                 })
                 .collect(),
+            flow_status: None,
+            flow_state: None,
+            flow_conflict_resolver: taskit_types::config::ConflictResolverKind::default(),
+            flow_auto_duration_history: Vec::new(),
+            flow_auto_result_history: Vec::new(),
+            flow_auto_conflicts_last: None,
+            protocol_drift: None,
         }
     }
 
