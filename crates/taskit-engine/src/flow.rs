@@ -434,6 +434,9 @@ pub fn auto_with_ci(
     use taskit_types::flow_state::{FlowPhase, FlowState};
     use taskit_types::step::StepStatus;
 
+    let start = std::time::Instant::now();
+    let mut conflicts_resolved: usize = 0;
+
     let sh = &ctx.sh;
     let develop = flow.develop_branch();
     let staging = flow.staging_branch();
@@ -467,7 +470,7 @@ pub fn auto_with_ci(
 
         taskit_output::taskit_progress!("auto: promoting {develop} → {staging}");
         checkout(ctx, staging)?;
-        merge_with_resolution(
+        conflicts_resolved += merge_with_resolution(
             ctx,
             develop,
             &format!("flow: promote {develop} into {staging}"),
@@ -476,7 +479,7 @@ pub fn auto_with_ci(
 
         taskit_output::taskit_progress!("auto: staging {staging} → {release}");
         checkout(ctx, release)?;
-        merge_with_resolution(
+        conflicts_resolved += merge_with_resolution(
             ctx,
             staging,
             &format!("flow: stage {staging} into {release}"),
@@ -527,6 +530,14 @@ pub fn auto_with_ci(
             taskit_output::taskit_err!(
                 "auto: CI failed on {release} — staying on {release} for investigation"
             );
+            let _ = crate::telemetry::record(
+                ctx,
+                &[
+                    ("flow_auto_duration_ms", start.elapsed().as_millis() as f64),
+                    ("flow_auto_result", 0.0),
+                    ("flow_auto_conflicts", conflicts_resolved as f64),
+                ],
+            );
             return Err(FlowError::CiFailed { failed }.into());
         }
         taskit_output::taskit_ok!("auto: CI passed on {release}");
@@ -549,7 +560,7 @@ pub fn auto_with_ci(
 
     taskit_output::taskit_progress!("auto: finishing {release} → {main}");
     checkout(ctx, main)?;
-    merge_with_resolution(
+    conflicts_resolved += merge_with_resolution(
         ctx,
         release,
         &format!("flow: finish {release} into {main}"),
@@ -558,12 +569,22 @@ pub fn auto_with_ci(
 
     taskit_output::taskit_progress!("auto: syncing {main} → {develop}");
     checkout(ctx, develop)?;
-    merge_with_resolution(ctx, main, &sync_commit_message(main, develop), resolver)?;
+    conflicts_resolved +=
+        merge_with_resolution(ctx, main, &sync_commit_message(main, develop), resolver)?;
 
     // Success — clear the state file.
     if !ctx.dry_run {
         crate::flow_state_store::clear(&ctx.root)?;
     }
+
+    let _ = crate::telemetry::record(
+        ctx,
+        &[
+            ("flow_auto_duration_ms", start.elapsed().as_millis() as f64),
+            ("flow_auto_result", 1.0),
+            ("flow_auto_conflicts", conflicts_resolved as f64),
+        ],
+    );
 
     taskit_output::taskit_ok!("auto: done. {develop} is in sync with {main}.");
     Ok(())
@@ -998,6 +1019,22 @@ release = "rc"
             "release",
             "should stay on release after CI failure"
         );
+
+        use crate::telemetry::TelemetryStore;
+        let store = crate::telemetry::NdjsonStore::new(ctx.root.clone());
+        let records = store.load_window(7).expect("load telemetry window");
+        let last = records
+            .last()
+            .expect("a flow_auto telemetry record should have been written");
+        let metric = |name: &str| {
+            last.metrics
+                .iter()
+                .find(|m| m.name == name)
+                .unwrap_or_else(|| panic!("missing metric {name}"))
+                .value
+        };
+        assert_eq!(metric("flow_auto_result"), 0.0);
+        assert!(metric("flow_auto_duration_ms") >= 0.0);
     }
 
     #[test]
@@ -1035,5 +1072,22 @@ release = "rc"
             "develop",
             "should land on develop after auto completes"
         );
+
+        use crate::telemetry::TelemetryStore;
+        let store = crate::telemetry::NdjsonStore::new(ctx.root.clone());
+        let records = store.load_window(7).expect("load telemetry window");
+        let last = records
+            .last()
+            .expect("a flow_auto telemetry record should have been written");
+        let metric = |name: &str| {
+            last.metrics
+                .iter()
+                .find(|m| m.name == name)
+                .unwrap_or_else(|| panic!("missing metric {name}"))
+                .value
+        };
+        assert_eq!(metric("flow_auto_result"), 1.0);
+        assert!(metric("flow_auto_duration_ms") >= 0.0);
+        assert_eq!(metric("flow_auto_conflicts"), 0.0);
     }
 }
