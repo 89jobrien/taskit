@@ -142,6 +142,23 @@ fn render_health(frame: &mut Frame, area: Rect, snapshot: &Snapshot) {
         rows[1],
     );
 
+    let protocol_line = match &snapshot.protocol_drift {
+        None => Line::from("Protocol:    (unavailable)"),
+        Some(status) if !status.configured => Line::from("Protocol:    not configured"),
+        Some(status) if status.drifted_surfaces.is_empty() => Line::from(Span::styled(
+            "Protocol:    in sync",
+            Style::default().fg(Color::Green),
+        )),
+        Some(status) => Line::from(Span::styled(
+            format!(
+                "Protocol:    DRIFT ({} surface(s): {})",
+                status.drifted_surfaces.len(),
+                status.drifted_surfaces.join(", ")
+            ),
+            Style::default().fg(Color::Red),
+        )),
+    };
+
     let lines = vec![
         Line::from(format!("TODO/FIXME:  {}", b.todo_fixme)),
         Line::from(format!("Crates:      {}", b.crates)),
@@ -150,6 +167,7 @@ fn render_health(frame: &mut Frame, area: Rect, snapshot: &Snapshot) {
             b.version, b.versions_consistent
         )),
         Line::from(format!("Baseline:    {}", b.date)),
+        protocol_line,
     ];
     frame.render_widget(Paragraph::new(lines), rows[2]);
 }
