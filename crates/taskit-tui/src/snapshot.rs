@@ -7,7 +7,7 @@
 use taskit_engine::ctx::Ctx;
 use taskit_engine::drift::{self, DriftReport};
 use taskit_engine::health::{self, HealthBaseline};
-use taskit_engine::telemetry::{self, NdjsonStore, TelemetryStore};
+use taskit_engine::telemetry::{NdjsonStore, TelemetryRecord, TelemetryStore};
 
 const CI_DURATION_METRIC: &str = "ci_duration_ms";
 const CI_PASSED_METRIC: &str = "ci_passed";
@@ -23,6 +23,12 @@ pub struct Snapshot {
     /// Raw `ci_duration_ms` readings, oldest first, capped to the last
     /// [`SPARKLINE_POINTS`] — feeds the dashboard's `Sparkline` widget.
     pub ci_duration_history: Vec<u64>,
+    /// Raw `ci_passed` readings (0.0/1.0), oldest first, capped to the last
+    /// [`SPARKLINE_POINTS`] — feeds the pass/fail trend strip.
+    pub ci_passed_history: Vec<u64>,
+    /// Full telemetry records in the drift window, oldest first — feeds the
+    /// scrollable CI History tab.
+    pub records: Vec<TelemetryRecord>,
 }
 
 impl Snapshot {
@@ -33,10 +39,7 @@ impl Snapshot {
         Self::from_parts(baseline, &records)
     }
 
-    fn from_parts(
-        baseline: Option<HealthBaseline>,
-        records: &[telemetry::TelemetryRecord],
-    ) -> Self {
+    fn from_parts(baseline: Option<HealthBaseline>, records: &[TelemetryRecord]) -> Self {
         let metric_values = |name: &str| -> Vec<f64> {
             records
                 .iter()
@@ -57,13 +60,17 @@ impl Snapshot {
             }
         });
         let last_ci_passed = ci_passed.last().map(|&v| v >= 1.0);
-        let ci_duration_history = ci_durations
-            .iter()
-            .rev()
-            .take(SPARKLINE_POINTS)
-            .rev()
-            .map(|&v| v.round() as u64)
-            .collect();
+        let recent = |values: &[f64]| -> Vec<u64> {
+            values
+                .iter()
+                .rev()
+                .take(SPARKLINE_POINTS)
+                .rev()
+                .map(|&v| v.round() as u64)
+                .collect()
+        };
+        let ci_duration_history = recent(&ci_durations);
+        let ci_passed_history = recent(&ci_passed);
 
         Self {
             refreshed_at: now_hms(),
@@ -72,6 +79,8 @@ impl Snapshot {
             last_ci_passed,
             ci_duration_drift,
             ci_duration_history,
+            ci_passed_history,
+            records: records.to_vec(),
         }
     }
 }
@@ -89,7 +98,7 @@ fn now_hms() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use telemetry::{MetricPoint, TelemetryRecord};
+    use taskit_engine::telemetry::MetricPoint;
 
     fn record(ts: &str, metrics: &[(&str, f64)]) -> TelemetryRecord {
         TelemetryRecord {
@@ -112,6 +121,7 @@ mod tests {
         assert_eq!(snapshot.ci_run_count, 0);
         assert!(snapshot.last_ci_passed.is_none());
         assert!(snapshot.ci_duration_drift.is_none());
+        assert!(snapshot.records.is_empty());
     }
 
     #[test]
@@ -124,6 +134,7 @@ mod tests {
         assert_eq!(snapshot.ci_run_count, 1);
         assert_eq!(snapshot.last_ci_passed, Some(true));
         assert!(snapshot.ci_duration_drift.is_none());
+        assert_eq!(snapshot.records.len(), 1);
     }
 
     #[test]
@@ -150,6 +161,7 @@ mod tests {
             .expect("drift should be computed");
         assert!(drift.regressed, "500 vs baseline of 100s should regress");
         assert_eq!(snapshot.ci_duration_history, vec![100, 100, 500]);
+        assert_eq!(snapshot.ci_passed_history, vec![1, 1, 0]);
     }
 
     #[test]
@@ -165,5 +177,6 @@ mod tests {
             snapshot.ci_duration_history.last(),
             Some(&((SPARKLINE_POINTS + 9) as u64))
         );
+        assert_eq!(snapshot.records.len(), SPARKLINE_POINTS + 10);
     }
 }

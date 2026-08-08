@@ -313,6 +313,74 @@ fn flow_auto_requires_clean_develop() {
 }
 
 #[test]
+fn flow_auto_ignores_uncommitted_ctx_changes() {
+    let (_dir, ctx, flow) = setup_flow_repo();
+    cmd!(ctx.sh, "git checkout develop")
+        .run()
+        .expect("checkout develop");
+    commit_file(&ctx.sh, "feature.txt", "new feature\n", "feat: add feature");
+
+    // Modify a tracked .ctx/ file and leave it staged but uncommitted — this
+    // must not trip the dirty-worktree check.
+    ctx.sh
+        .write_file(".ctx/HANDOFF.taskit.yaml", "status: in-progress\n")
+        .expect("write handoff");
+    cmd!(ctx.sh, "git add .ctx/HANDOFF.taskit.yaml")
+        .run()
+        .expect("git add");
+
+    let dry_ctx = Ctx::new(
+        xshell::Shell::new().expect("shell"),
+        ctx.root.clone(),
+        Config::default(),
+        true, // dry_run
+        OutputFormat::Human,
+    );
+    dry_ctx.sh.change_dir(&ctx.root);
+
+    let result = flow::auto(&dry_ctx, &flow, &PanicResolver);
+    assert!(
+        result.is_ok(),
+        "flow::auto should ignore .ctx/ changes, got: {result:?}"
+    );
+}
+
+#[test]
+fn flow_auto_still_dirty_with_mixed_ctx_and_real_changes() {
+    let (_dir, ctx, flow) = setup_flow_repo();
+    cmd!(ctx.sh, "git checkout develop")
+        .run()
+        .expect("checkout develop");
+    commit_file(&ctx.sh, "feature.txt", "new feature\n", "feat: add feature");
+
+    // A .ctx/ change alone must not trip the dirty check (covered by
+    // flow_auto_ignores_uncommitted_ctx_changes) — but paired with a real,
+    // non-.ctx change, the worktree must still be reported dirty. A naive
+    // "any .ctx/ line present -> skip the whole check" implementation would
+    // wrongly pass this case.
+    ctx.sh
+        .write_file(".ctx/HANDOFF.taskit.yaml", "status: in-progress\n")
+        .expect("write handoff");
+    cmd!(ctx.sh, "git add .ctx/HANDOFF.taskit.yaml")
+        .run()
+        .expect("git add .ctx");
+    ctx.sh
+        .write_file("dirty.txt", "untracked\n")
+        .expect("write dirty");
+    cmd!(ctx.sh, "git add dirty.txt")
+        .run()
+        .expect("git add dirty");
+
+    let result = flow::auto(&ctx, &flow, &PanicResolver);
+    match result {
+        Err(TaskitError::Flow(FlowError::DirtyWorktree { branch })) => {
+            assert_eq!(branch, "develop");
+        }
+        other => panic!("expected DirtyWorktree, got {other:?}"),
+    }
+}
+
+#[test]
 fn flow_auto_no_conflict_happy_path_ends_on_develop() {
     let (_dir, ctx, flow) = setup_flow_repo();
 

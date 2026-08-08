@@ -1,13 +1,18 @@
-//! Terminal governance dashboard: workspace health, CI telemetry, and drift
-//! status on a single live-refreshing screen.
+//! Terminal governance dashboard: workspace health, CI telemetry, drift
+//! status, and a per-crate/history breakdown across a tabbed, scrollable
+//! live-refreshing screen.
 //!
 //! All data is read from disk — the health baseline file and telemetry
 //! NDJSON written by `taskit health` / `taskit ci` — so a refresh never
-//! re-runs clippy, nextest, or cargo itself.
+//! re-runs clippy, nextest, or cargo itself. The workspace crate list is
+//! fetched once at startup (it shells out to `cargo metadata`), not on every
+//! tick.
 
+mod app;
 mod snapshot;
 mod ui;
 
+pub use app::{App, Tab};
 pub use snapshot::Snapshot;
 
 use std::io;
@@ -63,21 +68,39 @@ fn event_loop(
     ctx: &Ctx,
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
 ) -> Result<(), TaskitError> {
+    let mut app = App::new(ctx);
+
     loop {
         let snapshot = Snapshot::collect(ctx);
+        app.clamp_scroll(&snapshot);
         terminal
-            .draw(|frame| ui::render(frame, &snapshot))
+            .draw(|frame| ui::render(frame, &app, &snapshot))
             .map_err(TaskitError::other)?;
 
         if event::poll(TICK).map_err(TaskitError::other)?
             && let Event::Key(key) = event::read().map_err(TaskitError::other)?
+            && handle_key(&mut app, key.code, key.modifiers)
         {
-            let quit = matches!(key.code, KeyCode::Char('q') | KeyCode::Esc)
-                || (key.code == KeyCode::Char('c')
-                    && key.modifiers.contains(KeyModifiers::CONTROL));
-            if quit {
-                return Ok(());
-            }
+            return Ok(());
         }
     }
+}
+
+/// Handle one key event, mutating `app`. Returns `true` if the app should
+/// quit.
+fn handle_key(app: &mut App, code: KeyCode, modifiers: KeyModifiers) -> bool {
+    match code {
+        KeyCode::Char('q') | KeyCode::Esc => return true,
+        KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => return true,
+        KeyCode::Tab | KeyCode::Right | KeyCode::Char('l') => app.next_tab(),
+        KeyCode::BackTab | KeyCode::Left | KeyCode::Char('h') => app.prev_tab(),
+        KeyCode::Down | KeyCode::Char('j') => app.scroll_down(),
+        KeyCode::Up | KeyCode::Char('k') => app.scroll_up(),
+        KeyCode::PageDown => app.scroll_down_page(),
+        KeyCode::PageUp => app.scroll_up_page(),
+        KeyCode::Char('g') | KeyCode::Home => app.scroll_top(),
+        KeyCode::Char('G') | KeyCode::End => app.scroll_bottom(),
+        _ => {}
+    }
+    false
 }

@@ -23,11 +23,30 @@ fn branch_exists(sh: &Shell, branch: &str) -> Result<bool, TaskitError> {
     Ok(result.status.success())
 }
 
+/// A porcelain status line's path is everything after the 2-character status
+/// code and the space that follows it (e.g. `" M .ctx/HANDOFF.foo.yaml"`).
+/// For renames this is `"old/path -> new/path"`.
+fn porcelain_path(line: &str) -> &str {
+    line.get(3..).unwrap_or("")
+}
+
+/// Whether a porcelain status line only touches paths under `.ctx/` — safe to
+/// ignore in the dirty-worktree check. Renames must have both the old and new
+/// path under `.ctx/`, since a rename that moves a file *out* of `.ctx/`
+/// changes a real tracked path even though its old path matched.
+fn is_ctx_only(line: &str) -> bool {
+    let path = porcelain_path(line);
+    match path.split_once(" -> ") {
+        Some((old, new)) => old.starts_with(".ctx/") && new.starts_with(".ctx/"),
+        None => path.starts_with(".ctx/"),
+    }
+}
+
 fn is_clean(sh: &Shell) -> Result<bool, TaskitError> {
     let output = cmd!(sh, "git status --porcelain")
         .read()
         .map_err(TaskitError::other)?;
-    Ok(output.trim().is_empty())
+    Ok(output.lines().all(is_ctx_only))
 }
 
 fn require_clean(sh: &Shell, branch: &str) -> Result<(), TaskitError> {
@@ -515,6 +534,47 @@ mod tests {
             }
             .into())
         }
+    }
+
+    #[test]
+    fn porcelain_path_strips_status_code() {
+        assert_eq!(
+            porcelain_path(" M .ctx/HANDOFF.foo.yaml"),
+            ".ctx/HANDOFF.foo.yaml"
+        );
+        assert_eq!(porcelain_path("?? src/lib.rs"), "src/lib.rs");
+        assert_eq!(porcelain_path(""), "");
+    }
+
+    #[test]
+    fn is_ctx_only_true_for_plain_ctx_path() {
+        assert!(is_ctx_only(" M .ctx/HANDOFF.foo.yaml"));
+        assert!(is_ctx_only("?? .ctx/scratch.txt"));
+    }
+
+    #[test]
+    fn is_ctx_only_false_for_non_ctx_path() {
+        assert!(!is_ctx_only(" M src/lib.rs"));
+        assert!(!is_ctx_only("?? new.txt"));
+    }
+
+    #[test]
+    fn is_ctx_only_true_for_rename_within_ctx() {
+        assert!(is_ctx_only(
+            "R  .ctx/HANDOFF.old.yaml -> .ctx/HANDOFF.new.yaml"
+        ));
+    }
+
+    #[test]
+    fn is_ctx_only_false_for_rename_out_of_ctx() {
+        // Old path matched .ctx/, but the rename moves it to a real tracked
+        // path — must not be silently ignored.
+        assert!(!is_ctx_only("R  .ctx/HANDOFF.foo.yaml -> src/handoff.yaml"));
+    }
+
+    #[test]
+    fn is_ctx_only_false_for_rename_into_ctx() {
+        assert!(!is_ctx_only("R  src/handoff.yaml -> .ctx/HANDOFF.foo.yaml"));
     }
 
     #[test]

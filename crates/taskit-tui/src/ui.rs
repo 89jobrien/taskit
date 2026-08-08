@@ -1,14 +1,15 @@
-//! Widget layout for the dashboard frame.
+//! Widget layout for the dashboard frame: a tab bar plus a per-tab body.
 
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Gauge, Paragraph, Sparkline};
+use ratatui::widgets::{Block, Borders, Gauge, Paragraph, Sparkline, Tabs};
 
+use crate::app::{App, Tab};
 use crate::snapshot::Snapshot;
 
-pub fn render(frame: &mut Frame, snapshot: &Snapshot) {
+pub fn render(frame: &mut Frame, app: &App, snapshot: &Snapshot) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -18,30 +19,57 @@ pub fn render(frame: &mut Frame, snapshot: &Snapshot) {
         ])
         .split(frame.area());
 
-    render_title(frame, chunks[0]);
+    render_tabs(frame, chunks[0], app);
 
+    match app.active_tab {
+        Tab::Overview => render_overview(frame, chunks[1], snapshot),
+        Tab::Crates => render_crates(frame, chunks[1], app),
+        Tab::History => render_history(frame, chunks[1], app, snapshot),
+    }
+
+    render_footer(frame, chunks[2], app, snapshot);
+}
+
+fn render_tabs(frame: &mut Frame, area: Rect, app: &App) {
+    let titles: Vec<Line> = Tab::ALL.iter().map(|t| Line::from(t.title())).collect();
+    let selected = Tab::ALL
+        .iter()
+        .position(|&t| t == app.active_tab)
+        .unwrap_or(0);
+    let tabs = Tabs::new(titles)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("taskit — real-time governance dashboard"),
+        )
+        .select(selected)
+        .highlight_style(
+            Style::default()
+                .add_modifier(Modifier::BOLD)
+                .fg(Color::Cyan),
+        );
+    frame.render_widget(tabs, area);
+}
+
+fn render_overview(frame: &mut Frame, area: Rect, snapshot: &Snapshot) {
     let columns = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(chunks[1]);
+        .split(area);
 
     render_health(frame, columns[0], snapshot);
 
     let right = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(5), Constraint::Min(0)])
+        .constraints([
+            Constraint::Length(5),
+            Constraint::Percentage(50),
+            Constraint::Percentage(50),
+        ])
         .split(columns[1]);
     render_telemetry(frame, right[0], snapshot);
-    render_sparkline(frame, right[1], snapshot);
-
-    render_footer(frame, chunks[2], snapshot);
-}
-
-fn render_title(frame: &mut Frame, area: Rect) {
-    let title = Paragraph::new("taskit — real-time governance dashboard")
-        .style(Style::default().add_modifier(Modifier::BOLD))
-        .block(Block::default().borders(Borders::ALL));
-    frame.render_widget(title, area);
+    render_duration_sparkline(frame, right[1], snapshot);
+    render_pass_sparkline(frame, right[2], snapshot);
 }
 
 fn render_health(frame: &mut Frame, area: Rect, snapshot: &Snapshot) {
@@ -166,7 +194,7 @@ fn render_telemetry(frame: &mut Frame, area: Rect, snapshot: &Snapshot) {
     frame.render_widget(Paragraph::new(lines).block(block), area);
 }
 
-fn render_sparkline(frame: &mut Frame, area: Rect, snapshot: &Snapshot) {
+fn render_duration_sparkline(frame: &mut Frame, area: Rect, snapshot: &Snapshot) {
     let block = Block::default()
         .title("ci_duration_ms trend")
         .borders(Borders::ALL);
@@ -190,9 +218,99 @@ fn render_sparkline(frame: &mut Frame, area: Rect, snapshot: &Snapshot) {
     );
 }
 
-fn render_footer(frame: &mut Frame, area: Rect, snapshot: &Snapshot) {
+fn render_pass_sparkline(frame: &mut Frame, area: Rect, snapshot: &Snapshot) {
+    let block = Block::default()
+        .title("ci_passed trend (1=pass, 0=fail)")
+        .borders(Borders::ALL);
+    if snapshot.ci_passed_history.is_empty() {
+        frame.render_widget(
+            Paragraph::new("No CI runs recorded yet — run `taskit ci`.").block(block),
+            area,
+        );
+        return;
+    }
+    frame.render_widget(
+        Sparkline::default()
+            .block(block)
+            .data(&snapshot.ci_passed_history)
+            .style(Style::default().fg(Color::Green)),
+        area,
+    );
+}
+
+fn render_crates(frame: &mut Frame, area: Rect, app: &App) {
+    let block = Block::default()
+        .title(format!("Workspace Crates ({})", app.crate_names.len()))
+        .borders(Borders::ALL);
+    if app.crate_names.is_empty() {
+        frame.render_widget(
+            Paragraph::new("No workspace members found (is `cargo metadata` available?).")
+                .block(block),
+            area,
+        );
+        return;
+    }
+    let lines: Vec<Line> = app
+        .crate_names
+        .iter()
+        .enumerate()
+        .map(|(i, name)| Line::from(format!("{:>3}  {name}", i + 1)))
+        .collect();
+    frame.render_widget(
+        Paragraph::new(lines).block(block).scroll((app.scroll, 0)),
+        area,
+    );
+}
+
+fn render_history(frame: &mut Frame, area: Rect, app: &App, snapshot: &Snapshot) {
+    let block = Block::default()
+        .title(format!("CI History — {} runs (7d)", snapshot.records.len()))
+        .borders(Borders::ALL);
+    if snapshot.records.is_empty() {
+        frame.render_widget(
+            Paragraph::new("No CI runs recorded yet — run `taskit ci`.").block(block),
+            area,
+        );
+        return;
+    }
+    let lines: Vec<Line> = snapshot
+        .records
+        .iter()
+        .map(|r| {
+            let duration = r
+                .metrics
+                .iter()
+                .find(|m| m.name == "ci_duration_ms")
+                .map(|m| format!("{:.0}ms", m.value))
+                .unwrap_or_else(|| "-".to_string());
+            let passed = r.metrics.iter().find(|m| m.name == "ci_passed");
+            let sha = r.git_sha.as_deref().unwrap_or("-");
+            match passed.map(|m| m.value >= 1.0) {
+                Some(true) => Line::from(Span::styled(
+                    format!("{:<25} PASS  {duration:>10}  {sha}", r.timestamp),
+                    Style::default().fg(Color::Green),
+                )),
+                Some(false) => Line::from(Span::styled(
+                    format!("{:<25} FAIL  {duration:>10}  {sha}", r.timestamp),
+                    Style::default().fg(Color::Red),
+                )),
+                None => Line::from(format!("{:<25} ?     {duration:>10}  {sha}", r.timestamp)),
+            }
+        })
+        .collect();
+    frame.render_widget(
+        Paragraph::new(lines).block(block).scroll((app.scroll, 0)),
+        area,
+    );
+}
+
+fn render_footer(frame: &mut Frame, area: Rect, app: &App, snapshot: &Snapshot) {
+    let nav_hint = match app.active_tab {
+        Tab::Overview => "tab/←→ switch tabs",
+        _ => "tab/←→ switch tabs  •  j/k, PgUp/PgDn, g/G scroll",
+    };
     let footer = Paragraph::new(format!(
-        "q/Esc to quit  •  refreshed {}",
+        "q/Esc quit  •  {nav_hint}  •  refreshed {}",
         snapshot.refreshed_at
     ));
     frame.render_widget(footer, area);
