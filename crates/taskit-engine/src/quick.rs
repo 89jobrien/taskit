@@ -16,7 +16,9 @@ pub fn run(ctx: &Ctx) -> Result<(), TaskitError> {
     ctx.with_silent(|| {
         let outcome = Pipeline::new(false)
             .step("fmt --check (affected)", || fmt::run(ctx, true, true))
-            .step("lint (affected)", || lint::run(ctx, None, true, false))
+            .step("lint (affected)", || {
+                lint::run(ctx, None, true, false, false)
+            })
             .step("compile-tests", || testing::compile::run(ctx))
             .step("test (affected, offline)", || {
                 testing::run::run(ctx, None, true, false, true)

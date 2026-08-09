@@ -14,7 +14,7 @@ use taskit_types::step::PipelineOutcome;
 use crate::ctx::Ctx;
 use crate::{
     audit, check_deps, check_freshness, ci, clean, dev_setup, drift, flow, fmt, health, hooks,
-    inspect, install, lint, patch, protocol, publish, quick, release, testing, update,
+    inspect, install, lint, patch, protocol, publish, quick, release, testing, todo_sync, update,
     update_claude, version,
 };
 
@@ -40,6 +40,7 @@ pub struct Lint {
     pub crate_name: Option<String>,
     pub affected: bool,
     pub continue_on_error: bool,
+    pub fix: bool,
 }
 impl Command for Lint {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
@@ -48,6 +49,7 @@ impl Command for Lint {
             self.crate_name.as_deref(),
             self.affected,
             self.continue_on_error,
+            self.fix,
         )
     }
 }
@@ -73,9 +75,13 @@ impl Command for Test {
 pub struct Coverage {
     pub crate_name: Option<String>,
     pub threshold: f64,
+    pub workspace: bool,
 }
 impl Command for Coverage {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
+        if self.workspace {
+            return testing::coverage::run_workspace(ctx, self.threshold);
+        }
         let pkg = self
             .crate_name
             .as_deref()
@@ -83,7 +89,7 @@ impl Command for Coverage {
         match pkg {
             Some(name) => testing::coverage::run(ctx, name, self.threshold),
             None => Err(TaskitError::other(
-                "no crate specified: use --crate-name or set [coverage].crate_name in taskit.toml",
+                "no crate specified: use --crate-name, --workspace, or set [coverage].crate_name in taskit.toml",
             )),
         }
     }
@@ -95,10 +101,25 @@ pub struct CheckProtocolDrift {
     pub update: bool,
     pub warn_only: bool,
     pub hook: bool,
+    pub watch: bool,
+    pub interval: u64,
 }
 impl Command for CheckProtocolDrift {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
+        if self.watch {
+            return protocol::drift::watch(ctx, self.interval);
+        }
         protocol::drift::run(ctx, self.update, self.warn_only, self.hook)
+    }
+}
+
+pub struct TodoSync {
+    pub update: bool,
+    pub warn_only: bool,
+}
+impl Command for TodoSync {
+    fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
+        todo_sync::run(ctx, self.update, self.warn_only)
     }
 }
 
@@ -154,10 +175,12 @@ impl Command for CheckDeps {
     }
 }
 
-pub struct CheckFreshness;
+pub struct CheckFreshness {
+    pub warn_only: bool,
+}
 impl Command for CheckFreshness {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
-        check_freshness::run(ctx)
+        check_freshness::run(ctx, self.warn_only)
     }
 }
 
@@ -309,10 +332,11 @@ impl Command for SnapshotReview {
 
 pub struct Health {
     pub update: bool,
+    pub with_coverage: bool,
 }
 impl Command for Health {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
-        health::run(ctx, self.update)
+        health::run(ctx, self.update, self.with_coverage)
     }
 }
 
@@ -410,6 +434,7 @@ mod tests {
         let cmd = Coverage {
             crate_name: None,
             threshold: 80.0,
+            workspace: false,
         };
         assert!(
             cmd.run(&ctx).is_err(),

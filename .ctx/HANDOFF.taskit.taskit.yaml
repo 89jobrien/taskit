@@ -1,8 +1,67 @@
 project: taskit
 id: taskit
-updated: 2026-08-04
-items: []
+updated: 2026-08-09
+items:
+- id: uncommitted-work
+  doob_uuid: null
+  name: uncommitted-work
+  priority: P1
+  status: open
+  title: Uncommitted changes (19 files)
+  description: |-
+    Working tree has uncommitted changes:
+    .ctx/HANDOFF.taskit.taskit.yaml
+    .health-baseline.json
+    CLAUDE.md
+    README.md
+    crates/taskit-engine/src/check_freshness.rs
+    crates/taskit-engine/src/ci.rs
+    crates/taskit-engine/src/command.rs
+    crates/taskit-engine/src/health.rs
+    crates/taskit-engine/src/hooks.rs
+    crates/taskit-engine/src/inspect.rs
+    crates/taskit-engine/src/lib.rs
+    crates/taskit-engine/src/lint.rs
+    crates/taskit-engine/src/protocol/drift.rs
+    crates/taskit-engine/src/quick.rs
+    crates/taskit-engine/src/release/gh.rs
+    crates/taskit-engine/src/telemetry.rs
+    crates/taskit-engine/src/testing/coverage.rs
+    src/main.rs
+    crates/taskit-engine/src/todo_sync.rs
+  files:
+  - .ctx/HANDOFF.taskit.taskit.yaml
+  - .health-baseline.json
+  - CLAUDE.md
+  - README.md
+  - crates/taskit-engine/src/check_freshness.rs
+  - crates/taskit-engine/src/ci.rs
+  - crates/taskit-engine/src/command.rs
+  - crates/taskit-engine/src/health.rs
+  - crates/taskit-engine/src/hooks.rs
+  - crates/taskit-engine/src/inspect.rs
+  - crates/taskit-engine/src/lib.rs
+  - crates/taskit-engine/src/lint.rs
+  - crates/taskit-engine/src/protocol/drift.rs
+  - crates/taskit-engine/src/quick.rs
+  - crates/taskit-engine/src/release/gh.rs
+  - crates/taskit-engine/src/telemetry.rs
+  - crates/taskit-engine/src/testing/coverage.rs
+  - src/main.rs
+  - crates/taskit-engine/src/todo_sync.rs
+  completed: null
+  extra: []
 log:
-- date: '20260719.115036'
-  summary: done=64 running=0 pending=0 blocked=0
-  commits: []
+- date: '20260809.043817'
+  summary: done=73 running=0 pending=0 blocked=0
+  commits:
+  - !Sha b9dd927899c82255060d3aadb703928e1d1d651c
+  - !Sha 6bbb51034ce3ed8d5902a9ccd70b26b79d4f197c
+  - !Sha e6f45808191dbca1e6bbe4c7c943da9ffe99f289
+  - !Sha 3914e562048a0dae32111467aef8bdd33605ad61
+  - !Sha caf9d803e02962d1d27f455b57e5cf5d814b84b3
+  - !Sha d0c25d05ad104ece2397d3d11660490f0e6713a6
+  - !Sha fb7252d4200092f99cd16dcaa09e6465f9ea95fe
+  - !Sha c27256ea1599a2039fe5a820b40dccdd8677b337
+  - !Sha d8fb41ce70abe28e4af70cbc1925a4fbef8e7e22
+  - !Sha bcfad63044e9ffd24910d0e0da3f48bbc5800322

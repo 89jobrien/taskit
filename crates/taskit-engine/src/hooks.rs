@@ -125,6 +125,20 @@ pub fn pre_commit(ctx: &Ctx) -> Result<(), TaskitError> {
 
     ctx.run(cmd!(sh, "cargo fmt --check --all"))?;
 
+    if let Err(e) = crate::lint::run(ctx, None, true, false, false) {
+        taskit_output::taskit_err!("lint check failed: {e}");
+        taskit_output::taskit_progress!("self-healing: running clippy --fix on affected crates...");
+        crate::lint::run(ctx, None, true, false, true)?;
+        // Re-stage any files clippy modified.
+        let restaged = cmd!(sh, "git diff --name-only --diff-filter=d")
+            .read()
+            .map_err(TaskitError::other)?;
+        for path in rs_paths_from_staged(&restaged) {
+            ctx.run(cmd!(sh, "git add {path}"))?;
+        }
+        taskit_output::taskit_ok!("clippy auto-fixed and re-staged affected files");
+    }
+
     if let Err(e) = crate::protocol::drift::run(ctx, false, false, false) {
         taskit_output::taskit_err!("protocol-drift check failed: {e}");
         taskit_output::taskit_progress!("self-healing: updating protocol lockfile...");

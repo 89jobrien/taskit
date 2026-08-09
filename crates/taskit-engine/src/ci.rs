@@ -134,7 +134,7 @@ fn dispatch_cmd<'a>(
             let check = parts.contains(&"--check");
             Box::new(move || fmt::run(ctx, check, false))
         }
-        "lint" => Box::new(move || lint::run(ctx, None, false, false)),
+        "lint" => Box::new(move || lint::run(ctx, None, false, false, false)),
         "compile-tests" => Box::new(move || testing::compile::run(ctx)),
         "test" => Box::new(move || testing::run::run(ctx, None, false, false, offline)),
         "coverage" => Box::new(move || match ctx.cov() {
@@ -147,7 +147,7 @@ fn dispatch_cmd<'a>(
         "check-deps" => Box::new(move || check_deps::run(ctx)),
         "check-protocol-drift" => Box::new(move || protocol::drift::run(ctx, false, false, false)),
         "self-check" => Box::new(dev_setup::self_check),
-        "health" => Box::new(move || crate::health::run(ctx, false)),
+        "health" => Box::new(move || crate::health::run(ctx, false, false)),
         other => {
             return Err(TaskitError::other(format!(
                 "unknown ci step command: {other:?}"
@@ -212,7 +212,7 @@ fn run_default_pipeline(
         );
     } else {
         let (sink, wrapped) = with_capture(ctx, reproduction_for_cmd("lint"), || {
-            lint::run(ctx, None, false, false)
+            lint::run(ctx, None, false, false, false)
         });
         pipeline = pipeline.step_with_context_sink("lint", sink, wrapped);
     }

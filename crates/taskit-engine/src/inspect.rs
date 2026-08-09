@@ -1,5 +1,4 @@
 use taskit_types::error::TaskitError;
-use xshell::Shell;
 
 use crate::ctx::Ctx;
 use crate::health::{self, HealthBaseline};
@@ -14,8 +13,8 @@ pub struct Thresholds {
 }
 
 /// Build and run the inspect pipeline, returning a structured outcome.
-pub fn run_pipeline(sh: &Shell, thresholds: &Thresholds) -> Result<PipelineOutcome, TaskitError> {
-    let baseline = health::collect(sh)?;
+pub fn run_pipeline(ctx: &Ctx, thresholds: &Thresholds) -> Result<PipelineOutcome, TaskitError> {
+    let baseline = health::collect(ctx, false)?;
     Ok(build_pipeline(&baseline, thresholds))
 }
 
@@ -78,7 +77,6 @@ pub fn run(
     max_warnings: Option<usize>,
     max_todo: Option<usize>,
 ) -> Result<(), TaskitError> {
-    let sh = &ctx.sh;
     // CLI flags override config; config fills in defaults for unset flags.
     let cfg = ctx.inspect();
     let thresholds = Thresholds {
@@ -89,14 +87,14 @@ pub fn run(
         max_test_failures: cfg.and_then(|c| c.max_test_failures).unwrap_or(0),
         max_todo_fixme: max_todo.or_else(|| cfg.and_then(|c| c.max_todo_fixme)),
     };
-    let outcome = run_pipeline(sh, &thresholds)?;
+    let outcome = run_pipeline(ctx, &thresholds)?;
     Ok(taskit_output::write_output(ctx.output, &outcome)?)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::health::{ClippyCounts, HealthBaseline, TestCounts};
+    use crate::health::{ClippyCounts, HealthBaseline, SafetyCounts, TestCounts};
     use crate::step::StepStatus;
     use taskit_types::output_format::OutputFormat;
 
@@ -117,6 +115,9 @@ mod tests {
             },
             clippy: ClippyCounts { warnings, errors },
             todo_fixme: todo,
+            safety: SafetyCounts::default(),
+            coverage: None,
+            ci_duration_ms: None,
             crates: 4,
             versions_consistent: consistent,
             version: "0.4.0".into(),

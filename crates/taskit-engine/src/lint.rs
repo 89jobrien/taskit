@@ -9,6 +9,7 @@ pub fn run(
     crate_name: Option<&str>,
     use_affected: bool,
     continue_on_error: bool,
+    fix: bool,
 ) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     let ws = ctx.ws();
@@ -19,16 +20,30 @@ pub fn run(
         use_affected,
         continue_on_error,
         |sh, name| {
-            ctx.run(cmd!(
-                sh,
-                "cargo clippy --locked --quiet -p {name} --all-targets -- -D warnings"
-            ))
+            if fix {
+                ctx.run(cmd!(
+                    sh,
+                    "cargo clippy --locked --quiet --fix --allow-dirty --allow-staged -p {name} --all-targets -- -D warnings"
+                ))
+            } else {
+                ctx.run(cmd!(
+                    sh,
+                    "cargo clippy --locked --quiet -p {name} --all-targets -- -D warnings"
+                ))
+            }
         },
         |sh| {
-            ctx.run(cmd!(
-                sh,
-                "cargo clippy --locked --quiet --all-targets --workspace -- -D warnings"
-            ))
+            if fix {
+                ctx.run(cmd!(
+                    sh,
+                    "cargo clippy --locked --quiet --fix --allow-dirty --allow-staged --all-targets --workspace -- -D warnings"
+                ))
+            } else {
+                ctx.run(cmd!(
+                    sh,
+                    "cargo clippy --locked --quiet --all-targets --workspace -- -D warnings"
+                ))
+            }
         },
     )
 }

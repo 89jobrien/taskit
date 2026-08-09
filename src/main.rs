@@ -14,7 +14,8 @@ use taskit_engine::command::{
     Audit, Bench, CheckDeps, CheckFreshness, CheckProtocolDrift, CheckProtocolSites, Ci, Clean,
     Command, CompileTests, Coverage, DevSetup, Drift, Flow, FlowAction, Fmt, Fuzz, Health, Inspect,
     Install, InstallHooks, Lint, Patch, PreCommit, PrePush, Proptest, Publish, Quick, Release,
-    SelfCheck, SelfTest, SnapshotReview, Test, TestReport, Update, UpdateClaudeVersion, Version,
+    SelfCheck, SelfTest, SnapshotReview, Test, TestReport, TodoSync, Update, UpdateClaudeVersion,
+    Version,
 };
 use taskit_engine::ctx::Ctx;
 use taskit_engine::patch;
@@ -58,6 +59,9 @@ enum Cmd {
         /// Continue linting remaining crates even if one fails
         #[arg(long)]
         continue_on_error: bool,
+        /// Auto-apply clippy's suggested fixes (--fix --allow-dirty --allow-staged)
+        #[arg(long)]
+        fix: bool,
     },
     /// Run tests via nextest
     Test {
@@ -78,6 +82,9 @@ enum Cmd {
         crate_name: Option<String>,
         #[arg(long, default_value_t = DEFAULT_COVERAGE_THRESHOLD)]
         threshold: f64,
+        /// Measure coverage across the whole workspace instead of one crate
+        #[arg(long)]
+        workspace: bool,
     },
     /// Check protocol drift of core contract surfaces
     CheckProtocolDrift {
@@ -87,6 +94,19 @@ enum Cmd {
         warn_only: bool,
         #[arg(long)]
         hook: bool,
+        /// Continuously watch and auto-remediate drift instead of failing
+        #[arg(long)]
+        watch: bool,
+        /// Poll interval in seconds for --watch
+        #[arg(long, default_value_t = 5)]
+        interval: u64,
+    },
+    /// Scan TODO/FIXME markers and sync them to GitHub issues
+    TodoSync {
+        #[arg(long)]
+        update: bool,
+        #[arg(long)]
+        warn_only: bool,
     },
     /// Count construction sites for key structs
     CheckProtocolSites {
@@ -117,8 +137,12 @@ enum Cmd {
     CompileTests,
     /// Check for unused dependencies
     CheckDeps,
-    /// Check schema + protocol drift freshness
-    CheckFreshness,
+    /// Check workspace dependency freshness (Cargo.lock vs latest published versions)
+    CheckFreshness {
+        /// Report outdated dependencies without failing the command
+        #[arg(long)]
+        warn_only: bool,
+    },
     /// Run pre-commit checks (Rust formatting)
     PreCommit,
     /// Run pre-push checks (affected crate lint + test + coverage + drift)
@@ -189,6 +213,9 @@ enum Cmd {
         /// Write current metrics to .health-baseline.json
         #[arg(long)]
         update: bool,
+        /// Also measure workspace coverage % (expensive: instrumented build)
+        #[arg(long)]
+        with_coverage: bool,
     },
     /// Compare a telemetry metric's latest reading against its historical baseline
     Drift {
@@ -296,10 +323,12 @@ fn to_command(cmd: Cmd, resolver_kind: &ConflictResolverKind) -> Box<dyn Command
             crate_name,
             affected,
             continue_on_error,
+            fix,
         } => Box::new(Lint {
             crate_name,
             affected,
             continue_on_error,
+            fix,
         }),
         Cmd::Test {
             crate_name,
@@ -315,19 +344,26 @@ fn to_command(cmd: Cmd, resolver_kind: &ConflictResolverKind) -> Box<dyn Command
         Cmd::Coverage {
             crate_name,
             threshold,
+            workspace,
         } => Box::new(Coverage {
             crate_name,
             threshold,
+            workspace,
         }),
         Cmd::CheckProtocolDrift {
             update,
             warn_only,
             hook,
+            watch,
+            interval,
         } => Box::new(CheckProtocolDrift {
             update,
             warn_only,
             hook,
+            watch,
+            interval,
         }),
+        Cmd::TodoSync { update, warn_only } => Box::new(TodoSync { update, warn_only }),
         Cmd::CheckProtocolSites {
             file,
             pattern,
@@ -349,7 +385,7 @@ fn to_command(cmd: Cmd, resolver_kind: &ConflictResolverKind) -> Box<dyn Command
         }),
         Cmd::CompileTests => Box::new(CompileTests),
         Cmd::CheckDeps => Box::new(CheckDeps),
-        Cmd::CheckFreshness => Box::new(CheckFreshness),
+        Cmd::CheckFreshness { warn_only } => Box::new(CheckFreshness { warn_only }),
         Cmd::PreCommit => Box::new(PreCommit),
         Cmd::PrePush => Box::new(PrePush),
         Cmd::InstallHooks => Box::new(InstallHooks),
@@ -382,7 +418,13 @@ fn to_command(cmd: Cmd, resolver_kind: &ConflictResolverKind) -> Box<dyn Command
         }),
         Cmd::TestReport => Box::new(TestReport),
         Cmd::SnapshotReview => Box::new(SnapshotReview),
-        Cmd::Health { update } => Box::new(Health { update }),
+        Cmd::Health {
+            update,
+            with_coverage,
+        } => Box::new(Health {
+            update,
+            with_coverage,
+        }),
         Cmd::Drift { metric, window } => Box::new(Drift {
             metric,
             window_days: window,

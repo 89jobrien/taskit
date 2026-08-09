@@ -5,8 +5,11 @@ use taskit_types::error::{TaskitError, TaskitResultExt};
 use xshell::{Shell, cmd};
 
 use crate::ctx::Ctx;
+use crate::telemetry::{NdjsonStore, latest_metric};
+use crate::testing::coverage::{CoverageScope, collect_percent};
 
 const BASELINE_FILE: &str = ".health-baseline.json";
+const TELEMETRY_WINDOW_DAYS: u64 = 30;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct HealthBaseline {
@@ -14,6 +17,16 @@ pub struct HealthBaseline {
     pub tests: TestCounts,
     pub clippy: ClippyCounts,
     pub todo_fixme: usize,
+    #[serde(default)]
+    pub safety: SafetyCounts,
+    /// Workspace line-coverage percentage. `None` unless collected with
+    /// `--with-coverage` (expensive: compiles with instrumentation).
+    #[serde(default)]
+    pub coverage: Option<f64>,
+    /// Most recent `ci_duration_ms` telemetry reading within the last
+    /// `TELEMETRY_WINDOW_DAYS` days. `None` if `taskit ci` hasn't run yet.
+    #[serde(default)]
+    pub ci_duration_ms: Option<f64>,
     pub crates: usize,
     pub versions_consistent: bool,
     pub version: String,
@@ -33,11 +46,31 @@ pub struct ClippyCounts {
     pub errors: usize,
 }
 
+/// Counts of `.unwrap()`/`.expect()` and `warn!()` call sites in workspace source.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct SafetyCounts {
+    pub unwrap_count: usize,
+    pub warn_count: usize,
+}
+
 /// Collect a fresh health baseline from the workspace.
-pub fn collect(sh: &Shell) -> Result<HealthBaseline, TaskitError> {
+///
+/// `with_coverage` opts into a workspace-wide `cargo llvm-cov` run — skipped
+/// by default since it compiles with instrumentation and is materially more
+/// expensive than the nextest/clippy passes already in this function.
+pub fn collect(ctx: &Ctx, with_coverage: bool) -> Result<HealthBaseline, TaskitError> {
+    let sh = &ctx.sh;
     let tests = collect_tests(sh)?;
     let clippy = collect_clippy(sh)?;
     let todo_fixme = count_todo_fixme(sh)?;
+    let safety = count_safety(sh)?;
+    let coverage = if with_coverage {
+        collect_percent(ctx, &CoverageScope::Workspace)?
+    } else {
+        None
+    };
+    let store = NdjsonStore::new(ctx.root());
+    let ci_duration_ms = latest_metric(&store, "ci_duration_ms", TELEMETRY_WINDOW_DAYS)?;
     let (crate_count, versions_consistent, version) = collect_versions()?;
 
     let date = today();
@@ -47,6 +80,9 @@ pub fn collect(sh: &Shell) -> Result<HealthBaseline, TaskitError> {
         tests,
         clippy,
         todo_fixme,
+        safety,
+        coverage,
+        ci_duration_ms,
         crates: crate_count,
         versions_consistent,
         version,
@@ -107,11 +143,25 @@ pub fn check(current: &HealthBaseline, previous: &HealthBaseline) -> bool {
         Direction::LowerIsBetter,
     );
     regressed |= print_metric(
+        "unwrap/expect",
+        previous.safety.unwrap_count,
+        current.safety.unwrap_count,
+        Direction::LowerIsBetter,
+    );
+    regressed |= print_metric(
+        "warn!() sites",
+        previous.safety.warn_count,
+        current.safety.warn_count,
+        Direction::LowerIsBetter,
+    );
+    regressed |= print_metric(
         "Crates",
         previous.crates,
         current.crates,
         Direction::Neutral,
     );
+    regressed |= print_coverage_metric(previous.coverage, current.coverage);
+    regressed |= print_duration_metric(previous.ci_duration_ms, current.ci_duration_ms);
 
     if !current.versions_consistent {
         taskit_output::taskit_err!(
@@ -134,10 +184,9 @@ pub fn check(current: &HealthBaseline, previous: &HealthBaseline) -> bool {
 }
 
 /// Run the health subcommand.
-pub fn run(ctx: &Ctx, update: bool) -> Result<(), TaskitError> {
-    let sh = &ctx.sh;
+pub fn run(ctx: &Ctx, update: bool, with_coverage: bool) -> Result<(), TaskitError> {
     let workspace_root = ctx.root();
-    let current = collect(sh)?;
+    let current = collect(ctx, with_coverage)?;
 
     if update {
         write_baseline(workspace_root, &current)?;
@@ -177,7 +226,20 @@ fn print_summary(b: &HealthBaseline) {
         b.clippy.errors
     );
     taskit_output::taskit_progress!("TODO/FIXME:  {}", b.todo_fixme);
+    taskit_output::taskit_progress!(
+        "Safety:      {} unwrap/expect, {} warn!() sites",
+        b.safety.unwrap_count,
+        b.safety.warn_count
+    );
     taskit_output::taskit_progress!("Crates:      {}", b.crates);
+    match b.coverage {
+        Some(pct) => taskit_output::taskit_progress!("Coverage:    {pct:.1}%"),
+        None => taskit_output::taskit_progress!("Coverage:    not collected (use --with-coverage)"),
+    }
+    match b.ci_duration_ms {
+        Some(ms) => taskit_output::taskit_progress!("CI duration: {ms:.0}ms"),
+        None => taskit_output::taskit_progress!("CI duration: no telemetry yet (run `taskit ci`)"),
+    }
     taskit_output::taskit_progress!(
         "Version:     {} (consistent: {})",
         b.version,
@@ -333,48 +395,186 @@ fn find_comment_markers(s: &str) -> (Option<usize>, Option<usize>) {
 }
 
 fn line_has_todo_fixme_comment(line: &str, in_block_comment: &mut bool) -> bool {
+    extract_todo_fixme_comment(line, in_block_comment).is_some()
+}
+
+/// If `line`'s comment content (tracking block-comment state across calls via
+/// `in_block_comment`) contains a TODO/FIXME marker, returns the trimmed
+/// marker text starting at the keyword (e.g. `"TODO: fix this"`).
+pub(crate) fn extract_todo_fixme_comment(
+    line: &str,
+    in_block_comment: &mut bool,
+) -> Option<String> {
     let mut rest = line;
     loop {
         if *in_block_comment {
             if let Some(end) = rest.find("*/") {
                 let comment = &rest[..end];
                 *in_block_comment = false;
-                if contains_todo_fixme(comment) {
-                    return true;
+                if let Some(text) = extract_todo_fixme_marker(comment) {
+                    return Some(text);
                 }
                 rest = &rest[end + 2..];
                 continue;
             }
-            return contains_todo_fixme(rest);
+            return extract_todo_fixme_marker(rest);
         }
 
         let (line_comment, block_comment) = find_comment_markers(rest);
         match (line_comment, block_comment) {
             (Some(line_start), Some(block_start)) if line_start < block_start => {
-                return contains_todo_fixme(&rest[line_start + 2..]);
+                return extract_todo_fixme_marker(&rest[line_start + 2..]);
             }
             (Some(line_start), None) => {
-                return contains_todo_fixme(&rest[line_start + 2..]);
+                return extract_todo_fixme_marker(&rest[line_start + 2..]);
             }
             (_, Some(block_start)) => {
                 let comment = &rest[block_start + 2..];
                 if let Some(end) = comment.find("*/") {
-                    if contains_todo_fixme(&comment[..end]) {
-                        return true;
+                    if let Some(text) = extract_todo_fixme_marker(&comment[..end]) {
+                        return Some(text);
                     }
                     rest = &comment[end + 2..];
                 } else {
                     *in_block_comment = true;
-                    return contains_todo_fixme(comment);
+                    return extract_todo_fixme_marker(comment);
                 }
             }
-            (None, None) => return false,
+            (None, None) => return None,
         }
     }
 }
 
-fn contains_todo_fixme(text: &str) -> bool {
-    text.contains("TODO") || text.contains("FIXME")
+fn extract_todo_fixme_marker(text: &str) -> Option<String> {
+    let idx = text.find("TODO").or_else(|| text.find("FIXME"))?;
+    Some(text[idx..].trim().to_string())
+}
+
+fn count_safety(_sh: &Shell) -> Result<SafetyCounts, TaskitError> {
+    let root = std::env::current_dir().err_context("failed to read current directory")?;
+    count_safety_in_dir(&root)
+}
+
+fn count_safety_in_dir(root: &Path) -> Result<SafetyCounts, TaskitError> {
+    ["crates", "src"].iter().try_fold(
+        SafetyCounts::default(),
+        |mut total, child| -> Result<SafetyCounts, TaskitError> {
+            let counts = count_safety_in_tree(&root.join(child))?;
+            total.unwrap_count += counts.unwrap_count;
+            total.warn_count += counts.warn_count;
+            Ok(total)
+        },
+    )
+}
+
+fn count_safety_in_tree(path: &Path) -> Result<SafetyCounts, TaskitError> {
+    if !path.exists() {
+        return Ok(SafetyCounts::default());
+    }
+
+    let mut total = SafetyCounts::default();
+    for entry in
+        std::fs::read_dir(path).err_context_with(|| format!("failed to read {}", path.display()))?
+    {
+        let entry =
+            entry.err_context_with(|| format!("failed to read entry in {}", path.display()))?;
+        let path = entry.path();
+        let file_type = entry
+            .file_type()
+            .err_context_with(|| format!("failed to inspect {}", path.display()))?;
+        if file_type.is_dir() {
+            let counts = count_safety_in_tree(&path)?;
+            total.unwrap_count += counts.unwrap_count;
+            total.warn_count += counts.warn_count;
+        } else if path.extension().and_then(|ext| ext.to_str()) == Some("rs") {
+            let content = std::fs::read_to_string(&path)
+                .err_context_with(|| format!("failed to read {}", path.display()))?;
+            let (unwrap_count, warn_count) = count_safety_markers(&content);
+            total.unwrap_count += unwrap_count;
+            total.warn_count += warn_count;
+        }
+    }
+    Ok(total)
+}
+
+/// Count `.unwrap(`/`.expect(` and `warn!(` call sites in `content`, skipping
+/// comments and (double-quoted) string literals.
+fn count_safety_markers(content: &str) -> (usize, usize) {
+    let mut in_block_comment = false;
+    let mut unwrap_count = 0;
+    let mut warn_count = 0;
+    for line in content.lines() {
+        let code = code_portion(line, &mut in_block_comment);
+        let masked = mask_string_literals(&code);
+        unwrap_count += masked.matches(".unwrap(").count() + masked.matches(".expect(").count();
+        warn_count += masked.matches("warn!(").count();
+    }
+    (unwrap_count, warn_count)
+}
+
+/// Return the portion of `line` that is actual code, stripping any trailing
+/// line/block comment. Tracks block-comment state across calls via `in_block_comment`.
+fn code_portion(line: &str, in_block_comment: &mut bool) -> String {
+    if *in_block_comment {
+        return match line.find("*/") {
+            Some(end) => {
+                *in_block_comment = false;
+                code_portion(&line[end + 2..], in_block_comment)
+            }
+            None => String::new(),
+        };
+    }
+
+    let (line_comment, block_comment) = find_comment_markers(line);
+    match (line_comment, block_comment) {
+        (Some(ls), Some(bs)) if ls < bs => line[..ls].to_string(),
+        (Some(ls), None) => line[..ls].to_string(),
+        (_, Some(bs)) => {
+            let prefix = &line[..bs];
+            let rest = &line[bs + 2..];
+            match rest.find("*/") {
+                Some(end) => format!(
+                    "{prefix}{}",
+                    code_portion(&rest[end + 2..], in_block_comment)
+                ),
+                None => {
+                    *in_block_comment = true;
+                    prefix.to_string()
+                }
+            }
+        }
+        (None, None) => line.to_string(),
+    }
+}
+
+/// Replace the contents of double-quoted string literals with spaces so
+/// pattern matching doesn't pick up matches inside string data.
+fn mask_string_literals(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = bytes.to_vec();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'"' {
+            let start = i;
+            i += 1;
+            while i < bytes.len() {
+                match bytes[i] {
+                    b'\\' => i += 2,
+                    b'"' => {
+                        i += 1;
+                        break;
+                    }
+                    _ => i += 1,
+                }
+            }
+            for byte in out.iter_mut().take(i.min(bytes.len())).skip(start) {
+                *byte = b' ';
+            }
+        } else {
+            i += 1;
+        }
+    }
+    String::from_utf8(out).unwrap_or_default()
 }
 
 fn collect_versions() -> Result<(usize, bool, String), TaskitError> {
@@ -524,6 +724,66 @@ fn print_metric(name: &str, previous: usize, current: usize, direction: Directio
     let marker = if regressed { " REGRESSION" } else { "" };
     taskit_output::taskit_progress!("{name:<20} {previous:>5} -> {current:>5} {arrow}{marker}");
     regressed
+}
+
+/// Coverage is `Option<f64>` since it's only collected with `--with-coverage`.
+/// Only flags a regression when both readings are present and current has
+/// dropped by more than a small float-noise tolerance.
+fn print_coverage_metric(previous: Option<f64>, current: Option<f64>) -> bool {
+    const TOLERANCE: f64 = 0.05;
+    match (previous, current) {
+        (Some(p), Some(c)) => {
+            let arrow = if c > p + TOLERANCE {
+                "^"
+            } else if c < p - TOLERANCE {
+                "v"
+            } else {
+                "="
+            };
+            let regressed = c < p - TOLERANCE;
+            let marker = if regressed { " REGRESSION" } else { "" };
+            taskit_output::taskit_progress!(
+                "{:<20} {p:>4.1}% -> {c:>4.1}% {arrow}{marker}",
+                "Coverage"
+            );
+            regressed
+        }
+        (None, Some(c)) => {
+            taskit_output::taskit_progress!("{:<20} (new) -> {c:>4.1}%", "Coverage");
+            false
+        }
+        _ => false,
+    }
+}
+
+/// CI duration is `Option<f64>` (ms) since it's only populated once `taskit
+/// ci` has recorded telemetry. Lower is better; flags a regression when
+/// current exceeds previous by more than a relative tolerance (absolute ms
+/// tolerances don't scale across pipelines of very different size).
+fn print_duration_metric(previous: Option<f64>, current: Option<f64>) -> bool {
+    const RELATIVE_TOLERANCE: f64 = 0.10;
+    match (previous, current) {
+        (Some(p), Some(c)) => {
+            let threshold = p * (1.0 + RELATIVE_TOLERANCE);
+            let arrow = match c.partial_cmp(&p) {
+                Some(std::cmp::Ordering::Greater) => "^",
+                Some(std::cmp::Ordering::Less) => "v",
+                _ => "=",
+            };
+            let regressed = c > threshold;
+            let marker = if regressed { " REGRESSION" } else { "" };
+            taskit_output::taskit_progress!(
+                "{:<20} {p:>6.0}ms -> {c:>6.0}ms {arrow}{marker}",
+                "CI duration"
+            );
+            regressed
+        }
+        (None, Some(c)) => {
+            taskit_output::taskit_progress!("{:<20} (new) -> {c:>6.0}ms", "CI duration");
+            false
+        }
+        _ => false,
+    }
 }
 
 #[cfg(test)]
@@ -686,6 +946,51 @@ mod tests {
         );
     }
 
+    // -- count_safety_markers --
+
+    #[test]
+    fn count_safety_markers_counts_unwrap_expect_and_warn() {
+        let content = [
+            "let a = foo().unwrap();",
+            "let b = bar().expect(\"bar failed\");",
+            "warn!(\"something happened\");",
+            "log::warn!(\"also counted\");",
+        ]
+        .join("\n");
+        assert_eq!(count_safety_markers(&content), (2, 2));
+    }
+
+    #[test]
+    fn count_safety_markers_ignores_comments_and_strings() {
+        let content = [
+            "// call .unwrap() here later",
+            "/* .expect(\"todo\") */",
+            "let s = \".unwrap() inside a string, not code\";",
+            "let ok = 1 + 1;",
+        ]
+        .join("\n");
+        assert_eq!(count_safety_markers(&content), (0, 0));
+    }
+
+    #[test]
+    fn count_safety_in_dir_scans_crates_and_src_rust_files_only() {
+        let dir = tempfile::tempdir().expect("tempdir should be created");
+        let crate_src = dir.path().join("crates/foo/src");
+        let bin_src = dir.path().join("src");
+        std::fs::create_dir_all(&crate_src).expect("crate source dir should be created");
+        std::fs::create_dir_all(&bin_src).expect("binary source dir should be created");
+        std::fs::write(crate_src.join("lib.rs"), "fn f() { g().unwrap(); }\n")
+            .expect("crate Rust file should be written");
+        std::fs::write(bin_src.join("main.rs"), "fn main() { warn!(\"x\"); }\n")
+            .expect("binary Rust file should be written");
+        std::fs::write(crate_src.join("README.md"), "call .unwrap() per the docs\n")
+            .expect("non-Rust file should be written");
+
+        let counts = count_safety_in_dir(dir.path()).expect("count should succeed");
+        assert_eq!(counts.unwrap_count, 1);
+        assert_eq!(counts.warn_count, 1);
+    }
+
     // -- check --
 
     #[test]
@@ -703,6 +1008,9 @@ mod tests {
                 errors: 0,
             },
             todo_fixme: 5,
+            safety: SafetyCounts::default(),
+            coverage: None,
+            ci_duration_ms: None,
             crates: 3,
             versions_consistent: true,
             version: "0.1.0".into(),
@@ -720,6 +1028,9 @@ mod tests {
                 errors: 0,
             },
             todo_fixme: 4,
+            safety: SafetyCounts::default(),
+            coverage: None,
+            ci_duration_ms: None,
             crates: 3,
             versions_consistent: true,
             version: "0.1.0".into(),
@@ -742,6 +1053,9 @@ mod tests {
                 errors: 0,
             },
             todo_fixme: 5,
+            safety: SafetyCounts::default(),
+            coverage: None,
+            ci_duration_ms: None,
             crates: 3,
             versions_consistent: true,
             version: "0.1.0".into(),
@@ -759,6 +1073,9 @@ mod tests {
                 errors: 0,
             },
             todo_fixme: 5,
+            safety: SafetyCounts::default(),
+            coverage: None,
+            ci_duration_ms: None,
             crates: 3,
             versions_consistent: true,
             version: "0.1.0".into(),
@@ -781,6 +1098,9 @@ mod tests {
                 errors: 0,
             },
             todo_fixme: 5,
+            safety: SafetyCounts::default(),
+            coverage: None,
+            ci_duration_ms: None,
             crates: 3,
             versions_consistent: true,
             version: "0.1.0".into(),
@@ -798,6 +1118,9 @@ mod tests {
                 errors: 0,
             },
             todo_fixme: 5,
+            safety: SafetyCounts::default(),
+            coverage: None,
+            ci_duration_ms: None,
             crates: 3,
             versions_consistent: true,
             version: "0.1.0".into(),
@@ -820,6 +1143,9 @@ mod tests {
                 errors: 0,
             },
             todo_fixme: 5,
+            safety: SafetyCounts::default(),
+            coverage: None,
+            ci_duration_ms: None,
             crates: 3,
             versions_consistent: true,
             version: "0.1.0".into(),
@@ -837,6 +1163,9 @@ mod tests {
                 errors: 0,
             },
             todo_fixme: 5,
+            safety: SafetyCounts::default(),
+            coverage: None,
+            ci_duration_ms: None,
             crates: 3,
             versions_consistent: false,
             version: "0.1.0".into(),
@@ -861,6 +1190,9 @@ mod tests {
                 errors: 0,
             },
             todo_fixme: 8,
+            safety: SafetyCounts::default(),
+            coverage: None,
+            ci_duration_ms: None,
             crates: 5,
             versions_consistent: true,
             version: "0.4.0".into(),
@@ -888,6 +1220,9 @@ mod tests {
                 errors: 0,
             },
             todo_fixme: 2,
+            safety: SafetyCounts::default(),
+            coverage: None,
+            ci_duration_ms: None,
             crates: 1,
             versions_consistent: true,
             version: "0.1.0".into(),

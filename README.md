@@ -81,21 +81,22 @@ cmd  = "check-protocol-drift"
 | Command                                                                | Description                                         |
 | ---------------------------------------------------------------------- | --------------------------------------------------- |
 | `fmt [--check] [--affected]`                                           | Format (or check) Rust code                         |
-| `lint [--crate-name X] [--affected] [--continue-on-error]`             | Run clippy                                          |
+| `lint [--crate-name X] [--affected] [--continue-on-error] [--fix]`     | Run clippy (`--fix` auto-applies suggestions)       |
 | `test [--crate-name X] [--affected] [--offline] [--continue-on-error]` | Run tests via nextest                               |
-| `coverage [--crate-name X] [--threshold N]`                            | Coverage with threshold (default 80%)               |
+| `coverage [--crate-name X] [--threshold N] [--workspace]`              | Coverage with threshold (default 80%)               |
 | `compile-tests`                                                        | Compile test binaries without running them          |
 | `check-deps`                                                           | Check for unused dependencies (cargo-udeps)         |
-| `check-protocol-drift [--update] [--warn-only] [--hook]`               | Verify tracked file hashes                          |
+| `check-protocol-drift [--update] [--warn-only] [--hook] [--watch [--interval SECS]]` | Verify tracked file hashes            |
+| `todo-sync [--update] [--warn-only]`                                   | Scan TODO/FIXME markers, sync to GitHub issues      |
 | `check-protocol-sites --file F --pattern P --expected N`               | Count construction sites for key structs            |
-| `check-freshness`                                                      | Verify protocol drift lockfile is up to date        |
+| `check-freshness [--warn-only]`                                        | Check workspace dependency freshness (cargo-outdated) |
 | `quick`                                                                | Fast local feedback loop (affected crates, offline) |
 | `ci [--fail-fast] [--include-network]`                                 | Full CI pipeline                                    |
 | `pre-commit` / `pre-push`                                              | Git hook delegates                                  |
 | `install-hooks`                                                        | Install git hooks                                   |
 | `audit`                                                                | Run cargo-deny (advisories, licenses, bans)         |
 | `clean [--older-than Nd]`                                              | Clean build artifacts                               |
-| `health [--update]`                                                    | Measure codebase health, compare to baseline        |
+| `health [--update] [--with-coverage]`                                  | Measure codebase health, compare to baseline        |
 | `inspect [--max-warnings N] [--max-todo N]`                            | Check workspace metrics against thresholds          |
 | `publish [--skip-docs] [--allow-dirty]`                                | Generate docs and publish to crates.io              |
 | `init [--force] [--interactive]`                                       | Generate taskit.toml, Cruxfile, .cargo/config.toml  |

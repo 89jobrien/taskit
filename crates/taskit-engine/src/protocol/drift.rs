@@ -167,6 +167,60 @@ pub fn run(ctx: &Ctx, update: bool, warn_only: bool, hook: bool) -> Result<(), T
     Err(TaskitError::other("core contract drift detected"))
 }
 
+/// Continuously watch core contract surfaces and auto-remediate lockfile
+/// drift (equivalent to `--update`) instead of failing. Polls every
+/// `interval_secs` and runs until interrupted (Ctrl-C) or a hard error.
+pub fn watch(ctx: &Ctx, interval_secs: u64) -> Result<(), TaskitError> {
+    let config = ctx.proto();
+    let surfaces: &[SurfaceEntry] = config.map(|c| c.surfaces.as_slice()).unwrap_or(&[]);
+    if surfaces.is_empty() {
+        taskit_output::taskit_skip!("protocol-drift: no surfaces configured, nothing to watch");
+        return Ok(());
+    }
+
+    taskit_output::taskit_progress!(
+        "protocol-drift: watching {} surface(s), auto-remediating drift every {interval_secs}s (Ctrl-C to stop)",
+        surfaces.len()
+    );
+    loop {
+        match remediate_once(ctx) {
+            Ok(true) => taskit_output::taskit_ok!("protocol-drift: auto-remediated lockfile"),
+            Ok(false) => {}
+            Err(e) => taskit_output::taskit_err!("protocol-drift: watch iteration failed: {e}"),
+        }
+        std::thread::sleep(std::time::Duration::from_secs(interval_secs));
+    }
+}
+
+/// Check current drift once; if found, auto-update the lockfile.
+/// Returns `Ok(true)` if remediation happened (or would, in dry-run),
+/// `Ok(false)` if already in sync.
+fn remediate_once(ctx: &Ctx) -> Result<bool, TaskitError> {
+    let root = ctx.root();
+    let config = ctx.proto();
+    let surfaces: &[SurfaceEntry] = config.map(|c| c.surfaces.as_slice()).unwrap_or(&[]);
+    let lock_rel = config
+        .map(|c| c.lockfile_path())
+        .unwrap_or(DEFAULT_LOCK_PATH);
+    let lock_path = root.join(lock_rel);
+
+    let current = calculate_lockfile(root, surfaces)?;
+    let drifted = match read_lockfile(&lock_path) {
+        Ok(expected) => !compare_lockfiles(&expected, &current).is_empty(),
+        Err(_) => true, // no lockfile yet
+    };
+    if !drifted {
+        return Ok(false);
+    }
+
+    if ctx.dry_run {
+        taskit_output::taskit_dry!("write {lock_rel}");
+        return Ok(true);
+    }
+    write_lockfile(&lock_path, &current)?;
+    Ok(true)
+}
+
 fn calculate_lockfile(root: &Path, surfaces: &[SurfaceEntry]) -> Result<Lockfile, TaskitError> {
     let mut hashes = Vec::with_capacity(surfaces.len());
     for surface in surfaces {
@@ -699,5 +753,81 @@ mod tests {
         let status = check(&ctx).expect("check should succeed");
         assert!(status.configured);
         assert_eq!(status.drifted_surfaces, vec!["types".to_string()]);
+    }
+
+    // --- remediate_once ---
+
+    #[test]
+    fn remediate_once_writes_lockfile_when_missing() {
+        let dir = TempDir::new().expect("tempdir");
+        fs::write(dir.path().join("types.rs"), "pub struct Foo {}").unwrap();
+        let surfaces = vec![SurfaceEntry {
+            name: "types".into(),
+            path: "types.rs".into(),
+        }];
+        let ctx = test_ctx(dir.path(), Some(surfaces));
+
+        let remediated = remediate_once(&ctx).expect("remediate_once should succeed");
+        assert!(remediated, "missing lockfile should be treated as drift");
+        assert!(dir.path().join(DEFAULT_LOCK_PATH).exists());
+    }
+
+    #[test]
+    fn remediate_once_no_drift_returns_false() {
+        let dir = TempDir::new().expect("tempdir");
+        fs::write(dir.path().join("types.rs"), "pub struct Foo {}").unwrap();
+        let surfaces = vec![SurfaceEntry {
+            name: "types".into(),
+            path: "types.rs".into(),
+        }];
+        let lockfile = calculate_lockfile(dir.path(), &surfaces).expect("calculate_lockfile");
+        write_lockfile(&dir.path().join(DEFAULT_LOCK_PATH), &lockfile).expect("write_lockfile");
+
+        let ctx = test_ctx(dir.path(), Some(surfaces));
+        let remediated = remediate_once(&ctx).expect("remediate_once should succeed");
+        assert!(!remediated);
+    }
+
+    #[test]
+    fn remediate_once_updates_lockfile_on_drift() {
+        let dir = TempDir::new().expect("tempdir");
+        fs::write(dir.path().join("types.rs"), "pub struct Foo {}").unwrap();
+        let surfaces = vec![SurfaceEntry {
+            name: "types".into(),
+            path: "types.rs".into(),
+        }];
+        let lockfile = calculate_lockfile(dir.path(), &surfaces).expect("calculate_lockfile");
+        write_lockfile(&dir.path().join(DEFAULT_LOCK_PATH), &lockfile).expect("write_lockfile");
+
+        fs::write(dir.path().join("types.rs"), "pub struct Foo { pub x: u8 }").unwrap();
+
+        let ctx = test_ctx(dir.path(), Some(surfaces));
+        let remediated = remediate_once(&ctx).expect("remediate_once should succeed");
+        assert!(remediated);
+
+        let expected_surfaces = vec![SurfaceEntry {
+            name: "types".into(),
+            path: "types.rs".into(),
+        }];
+        let updated = read_lockfile(&dir.path().join(DEFAULT_LOCK_PATH)).expect("read_lockfile");
+        let expected =
+            calculate_lockfile(dir.path(), &expected_surfaces).expect("calculate_lockfile");
+        assert_eq!(updated, expected);
+    }
+
+    #[test]
+    fn remediate_once_dry_run_does_not_write() {
+        let dir = TempDir::new().expect("tempdir");
+        fs::write(dir.path().join("types.rs"), "pub struct Foo {}").unwrap();
+        let surfaces = vec![SurfaceEntry {
+            name: "types".into(),
+            path: "types.rs".into(),
+        }];
+        let mut ctx = test_ctx(dir.path(), Some(surfaces));
+        ctx.dry_run = true;
+
+        let remediated = remediate_once(&ctx).expect("remediate_once should succeed");
+        assert!(remediated, "dry-run should still report what it would do");
+        assert!(!dir.path().join(DEFAULT_LOCK_PATH).exists());
     }
 }

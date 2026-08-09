@@ -33,18 +33,19 @@ taskit --dry-run <subcommand>   # print without executing
 | Command | Purpose |
 | --- | --- |
 | `fmt [--check] [--affected]` | Format (or check) all Rust code |
-| `lint [--crate-name X] [--affected]` | Run clippy |
-| `test [--crate-name X] [--affected] [--offline]` | Run tests via nextest |
-| `coverage [--crate-name X]` | Coverage with 80% threshold |
+| `lint [--crate-name X] [--affected] [--continue-on-error] [--fix]` | Run clippy (`--fix` auto-applies suggestions) |
+| `test [--crate-name X] [--affected] [--offline] [--continue-on-error]` | Run tests via nextest |
+| `coverage [--crate-name X] [--threshold N] [--workspace]` | Coverage with threshold (`--workspace` measures whole workspace) |
 | `compile-tests` | Compile test binaries without running |
 | `check-deps` | Check for unused dependencies |
-| `check-protocol-drift [--update] [--warn-only] [--hook]` | Verify hashes |
+| `check-protocol-drift [--update] [--warn-only] [--hook] [--watch [--interval SECS]]` | Verify hashes (`--watch` continuously remediates drift) |
+| `todo-sync [--update] [--warn-only]` | Scan TODO/FIXME markers and sync them to GitHub issues |
 | `check-protocol-sites --file F --pattern P --expected N` | Count construction sites |
-| `check-freshness` | Verify drift lockfile freshness |
+| `check-freshness [--warn-only]` | Check workspace dependency freshness (cargo-outdated) |
 | `pre-commit` / `pre-push` | Git hook delegates |
 | `audit` | Run cargo-deny |
 | `clean [--older-than Nd]` | Clean target/ + prune taskit artifacts |
-| `health [--update]` | Measure health and compare to baseline |
+| `health [--update] [--with-coverage]` | Measure health and compare to baseline (`--with-coverage` adds workspace coverage %) |
 | `inspect [--max-warnings N] [--max-todo N]` | Check metrics thresholds |
 | `publish [--skip-docs] [--allow-dirty]` | Generate docs and publish crates |
 | `init [--force] [--interactive]` | Generate taskit.toml, Cruxfile, hooks |

@@ -29,6 +29,7 @@ pub mod release;
 pub mod step;
 pub mod telemetry;
 pub mod testing;
+pub mod todo_sync;
 pub mod update;
 pub mod update_claude;
 pub mod util;

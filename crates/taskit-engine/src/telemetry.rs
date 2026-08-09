@@ -88,6 +88,21 @@ pub fn record(ctx: &Ctx, metrics: &[(&str, f64)]) -> Result<(), TaskitError> {
     NdjsonStore::new(ctx.root()).record(entry)
 }
 
+/// Return the most recent reading of `metric` within the last `window_days`
+/// days, or `None` if there is no such reading.
+pub fn latest_metric(
+    store: &dyn TelemetryStore,
+    metric: &str,
+    window_days: u64,
+) -> Result<Option<f64>, TaskitError> {
+    let records = store.load_window(window_days)?;
+    Ok(records
+        .iter()
+        .flat_map(|r| r.metrics.iter())
+        .rfind(|m| m.name == metric)
+        .map(|m| m.value))
+}
+
 /// Load all telemetry records from the last `window_days` days, oldest first,
 /// via the NDJSON layout rooted at `root`.
 fn load_window(root: &Path, window_days: u64) -> Result<Vec<TelemetryRecord>, TaskitError> {
@@ -303,6 +318,59 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn latest_metric_returns_most_recent_reading() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = NdjsonStore::new(dir.path());
+        store
+            .record(TelemetryRecord {
+                timestamp: "2026-08-01T00:00:00Z".into(),
+                git_sha: None,
+                metrics: vec![MetricPoint {
+                    name: "ci_duration_ms".into(),
+                    value: 100.0,
+                }],
+            })
+            .unwrap();
+        store
+            .record(TelemetryRecord {
+                timestamp: "2026-08-02T00:00:00Z".into(),
+                git_sha: None,
+                metrics: vec![MetricPoint {
+                    name: "ci_duration_ms".into(),
+                    value: 150.0,
+                }],
+            })
+            .unwrap();
+
+        let latest = latest_metric(&store, "ci_duration_ms", 30).unwrap();
+        assert_eq!(latest, Some(150.0));
+    }
+
+    #[test]
+    fn latest_metric_missing_returns_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = NdjsonStore::new(dir.path());
+        assert_eq!(latest_metric(&store, "ci_duration_ms", 30).unwrap(), None);
+    }
+
+    #[test]
+    fn latest_metric_ignores_other_metric_names() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = NdjsonStore::new(dir.path());
+        store
+            .record(TelemetryRecord {
+                timestamp: "2026-08-01T00:00:00Z".into(),
+                git_sha: None,
+                metrics: vec![MetricPoint {
+                    name: "ci_passed".into(),
+                    value: 1.0,
+                }],
+            })
+            .unwrap();
+        assert_eq!(latest_metric(&store, "ci_duration_ms", 30).unwrap(), None);
     }
 
     #[test]
