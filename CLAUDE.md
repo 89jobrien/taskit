@@ -45,7 +45,7 @@ taskit --dry-run <subcommand>   # print without executing
 | `pre-commit` / `pre-push` | Git hook delegates |
 | `audit` | Run cargo-deny |
 | `clean [--older-than Nd]` | Clean target/ + prune taskit artifacts |
-| `health [--update] [--with-coverage]` | Measure health and compare to baseline (`--with-coverage` adds workspace coverage %) |
+| `health [--update] [--with-coverage] [--gate]` | Measure health and compare to baseline (`--with-coverage` adds workspace coverage %, `--gate` checks only unwrap/warn counts — for a lightweight CI step) |
 | `inspect [--max-warnings N] [--max-todo N]` | Check metrics thresholds |
 | `publish [--skip-docs] [--allow-dirty]` | Generate docs and publish crates |
 | `init [--force] [--interactive]` | Generate taskit.toml, Cruxfile, hooks |

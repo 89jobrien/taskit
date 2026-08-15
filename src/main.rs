@@ -216,6 +216,10 @@ enum Cmd {
         /// Also measure workspace coverage % (expensive: instrumented build)
         #[arg(long)]
         with_coverage: bool,
+        /// Check only unwrap/expect and warn!() counts against the baseline,
+        /// ignoring tests/clippy/coverage — for use as a CI step
+        #[arg(long)]
+        gate: bool,
     },
     /// Compare a telemetry metric's latest reading against its historical baseline
     Drift {
@@ -421,9 +425,11 @@ fn to_command(cmd: Cmd, resolver_kind: &ConflictResolverKind) -> Box<dyn Command
         Cmd::Health {
             update,
             with_coverage,
+            gate,
         } => Box::new(Health {
             update,
             with_coverage,
+            gate,
         }),
         Cmd::Drift { metric, window } => Box::new(Drift {
             metric,

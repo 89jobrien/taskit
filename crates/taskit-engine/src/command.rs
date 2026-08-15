@@ -333,10 +333,11 @@ impl Command for SnapshotReview {
 pub struct Health {
     pub update: bool,
     pub with_coverage: bool,
+    pub gate: bool,
 }
 impl Command for Health {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
-        health::run(ctx, self.update, self.with_coverage)
+        health::run(ctx, self.update, self.with_coverage, self.gate)
     }
 }
 

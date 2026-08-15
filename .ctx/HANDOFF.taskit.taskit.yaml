@@ -18,14 +18,4 @@ items:
 log:
 - date: '20260815.094636'
   summary: done=73 running=0 pending=0 blocked=0
-  commits:
-  - !Sha 402ae81b29dff11f0d5bca62eb4ea92fe36e1218
-  - !Sha 3ff42e4a80745ca9ce960d2a2ed426c17a00de04
-  - !Sha 535593b6cfc83eb57465f25d6c59fb0aa9fc196e
-  - !Sha 8209475dbae97eb3780928fda7a1d42fe448c541
-  - !Sha b98b6d0243ff4f0167155e88ec8c249f5513ff04
-  - !Sha 06955c5e383626c9d8982b93c8e183595e82b2a3
-  - !Sha fc85f8fcc2a25a395eabae1e9f9cc7b5b160cda6
-  - !Sha 9c8ae9a3c23564ee2576787290c0ef1ab32120fc
-  - !Sha 0583e14aafc2dbd9f413a4aa652654004dfb1a55
-  - !Sha b9dd927899c82255060d3aadb703928e1d1d651c
+  commits: []

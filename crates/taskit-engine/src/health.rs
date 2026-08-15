@@ -104,6 +104,40 @@ pub fn write_baseline(workspace_root: &Path, baseline: &HealthBaseline) -> Resul
     std::fs::write(&path, format!("{json}\n")).err_context("failed to write health baseline")
 }
 
+/// Compare only the safety counts (`.unwrap()`/`.expect()` and `warn!()`
+/// call sites) against a previous baseline. Narrower than [`check`]: skips
+/// tests/clippy/coverage/duration, so it stays deterministic and fast enough
+/// to run as its own `[ci] steps` gate without requiring a full baseline
+/// covering every metric.
+/// Returns `Ok(true)` if no regressions, `Ok(false)` if regressions found.
+pub fn check_safety(current: &HealthBaseline, previous: &HealthBaseline) -> bool {
+    let mut regressed = false;
+
+    taskit_output::taskit_progress!("Safety Gate (baseline: {})", previous.date);
+    taskit_output::taskit_progress!("{}", "-".repeat(50));
+
+    regressed |= print_metric(
+        "unwrap/expect",
+        previous.safety.unwrap_count,
+        current.safety.unwrap_count,
+        Direction::LowerIsBetter,
+    );
+    regressed |= print_metric(
+        "warn!() sites",
+        previous.safety.warn_count,
+        current.safety.warn_count,
+        Direction::LowerIsBetter,
+    );
+
+    taskit_output::taskit_progress!("{}", "-".repeat(50));
+    if regressed {
+        taskit_output::taskit_err!("SAFETY REGRESSION detected");
+    } else {
+        taskit_output::taskit_ok!("No safety regressions");
+    }
+    !regressed
+}
+
 /// Compare current against a previous baseline and print a report.
 /// Returns `Ok(true)` if no regressions, `Ok(false)` if regressions found.
 pub fn check(current: &HealthBaseline, previous: &HealthBaseline) -> bool {
@@ -184,7 +218,11 @@ pub fn check(current: &HealthBaseline, previous: &HealthBaseline) -> bool {
 }
 
 /// Run the health subcommand.
-pub fn run(ctx: &Ctx, update: bool, with_coverage: bool) -> Result<(), TaskitError> {
+///
+/// `gate` restricts the regression check to safety counts only (see
+/// [`check_safety`]) — intended for use as a lightweight `[ci] steps` entry
+/// that doesn't require tracking tests/clippy/coverage in the baseline.
+pub fn run(ctx: &Ctx, update: bool, with_coverage: bool, gate: bool) -> Result<(), TaskitError> {
     let workspace_root = ctx.root();
     let current = collect(ctx, with_coverage)?;
 
@@ -193,6 +231,15 @@ pub fn run(ctx: &Ctx, update: bool, with_coverage: bool) -> Result<(), TaskitErr
         taskit_output::taskit_ok!("Baseline written to {BASELINE_FILE}");
         print_summary(&current);
         return Ok(());
+    }
+
+    if gate {
+        let previous = load_baseline(workspace_root)?;
+        return if check_safety(&current, &previous) {
+            Ok(())
+        } else {
+            Err(TaskitError::other("safety regression detected"))
+        };
     }
 
     match load_baseline(workspace_root) {
@@ -789,6 +836,96 @@ fn print_duration_metric(previous: Option<f64>, current: Option<f64>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn baseline_with_safety(unwrap_count: usize, warn_count: usize) -> HealthBaseline {
+        HealthBaseline {
+            date: "2026-01-01".into(),
+            tests: TestCounts {
+                total: 0,
+                passed: 0,
+                failed: 0,
+                skipped: 0,
+            },
+            clippy: ClippyCounts {
+                warnings: 0,
+                errors: 0,
+            },
+            todo_fixme: 0,
+            safety: SafetyCounts {
+                unwrap_count,
+                warn_count,
+            },
+            coverage: None,
+            ci_duration_ms: None,
+            crates: 1,
+            versions_consistent: true,
+            version: "0.1.0".into(),
+        }
+    }
+
+    // -- check_safety --
+
+    #[test]
+    fn check_safety_no_regression_when_counts_unchanged() {
+        let prev = baseline_with_safety(3, 2);
+        let current = baseline_with_safety(3, 2);
+        assert!(check_safety(&current, &prev));
+    }
+
+    #[test]
+    fn check_safety_no_regression_when_counts_improve() {
+        let prev = baseline_with_safety(5, 4);
+        let current = baseline_with_safety(2, 1);
+        assert!(check_safety(&current, &prev));
+    }
+
+    #[test]
+    fn check_safety_regresses_on_unwrap_increase() {
+        let prev = baseline_with_safety(3, 2);
+        let current = baseline_with_safety(4, 2);
+        assert!(!check_safety(&current, &prev));
+    }
+
+    #[test]
+    fn check_safety_regresses_on_warn_increase() {
+        let prev = baseline_with_safety(3, 2);
+        let current = baseline_with_safety(3, 3);
+        assert!(!check_safety(&current, &prev));
+    }
+
+    #[test]
+    fn check_safety_ignores_non_safety_regressions() {
+        // Tests/clippy/coverage all regress here, but check_safety only
+        // looks at unwrap/warn counts, so it should still report no
+        // regression.
+        let prev = HealthBaseline {
+            tests: TestCounts {
+                total: 100,
+                passed: 100,
+                failed: 0,
+                skipped: 0,
+            },
+            clippy: ClippyCounts {
+                warnings: 0,
+                errors: 0,
+            },
+            ..baseline_with_safety(3, 2)
+        };
+        let current = HealthBaseline {
+            tests: TestCounts {
+                total: 50,
+                passed: 40,
+                failed: 10,
+                skipped: 0,
+            },
+            clippy: ClippyCounts {
+                warnings: 10,
+                errors: 1,
+            },
+            ..baseline_with_safety(3, 2)
+        };
+        assert!(check_safety(&current, &prev));
+    }
 
     // -- parse_nextest_summary --
 

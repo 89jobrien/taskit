@@ -147,7 +147,8 @@ fn dispatch_cmd<'a>(
         "check-deps" => Box::new(move || check_deps::run(ctx)),
         "check-protocol-drift" => Box::new(move || protocol::drift::run(ctx, false, false, false)),
         "self-check" => Box::new(dev_setup::self_check),
-        "health" => Box::new(move || crate::health::run(ctx, false, false)),
+        "health" => Box::new(move || crate::health::run(ctx, false, false, false)),
+        "health-gate" => Box::new(move || crate::health::run(ctx, false, false, true)),
         other => {
             return Err(TaskitError::other(format!(
                 "unknown ci step command: {other:?}"
@@ -322,6 +323,7 @@ mod tests {
             "check-protocol-drift",
             "self-check",
             "health",
+            "health-gate",
         ];
         for cmd in known {
             assert!(
