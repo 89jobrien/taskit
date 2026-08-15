@@ -1,6 +1,6 @@
 project: taskit
 id: taskit
-updated: 2026-08-14
+updated: 2026-08-15
 items:
 - id: uncommitted-work
   doob_uuid: null

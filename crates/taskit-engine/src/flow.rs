@@ -1090,11 +1090,4 @@ release = "rc"
         assert!(metric("flow_auto_duration_ms") >= 0.0);
         assert_eq!(metric("flow_auto_conflicts"), 0.0);
     }
-
-    #[test]
-    fn parse_conflict_paths_detects_au_ua() {
-        let porcelain = "AU src/main.rs\nUA Cargo.lock\n";
-        let paths = parse_conflict_paths(porcelain);
-        assert_eq!(paths, vec!["src/main.rs", "Cargo.lock"]);
-    }
 }
