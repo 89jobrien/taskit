@@ -7,51 +7,25 @@ items:
   name: uncommitted-work
   priority: P1
   status: open
-  title: Uncommitted changes (19 files)
+  title: Uncommitted changes (1 file)
   description: |-
     Working tree has uncommitted changes:
     .ctx/HANDOFF.taskit.taskit.yaml
-    .health-baseline.json
-    CLAUDE.md
-    README.md
-    crates/taskit-engine/src/check_freshness.rs
-    crates/taskit-engine/src/ci.rs
-    crates/taskit-engine/src/command.rs
-    crates/taskit-engine/src/health.rs
-    crates/taskit-engine/src/hooks.rs
-    crates/taskit-engine/src/inspect.rs
-    crates/taskit-engine/src/lib.rs
-    crates/taskit-engine/src/lint.rs
-    crates/taskit-engine/src/protocol/drift.rs
-    crates/taskit-engine/src/quick.rs
-    crates/taskit-engine/src/release/gh.rs
-    crates/taskit-engine/src/telemetry.rs
-    crates/taskit-engine/src/testing/coverage.rs
-    src/main.rs
-    crates/taskit-engine/src/todo_sync.rs
   files:
   - .ctx/HANDOFF.taskit.taskit.yaml
-  - .health-baseline.json
-  - CLAUDE.md
-  - README.md
-  - crates/taskit-engine/src/check_freshness.rs
-  - crates/taskit-engine/src/ci.rs
-  - crates/taskit-engine/src/command.rs
-  - crates/taskit-engine/src/health.rs
-  - crates/taskit-engine/src/hooks.rs
-  - crates/taskit-engine/src/inspect.rs
-  - crates/taskit-engine/src/lib.rs
-  - crates/taskit-engine/src/lint.rs
-  - crates/taskit-engine/src/protocol/drift.rs
-  - crates/taskit-engine/src/quick.rs
-  - crates/taskit-engine/src/release/gh.rs
-  - crates/taskit-engine/src/telemetry.rs
-  - crates/taskit-engine/src/testing/coverage.rs
-  - src/main.rs
-  - crates/taskit-engine/src/todo_sync.rs
   completed: null
   extra: []
 log:
-- date: '20260809.043817'
+- date: '20260815.094636'
   summary: done=73 running=0 pending=0 blocked=0
-  commits: []
+  commits:
+  - !Sha 402ae81b29dff11f0d5bca62eb4ea92fe36e1218
+  - !Sha 3ff42e4a80745ca9ce960d2a2ed426c17a00de04
+  - !Sha 535593b6cfc83eb57465f25d6c59fb0aa9fc196e
+  - !Sha 8209475dbae97eb3780928fda7a1d42fe448c541
+  - !Sha b98b6d0243ff4f0167155e88ec8c249f5513ff04
+  - !Sha 06955c5e383626c9d8982b93c8e183595e82b2a3
+  - !Sha fc85f8fcc2a25a395eabae1e9f9cc7b5b160cda6
+  - !Sha 9c8ae9a3c23564ee2576787290c0ef1ab32120fc
+  - !Sha 0583e14aafc2dbd9f413a4aa652654004dfb1a55
+  - !Sha b9dd927899c82255060d3aadb703928e1d1d651c
