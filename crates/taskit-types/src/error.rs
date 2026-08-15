@@ -136,6 +136,7 @@ pub enum InitError {
     WriteFile { file: String, reason: String },
 }
 
+#[non_exhaustive]
 #[derive(Debug, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum FlowError {
