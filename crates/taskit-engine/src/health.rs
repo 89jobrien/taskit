@@ -71,7 +71,7 @@ pub fn collect(ctx: &Ctx, with_coverage: bool) -> Result<HealthBaseline, TaskitE
     };
     let store = NdjsonStore::new(ctx.root());
     let ci_duration_ms = latest_metric(&store, "ci_duration_ms", TELEMETRY_WINDOW_DAYS)?;
-    let (crate_count, versions_consistent, version) = collect_versions()?;
+    let (crate_count, versions_consistent, version) = collect_versions(ctx)?;
 
     let date = today();
 
@@ -624,7 +624,7 @@ fn mask_string_literals(s: &str) -> String {
     String::from_utf8(out).unwrap_or_default()
 }
 
-fn collect_versions() -> Result<(usize, bool, String), TaskitError> {
+fn collect_versions(ctx: &Ctx) -> Result<(usize, bool, String), TaskitError> {
     let metadata = cargo_metadata::MetadataCommand::new()
         .no_deps()
         .exec()
@@ -637,12 +637,46 @@ fn collect_versions() -> Result<(usize, bool, String), TaskitError> {
         .collect();
 
     let crate_count = packages.len();
-    let versions: Vec<String> = packages.iter().map(|p| p.version.to_string()).collect();
 
-    let version = versions.first().cloned().unwrap_or_default();
-    let consistent = versions.iter().all(|v| *v == version);
+    let excluded: std::collections::HashSet<&str> = ctx
+        .config
+        .workspace
+        .crates
+        .iter()
+        .filter(|c| c.exclude_from_version_check)
+        .map(|c| c.pkg_name())
+        .collect();
+
+    let all_versions: Vec<(String, String)> = packages
+        .iter()
+        .map(|p| (p.name.to_string(), p.version.to_string()))
+        .collect();
+
+    let (consistent, version) = version_consistency(&all_versions, &excluded);
 
     Ok((crate_count, consistent, version))
+}
+
+/// Given `(pkg_name, version)` pairs for every workspace member, decide
+/// whether the versions of the non-excluded members are all equal.
+///
+/// Returns `(consistent, representative_version)`. The representative
+/// version is the first non-excluded member's version (empty string if
+/// every member is excluded).
+fn version_consistency(
+    all_versions: &[(String, String)],
+    excluded: &std::collections::HashSet<&str>,
+) -> (bool, String) {
+    let versions: Vec<&str> = all_versions
+        .iter()
+        .filter(|(name, _)| !excluded.contains(name.as_str()))
+        .map(|(_, v)| v.as_str())
+        .collect();
+
+    let version = versions.first().copied().unwrap_or_default().to_string();
+    let consistent = versions.iter().all(|v| *v == version);
+
+    (consistent, version)
 }
 
 fn today() -> String {
@@ -1401,5 +1435,52 @@ mod tests {
     fn metric_neutral_never_regresses() {
         assert!(!print_metric("test", 3, 5, Direction::Neutral));
         assert!(!print_metric("test", 5, 3, Direction::Neutral));
+    }
+
+    // -- version_consistency --
+
+    #[test]
+    fn version_consistency_all_equal_is_consistent() {
+        let versions = vec![
+            ("a".to_string(), "1.0.0".to_string()),
+            ("b".to_string(), "1.0.0".to_string()),
+        ];
+        let excluded = std::collections::HashSet::new();
+        let (consistent, version) = version_consistency(&versions, &excluded);
+        assert!(consistent);
+        assert_eq!(version, "1.0.0");
+    }
+
+    #[test]
+    fn version_consistency_mismatch_is_inconsistent() {
+        let versions = vec![
+            ("a".to_string(), "1.0.0".to_string()),
+            ("xtask".to_string(), "0.1.0".to_string()),
+        ];
+        let excluded = std::collections::HashSet::new();
+        let (consistent, _) = version_consistency(&versions, &excluded);
+        assert!(!consistent);
+    }
+
+    #[test]
+    fn version_consistency_excludes_configured_crate() {
+        let versions = vec![
+            ("a".to_string(), "1.0.0".to_string()),
+            ("b".to_string(), "1.0.0".to_string()),
+            ("xtask".to_string(), "0.1.0".to_string()),
+        ];
+        let excluded: std::collections::HashSet<&str> = ["xtask"].into_iter().collect();
+        let (consistent, version) = version_consistency(&versions, &excluded);
+        assert!(consistent);
+        assert_eq!(version, "1.0.0");
+    }
+
+    #[test]
+    fn version_consistency_all_excluded_returns_empty_version() {
+        let versions = vec![("xtask".to_string(), "0.1.0".to_string())];
+        let excluded: std::collections::HashSet<&str> = ["xtask"].into_iter().collect();
+        let (consistent, version) = version_consistency(&versions, &excluded);
+        assert!(consistent);
+        assert_eq!(version, "");
     }
 }

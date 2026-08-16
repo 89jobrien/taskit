@@ -144,6 +144,12 @@ impl WorkspaceConfig {
 pub struct CrateEntry {
     pub dir: String,
     pub pkg: Option<String>,
+    /// Skip this crate's version when checking workspace version consistency
+    /// (`taskit version`, health baseline `versions_consistent`). For crates
+    /// intentionally versioned independently of the rest of the workspace —
+    /// e.g. an internal `xtask` binary that isn't published.
+    #[serde(default)]
+    pub exclude_from_version_check: bool,
 }
 
 impl CrateEntry {
@@ -316,7 +322,7 @@ mod tests {
             dir in "[a-z][a-z0-9-]{1,20}",
             pkg in proptest::option::of("[a-z][a-z0-9-]{1,20}"),
         ) {
-            let entry = CrateEntry { dir, pkg };
+            let entry = CrateEntry { dir, pkg, exclude_from_version_check: false };
             prop_assert!(!entry.pkg_name().is_empty());
         }
 
