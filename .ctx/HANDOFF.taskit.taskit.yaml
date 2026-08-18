@@ -1,21 +1,39 @@
 project: taskit
 id: taskit
-updated: 2026-08-15
+updated: 2026-08-18
 items:
 - id: uncommitted-work
   doob_uuid: null
   name: uncommitted-work
   priority: P1
   status: open
-  title: Uncommitted changes (1 file)
+  title: Uncommitted changes (5 files)
   description: |-
     Working tree has uncommitted changes:
     .ctx/HANDOFF.taskit.taskit.yaml
+    .health-baseline.json
+    session-report-20260816-1743.html
+    tracers-gm-graph.svg
+    xtask/scripts/
   files:
   - .ctx/HANDOFF.taskit.taskit.yaml
+  - .health-baseline.json
+  - session-report-20260816-1743.html
+  - tracers-gm-graph.svg
+  - xtask/scripts/
   completed: null
   extra: []
 log:
-- date: '20260815.094636'
+- date: '20260818.224618'
   summary: done=73 running=0 pending=0 blocked=0
-  commits: []
+  commits:
+  - !Sha a261a68371db943789f48d7c804f0409a0c653f8
+  - !Sha 0a26b011d53096ef84f732eaa98812e5df6deaba
+  - !Sha 332ef639f93f40c4aa21a34f58f155c6448b0e97
+  - !Sha b5747b1f714a28ad89fcb59ce0d066fe8056932c
+  - !Sha bdfea8fe6bc7a4a5cb6d3472fa2acb946112f645
+  - !Sha 3375cb932a031c045489596102b2b7929c45ddec
+  - !Sha 33e2fd6417fadf751bdfcd0d57bf4901610cc150
+  - !Sha 402ae81b29dff11f0d5bca62eb4ea92fe36e1218
+  - !Sha 3ff42e4a80745ca9ce960d2a2ed426c17a00de04
+  - !Sha 535593b6cfc83eb57465f25d6c59fb0aa9fc196e

@@ -1,8 +1,8 @@
 {
-  "date": "2026-08-08",
+  "date": "2026-08-18",
   "tests": {
-    "total": 733,
-    "passed": 733,
+    "total": 765,
+    "passed": 765,
     "failed": 0,
     "skipped": 0
   },
@@ -10,12 +10,13 @@
     "warnings": 0,
     "errors": 0
   },
-  "todo_fixme": 14,
+  "todo_fixme": 15,
   "safety": {
-    "unwrap_count": 677,
-    "warn_count": 1
+    "unwrap_count": 718,
+    "warn_count": 2
   },
   "coverage": null,
+  "ci_duration_ms": 7287.0,
   "crates": 11,
   "versions_consistent": false,
   "version": "0.8.0"
