@@ -17,3 +17,5 @@ target/
 .ctx/HANDOFF.*.state.json
 # handoff-end
 docs/dist/
+session-report-*.html
+*-gm-graph.svg
