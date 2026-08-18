@@ -1,39 +1,64 @@
 project: taskit
 id: taskit
-updated: 2026-08-18
+updated: '20260818::220008'
 items:
-- id: uncommitted-work
-  doob_uuid: null
-  name: uncommitted-work
-  priority: P1
+- id: push-develop
+  name: push-develop
+  priority: P2
   status: open
-  title: Uncommitted changes (5 files)
+  title: Push 8 unpushed commits on develop to origin
   description: |-
-    Working tree has uncommitted changes:
-    .ctx/HANDOFF.taskit.taskit.yaml
-    .health-baseline.json
-    session-report-20260816-1743.html
-    tracers-gm-graph.svg
-    xtask/scripts/
-  files:
-  - .ctx/HANDOFF.taskit.taskit.yaml
-  - .health-baseline.json
-  - session-report-20260816-1743.html
-  - tracers-gm-graph.svg
-  - xtask/scripts/
-  completed: null
-  extra: []
+    develop is 8 commits ahead of origin/develop, including the CLI category
+    restructuring (0a26b01), the dev build/install cargo workflows + install ->
+    bootstrap rename (332ef63), and a flow-auto opt-in-push feature (b5747b1)
+    that landed alongside this session's work. Build/tests verified green at
+    HEAD (cargo check clean, 760/760 nextest passing as of the restructuring
+    commit). Not pushed yet — confirm before pushing since this includes a
+    breaking CLI surface change worth flagging in the push/PR description.
+  files: []
 log:
-- date: '20260818.224618'
+- date: '20260818::220008'
+  session: 1
+  summary: >-
+    Restructured taskit's CLI into 8 nested categories (dev/check/test/health/
+    protocol/release/flow), added dev build and dev install cargo workflows,
+    renamed the old install to bootstrap, updated hooks/CI/docs to match, and
+    fixed a stale conformance-harness location claim in the memory bank; work
+    landed as 6 separate commits (already committed when this handoff ran).
+  commits:
+  - sha: 6ed2319
+    branch: develop
+  - sha: e4054e8
+    branch: develop
+  - sha: 2e1491c
+    branch: develop
+  - sha: a261a68
+    branch: develop
+  - sha: 0a26b01
+    branch: develop
+  - sha: 332ef63
+    branch: develop
+- date: '20260818::043849'
+  session: 0
   summary: done=73 running=0 pending=0 blocked=0
   commits:
-  - !Sha a261a68371db943789f48d7c804f0409a0c653f8
-  - !Sha 0a26b011d53096ef84f732eaa98812e5df6deaba
-  - !Sha 332ef639f93f40c4aa21a34f58f155c6448b0e97
-  - !Sha b5747b1f714a28ad89fcb59ce0d066fe8056932c
-  - !Sha bdfea8fe6bc7a4a5cb6d3472fa2acb946112f645
-  - !Sha 3375cb932a031c045489596102b2b7929c45ddec
-  - !Sha 33e2fd6417fadf751bdfcd0d57bf4901610cc150
-  - !Sha 402ae81b29dff11f0d5bca62eb4ea92fe36e1218
-  - !Sha 3ff42e4a80745ca9ce960d2a2ed426c17a00de04
-  - !Sha 535593b6cfc83eb57465f25d6c59fb0aa9fc196e
+  - sha: bdfea8fe6bc7a4a5cb6d3472fa2acb946112f645
+    branch: develop
+  - sha: 3375cb932a031c045489596102b2b7929c45ddec
+    branch: develop
+  - sha: 33e2fd6417fadf751bdfcd0d57bf4901610cc150
+    branch: develop
+  - sha: 402ae81b29dff11f0d5bca62eb4ea92fe36e1218
+    branch: develop
+  - sha: 3ff42e4a80745ca9ce960d2a2ed426c17a00de04
+    branch: develop
+  - sha: 535593b6cfc83eb57465f25d6c59fb0aa9fc196e
+    branch: develop
+  - sha: 8209475dbae97eb3780928fda7a1d42fe448c541
+    branch: develop
+  - sha: b98b6d0243ff4f0167155e88ec8c249f5513ff04
+    branch: develop
+  - sha: 06955c5e383626c9d8982b93c8e183595e82b2a3
+    branch: develop
+  - sha: fc85f8fcc2a25a395eabae1e9f9cc7b5b160cda6
+    branch: develop
