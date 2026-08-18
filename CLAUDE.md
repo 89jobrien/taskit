@@ -54,6 +54,7 @@ taskit --dry-run <subcommand>   # print without executing
 | `flow promote` | Advance the current flow branch one step |
 | `flow auto` | develop -> staging -> release -> main with CI gate and BAML conflicts |
 | `flow guard` | Assert branch invariants |
+| `dashboard` | ratatui TUI: Overview tab (health + protocol-drift), Flow tab (pipeline position, telemetry) |
 
 ## Architecture
 
@@ -68,6 +69,7 @@ taskit (root bin)
 +-- crates/taskit-crux     -- EmbeddedCruxRunner stub
 +-- crates/taskit-macros   -- proc-macros for taskit derive utilities
 +-- crates/taskit-output   -- output formatters (OutputFormatter trait + impls)
++-- crates/taskit-tui      -- ratatui dashboard (Overview/Flow tabs, snapshot polling)
 +-- crates/taskit-testing  -- shared test helpers and conformance harness
 ```
 
@@ -83,6 +85,7 @@ taskit (root bin)
 | `taskit-crux`    | EmbeddedCruxRunner stub                                     |
 | `taskit-macros`  | Proc-macros for derive utilities used across crates         |
 | `taskit-output`  | OutputFormatter trait and format implementations            |
+| `taskit-tui`     | ratatui dashboard: Overview tab (health + protocol-drift), Flow tab (pipeline position, resumable state, resolver config, telemetry) |
 | `taskit-testing` | Shared test helpers; PipelineRunner conformance harness     |
 
 ### Key Modules
@@ -105,6 +108,10 @@ taskit (root bin)
 - **`taskit-init/render_toml.rs`** -- Hand-built TOML renderer
 - **`taskit-init/render_cruxfile.rs`** -- Cruxfile YAML generator
 - **`src/flow_resolver.rs`** -- BamlConflictResolver adapter (BAML LLM integration)
+- **`taskit-tui/lib.rs`** -- `run(ctx)` entry point; exports `App`, `Tab`, `Snapshot`
+- **`taskit-tui/app.rs`** -- `App` state machine, `Tab` enum (Overview, Flow)
+- **`taskit-tui/snapshot.rs`** -- `Snapshot`: polls engine state (health, protocol-drift, flow position) for read-only display
+- **`taskit-tui/ui.rs`** -- ratatui rendering for each tab
 
 ### Affected Crate Detection
 
