@@ -101,4 +101,4 @@ path = "crates/taskit-core/src/conflict_resolver.rs"
 ```
 
 Each surface is SHA-256 hashed and stored in `taskit-protocol.lock`. CI fails when the hash
-diverges. Update with `taskit check-protocol-drift --update`.
+diverges. Update with `taskit protocol drift --update`.

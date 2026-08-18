@@ -88,7 +88,7 @@ All errors are `TaskitError`, a miette `Diagnostic` enum with nested domain vari
 ## Protocol drift
 
 Contract surfaces (public trait signatures, key structs) are hashed and stored in
-`taskit-protocol.lock`. `taskit check-protocol-drift` fails CI when the lock diverges from
+`taskit-protocol.lock`. `taskit protocol drift` fails CI when the lock diverges from
 source, preventing silent API breaks.
 
 ## Flow branching model

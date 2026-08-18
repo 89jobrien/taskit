@@ -8,8 +8,8 @@ workflows — all driven by a `taskit.toml` at the workspace root.
 
 ```bash
 taskit init          # scaffold taskit.toml, Cruxfile, hooks, CI, docs
-taskit quick         # fast local feedback (fmt + lint + compile-tests + test)
-taskit ci            # full CI pipeline
+taskit check quick   # fast local feedback (fmt + lint + compile-tests + test)
+taskit check ci      # full CI pipeline
 taskit flow auto     # promote develop → staging → release → main with CI gate
 ```
 
@@ -32,6 +32,7 @@ taskit (root bin)
 ├── crates/taskit-crux     EmbeddedCruxRunner (optional, `crux` feature)
 ├── crates/taskit-macros   proc-macros for derive utilities
 ├── crates/taskit-output   OutputFormatter trait + implementations
+├── crates/taskit-tui      ratatui dashboard (Overview/Flow tabs, snapshot polling)
 └── crates/taskit-testing  shared test helpers and conformance harness
 ```
 

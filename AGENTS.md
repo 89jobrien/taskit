@@ -28,7 +28,7 @@ All development workflows use `cargo` and the `taskit` binary directly.
 | `cargo nextest run -E 'test(pipeline)'`     | Filter tests by name                    |
 | `cargo test --doc`                          | Run doc tests                           |
 | `cargo deny check`                          | Check for license/advisory issues       |
-| `taskit pre-commit`                         | Run pre-commit checks                   |
+| `taskit check pre-commit`                   | Run pre-commit checks                   |
 
 ### Testing
 

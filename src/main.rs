@@ -11,11 +11,11 @@ mod flow_resolver;
 use clap::{CommandFactory, Parser, Subcommand};
 use std::env;
 use taskit_engine::command::{
-    Audit, Bench, CheckDeps, CheckFreshness, CheckProtocolDrift, CheckProtocolSites, Ci, Clean,
-    Command, CompileTests, Coverage, DevSetup, Drift, Flow, FlowAction, Fmt, Fuzz, Health, Inspect,
-    Install, InstallHooks, Lint, Patch, PreCommit, PrePush, Proptest, Publish, Quick, Release,
-    SelfCheck, SelfTest, SnapshotReview, Test, TestReport, TodoSync, Update, UpdateClaudeVersion,
-    Version,
+    Audit, Bench, Bootstrap, Build, CheckDeps, CheckFreshness, CheckProtocolDrift,
+    CheckProtocolSites, Ci, Clean, Command, CompileTests, Coverage, DevSetup, Drift, Flow,
+    FlowAction, Fmt, Fuzz, Health, Inspect, Install, InstallHooks, Lint, Patch, PreCommit, PrePush,
+    Proptest, Publish, Quick, Release, SelfCheck, SelfTest, SnapshotReview, Test, TestReport,
+    TodoSync, Update, UpdateClaudeVersion, Version,
 };
 use taskit_engine::ctx::Ctx;
 use taskit_engine::patch;
@@ -39,6 +39,92 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
+    /// Build, install, and workspace-setup commands
+    Dev {
+        #[command(subcommand)]
+        sub: DevCmd,
+    },
+    /// Quality gates: fmt, lint, test, CI
+    Check {
+        #[command(subcommand)]
+        sub: CheckCmd,
+    },
+    /// Extended testing: coverage, proptest, fuzz, bench
+    Test {
+        #[command(subcommand)]
+        sub: TestCmd,
+    },
+    /// Codebase health and metrics
+    Health {
+        #[command(subcommand)]
+        sub: HealthCmd,
+    },
+    /// Protocol drift, TODO sync, dependency governance
+    Protocol {
+        #[command(subcommand)]
+        sub: ProtocolCmd,
+    },
+    /// Version bumps and publishing
+    Release {
+        #[command(subcommand)]
+        sub: ReleaseCmd,
+    },
+    /// Git branching workflow: main -> staging -> release -> main
+    Flow {
+        #[command(subcommand)]
+        sub: FlowCmd,
+    },
+    /// Live terminal dashboard: workspace health, CI telemetry, and drift
+    Dashboard,
+    /// Generate taskit.toml and Cruxfile for the current workspace
+    Init {
+        /// Overwrite existing taskit.toml
+        #[arg(long)]
+        force: bool,
+        /// Interactive mode with prompts
+        #[arg(long)]
+        interactive: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum DevCmd {
+    /// Build the workspace (cargo build --workspace)
+    Build {
+        /// Build in release mode
+        #[arg(long)]
+        release: bool,
+    },
+    /// Install the taskit binary itself (cargo install --path . --force)
+    Install,
+    /// Set up a workspace for development: install git hooks and dev tools
+    Bootstrap,
+    /// Install git hooks that delegate to taskit
+    InstallHooks,
+    /// Install development tools
+    Setup,
+    /// Verify required tools are installed
+    SelfCheck,
+    /// Clean build artifacts
+    Clean {
+        #[arg(long)]
+        older_than: Option<String>,
+    },
+    /// Update Cargo.lock dependencies
+    Update {
+        /// Update to latest versions, ignoring semver compatibility
+        #[arg(long)]
+        aggressive: bool,
+    },
+    /// Update pinned Claude Code version
+    UpdateClaudeVersion {
+        /// Version string (e.g., "2.1.50")
+        version: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum CheckCmd {
     /// Format all Rust code
     Fmt {
         /// Check only, don't modify files
@@ -63,8 +149,33 @@ enum Cmd {
         #[arg(long)]
         fix: bool,
     },
+    /// Fast local feedback: fmt-check + lint + compile-tests + test (affected crates, offline)
+    Quick,
+    /// Run full local CI (all checks with summary table)
+    Ci {
+        /// Stop immediately after the first failed step
+        #[arg(long)]
+        fail_fast: bool,
+        /// Include tests that require external network access or credentials (excluded by default)
+        #[arg(long)]
+        include_network: bool,
+    },
+    /// Compile all test binaries without running them
+    Compile,
+    /// Check for unused dependencies
+    Deps,
+    /// Run pre-commit checks (Rust formatting)
+    PreCommit,
+    /// Run pre-push checks (affected crate lint + test + coverage + drift)
+    PrePush,
+    /// Run taskit's own test suite (hash-cached: skipped when source is unchanged)
+    SelfTest,
+}
+
+#[derive(Subcommand)]
+enum TestCmd {
     /// Run tests via nextest
-    Test {
+    Run {
         #[arg(long, value_name = "CRATE")]
         crate_name: Option<String>,
         #[arg(long)]
@@ -85,103 +196,6 @@ enum Cmd {
         /// Measure coverage across the whole workspace instead of one crate
         #[arg(long)]
         workspace: bool,
-    },
-    /// Check protocol drift of core contract surfaces
-    CheckProtocolDrift {
-        #[arg(long)]
-        update: bool,
-        #[arg(long)]
-        warn_only: bool,
-        #[arg(long)]
-        hook: bool,
-        /// Continuously watch and auto-remediate drift instead of failing
-        #[arg(long)]
-        watch: bool,
-        /// Poll interval in seconds for --watch
-        #[arg(long, default_value_t = 5)]
-        interval: u64,
-    },
-    /// Scan TODO/FIXME markers and sync them to GitHub issues
-    TodoSync {
-        #[arg(long)]
-        update: bool,
-        #[arg(long)]
-        warn_only: bool,
-    },
-    /// Count construction sites for key structs
-    CheckProtocolSites {
-        /// File to scan
-        #[arg(long)]
-        file: String,
-        /// Pattern to search for
-        #[arg(long)]
-        pattern: String,
-        /// Expected count
-        #[arg(long)]
-        expected: usize,
-        #[arg(long)]
-        warn_only: bool,
-    },
-    /// Fast local feedback: fmt-check + lint + compile-tests + test (affected crates, offline)
-    Quick,
-    /// Run full local CI (all checks with summary table)
-    Ci {
-        /// Stop immediately after the first failed step
-        #[arg(long)]
-        fail_fast: bool,
-        /// Include tests that require external network access or credentials (excluded by default)
-        #[arg(long)]
-        include_network: bool,
-    },
-    /// Compile all test binaries without running them
-    CompileTests,
-    /// Check for unused dependencies
-    CheckDeps,
-    /// Check workspace dependency freshness (Cargo.lock vs latest published versions)
-    CheckFreshness {
-        /// Report outdated dependencies without failing the command
-        #[arg(long)]
-        warn_only: bool,
-    },
-    /// Run pre-commit checks (Rust formatting)
-    PreCommit,
-    /// Run pre-push checks (affected crate lint + test + coverage + drift)
-    PrePush,
-    /// Install git hooks that delegate to taskit
-    InstallHooks,
-    /// Install hooks and dev tools (workspace bootstrap)
-    Install,
-    /// Update Cargo.lock dependencies
-    Update {
-        /// Update to latest versions, ignoring semver compatibility
-        #[arg(long)]
-        aggressive: bool,
-    },
-    /// Bump the patch version across all workspace Cargo.toml files
-    Patch,
-    /// Bump the minor version across all workspace Cargo.toml files
-    Minor,
-    /// Bump the major version across all workspace Cargo.toml files
-    Major,
-    /// Run cargo-deny (advisories, licenses, bans)
-    Audit,
-    /// Clean build artifacts
-    Clean {
-        #[arg(long)]
-        older_than: Option<String>,
-    },
-    /// Show workspace crate versions
-    Version,
-    /// Install development tools
-    DevSetup,
-    /// Verify required tools are installed
-    SelfCheck,
-    /// Run taskit's own test suite (hash-cached: skipped when source is unchanged)
-    SelfTest,
-    /// Update pinned Claude Code version
-    UpdateClaudeVersion {
-        /// Version string (e.g., "2.1.50")
-        version: String,
     },
     /// Run property-based tests
     Proptest {
@@ -205,11 +219,15 @@ enum Cmd {
         save_baseline: bool,
     },
     /// Generate unified coverage report
-    TestReport,
+    Report,
     /// Review pending insta snapshots
-    SnapshotReview,
+    Snapshots,
+}
+
+#[derive(Subcommand)]
+enum HealthCmd {
     /// Measure codebase health and compare against baseline
-    Health {
+    Check {
         /// Write current metrics to .health-baseline.json
         #[arg(long)]
         update: bool,
@@ -239,6 +257,66 @@ enum Cmd {
         #[arg(long)]
         max_todo: Option<usize>,
     },
+    /// Show workspace crate versions
+    Version,
+}
+
+#[derive(Subcommand)]
+enum ProtocolCmd {
+    /// Check protocol drift of core contract surfaces
+    Drift {
+        #[arg(long)]
+        update: bool,
+        #[arg(long)]
+        warn_only: bool,
+        #[arg(long)]
+        hook: bool,
+        /// Continuously watch and auto-remediate drift instead of failing
+        #[arg(long)]
+        watch: bool,
+        /// Poll interval in seconds for --watch
+        #[arg(long, default_value_t = 5)]
+        interval: u64,
+    },
+    /// Count construction sites for key structs
+    Sites {
+        /// File to scan
+        #[arg(long)]
+        file: String,
+        /// Pattern to search for
+        #[arg(long)]
+        pattern: String,
+        /// Expected count
+        #[arg(long)]
+        expected: usize,
+        #[arg(long)]
+        warn_only: bool,
+    },
+    /// Scan TODO/FIXME markers and sync them to GitHub issues
+    TodoSync {
+        #[arg(long)]
+        update: bool,
+        #[arg(long)]
+        warn_only: bool,
+    },
+    /// Check workspace dependency freshness (Cargo.lock vs latest published versions)
+    Freshness {
+        /// Report outdated dependencies without failing the command
+        #[arg(long)]
+        warn_only: bool,
+    },
+    /// Run cargo-deny (advisories, licenses, bans)
+    Audit,
+}
+
+#[derive(Subcommand)]
+enum ReleaseCmd {
+    /// Bump the patch version across all workspace Cargo.toml files
+    Patch,
+    /// Bump the minor version across all workspace Cargo.toml files
+    Minor,
+    /// Bump the major version across all workspace Cargo.toml files
+    Major,
     /// Generate docs and publish workspace crates to crates.io
     Publish {
         /// Skip documentation generation
@@ -249,28 +327,12 @@ enum Cmd {
         allow_dirty: bool,
     },
     /// Create a GitHub release for a tagged version
-    Release {
+    Create {
         /// Git tag for the release (e.g. v0.7.0)
         tag: String,
         /// Path to release notes file (uses --generate-notes if omitted)
         #[arg(long)]
         notes_file: Option<String>,
-    },
-    /// Git branching workflow: main -> staging -> release -> main
-    Flow {
-        #[command(subcommand)]
-        sub: FlowCmd,
-    },
-    /// Live terminal dashboard: workspace health, CI telemetry, and drift
-    Dashboard,
-    /// Generate taskit.toml and Cruxfile for the current workspace
-    Init {
-        /// Overwrite existing taskit.toml
-        #[arg(long)]
-        force: bool,
-        /// Interactive mode with prompts
-        #[arg(long)]
-        interactive: bool,
     },
 }
 
@@ -322,134 +384,12 @@ fn make_resolver(kind: &ConflictResolverKind) -> Box<dyn taskit_core::ConflictRe
 /// before this point (it runs without a loaded config).
 fn to_command(cmd: Cmd, resolver_kind: &ConflictResolverKind) -> Box<dyn Command> {
     match cmd {
-        Cmd::Fmt { check, affected } => Box::new(Fmt { check, affected }),
-        Cmd::Lint {
-            crate_name,
-            affected,
-            continue_on_error,
-            fix,
-        } => Box::new(Lint {
-            crate_name,
-            affected,
-            continue_on_error,
-            fix,
-        }),
-        Cmd::Test {
-            crate_name,
-            affected,
-            continue_on_error,
-            offline,
-        } => Box::new(Test {
-            crate_name,
-            affected,
-            continue_on_error,
-            offline,
-        }),
-        Cmd::Coverage {
-            crate_name,
-            threshold,
-            workspace,
-        } => Box::new(Coverage {
-            crate_name,
-            threshold,
-            workspace,
-        }),
-        Cmd::CheckProtocolDrift {
-            update,
-            warn_only,
-            hook,
-            watch,
-            interval,
-        } => Box::new(CheckProtocolDrift {
-            update,
-            warn_only,
-            hook,
-            watch,
-            interval,
-        }),
-        Cmd::TodoSync { update, warn_only } => Box::new(TodoSync { update, warn_only }),
-        Cmd::CheckProtocolSites {
-            file,
-            pattern,
-            expected,
-            warn_only,
-        } => Box::new(CheckProtocolSites {
-            file,
-            pattern,
-            expected,
-            warn_only,
-        }),
-        Cmd::Quick => Box::new(Quick),
-        Cmd::Ci {
-            fail_fast,
-            include_network,
-        } => Box::new(Ci {
-            fail_fast,
-            include_network,
-        }),
-        Cmd::CompileTests => Box::new(CompileTests),
-        Cmd::CheckDeps => Box::new(CheckDeps),
-        Cmd::CheckFreshness { warn_only } => Box::new(CheckFreshness { warn_only }),
-        Cmd::PreCommit => Box::new(PreCommit),
-        Cmd::PrePush => Box::new(PrePush),
-        Cmd::InstallHooks => Box::new(InstallHooks),
-        Cmd::Install => Box::new(Install),
-        Cmd::Update { aggressive } => Box::new(Update { aggressive }),
-        Cmd::Patch => Box::new(Patch {
-            kind: patch::BumpKind::Patch,
-        }),
-        Cmd::Minor => Box::new(Patch {
-            kind: patch::BumpKind::Minor,
-        }),
-        Cmd::Major => Box::new(Patch {
-            kind: patch::BumpKind::Major,
-        }),
-        Cmd::Audit => Box::new(Audit),
-        Cmd::Clean { older_than } => Box::new(Clean { older_than }),
-        Cmd::Version => Box::new(Version),
-        Cmd::DevSetup => Box::new(DevSetup),
-        Cmd::SelfCheck => Box::new(SelfCheck),
-        Cmd::SelfTest => Box::new(SelfTest),
-        Cmd::UpdateClaudeVersion { version } => Box::new(UpdateClaudeVersion { version }),
-        Cmd::Proptest { crate_name } => Box::new(Proptest { crate_name }),
-        Cmd::Fuzz { target, duration } => Box::new(Fuzz { target, duration }),
-        Cmd::Bench {
-            crate_name,
-            save_baseline,
-        } => Box::new(Bench {
-            crate_name,
-            save_baseline,
-        }),
-        Cmd::TestReport => Box::new(TestReport),
-        Cmd::SnapshotReview => Box::new(SnapshotReview),
-        Cmd::Health {
-            update,
-            with_coverage,
-            gate,
-        } => Box::new(Health {
-            update,
-            with_coverage,
-            gate,
-        }),
-        Cmd::Drift { metric, window } => Box::new(Drift {
-            metric,
-            window_days: window,
-        }),
-        Cmd::Inspect {
-            max_warnings,
-            max_todo,
-        } => Box::new(Inspect {
-            max_warnings,
-            max_todo,
-        }),
-        Cmd::Publish {
-            skip_docs,
-            allow_dirty,
-        } => Box::new(Publish {
-            skip_docs,
-            allow_dirty,
-        }),
-        Cmd::Release { tag, notes_file } => Box::new(Release { tag, notes_file }),
+        Cmd::Dev { sub } => dev_to_command(sub),
+        Cmd::Check { sub } => check_to_command(sub),
+        Cmd::Test { sub } => test_to_command(sub),
+        Cmd::Health { sub } => health_to_command(sub),
+        Cmd::Protocol { sub } => protocol_to_command(sub),
+        Cmd::Release { sub } => release_to_command(sub),
         Cmd::Flow { sub } => {
             let action = match sub {
                 FlowCmd::Status => FlowAction::Status,
@@ -467,6 +407,166 @@ fn to_command(cmd: Cmd, resolver_kind: &ConflictResolverKind) -> Box<dyn Command
         }
         Cmd::Dashboard => Box::new(Dashboard),
         Cmd::Init { .. } => unreachable!("Init is handled before dispatch"),
+    }
+}
+
+fn dev_to_command(cmd: DevCmd) -> Box<dyn Command> {
+    match cmd {
+        DevCmd::Build { release } => Box::new(Build { release }),
+        DevCmd::Install => Box::new(Install),
+        DevCmd::Bootstrap => Box::new(Bootstrap),
+        DevCmd::InstallHooks => Box::new(InstallHooks),
+        DevCmd::Setup => Box::new(DevSetup),
+        DevCmd::SelfCheck => Box::new(SelfCheck),
+        DevCmd::Clean { older_than } => Box::new(Clean { older_than }),
+        DevCmd::Update { aggressive } => Box::new(Update { aggressive }),
+        DevCmd::UpdateClaudeVersion { version } => Box::new(UpdateClaudeVersion { version }),
+    }
+}
+
+fn check_to_command(cmd: CheckCmd) -> Box<dyn Command> {
+    match cmd {
+        CheckCmd::Fmt { check, affected } => Box::new(Fmt { check, affected }),
+        CheckCmd::Lint {
+            crate_name,
+            affected,
+            continue_on_error,
+            fix,
+        } => Box::new(Lint {
+            crate_name,
+            affected,
+            continue_on_error,
+            fix,
+        }),
+        CheckCmd::Quick => Box::new(Quick),
+        CheckCmd::Ci {
+            fail_fast,
+            include_network,
+        } => Box::new(Ci {
+            fail_fast,
+            include_network,
+        }),
+        CheckCmd::Compile => Box::new(CompileTests),
+        CheckCmd::Deps => Box::new(CheckDeps),
+        CheckCmd::PreCommit => Box::new(PreCommit),
+        CheckCmd::PrePush => Box::new(PrePush),
+        CheckCmd::SelfTest => Box::new(SelfTest),
+    }
+}
+
+fn test_to_command(cmd: TestCmd) -> Box<dyn Command> {
+    match cmd {
+        TestCmd::Run {
+            crate_name,
+            affected,
+            continue_on_error,
+            offline,
+        } => Box::new(Test {
+            crate_name,
+            affected,
+            continue_on_error,
+            offline,
+        }),
+        TestCmd::Coverage {
+            crate_name,
+            threshold,
+            workspace,
+        } => Box::new(Coverage {
+            crate_name,
+            threshold,
+            workspace,
+        }),
+        TestCmd::Proptest { crate_name } => Box::new(Proptest { crate_name }),
+        TestCmd::Fuzz { target, duration } => Box::new(Fuzz { target, duration }),
+        TestCmd::Bench {
+            crate_name,
+            save_baseline,
+        } => Box::new(Bench {
+            crate_name,
+            save_baseline,
+        }),
+        TestCmd::Report => Box::new(TestReport),
+        TestCmd::Snapshots => Box::new(SnapshotReview),
+    }
+}
+
+fn health_to_command(cmd: HealthCmd) -> Box<dyn Command> {
+    match cmd {
+        HealthCmd::Check {
+            update,
+            with_coverage,
+            gate,
+        } => Box::new(Health {
+            update,
+            with_coverage,
+            gate,
+        }),
+        HealthCmd::Drift { metric, window } => Box::new(Drift {
+            metric,
+            window_days: window,
+        }),
+        HealthCmd::Inspect {
+            max_warnings,
+            max_todo,
+        } => Box::new(Inspect {
+            max_warnings,
+            max_todo,
+        }),
+        HealthCmd::Version => Box::new(Version),
+    }
+}
+
+fn protocol_to_command(cmd: ProtocolCmd) -> Box<dyn Command> {
+    match cmd {
+        ProtocolCmd::Drift {
+            update,
+            warn_only,
+            hook,
+            watch,
+            interval,
+        } => Box::new(CheckProtocolDrift {
+            update,
+            warn_only,
+            hook,
+            watch,
+            interval,
+        }),
+        ProtocolCmd::Sites {
+            file,
+            pattern,
+            expected,
+            warn_only,
+        } => Box::new(CheckProtocolSites {
+            file,
+            pattern,
+            expected,
+            warn_only,
+        }),
+        ProtocolCmd::TodoSync { update, warn_only } => Box::new(TodoSync { update, warn_only }),
+        ProtocolCmd::Freshness { warn_only } => Box::new(CheckFreshness { warn_only }),
+        ProtocolCmd::Audit => Box::new(Audit),
+    }
+}
+
+fn release_to_command(cmd: ReleaseCmd) -> Box<dyn Command> {
+    match cmd {
+        ReleaseCmd::Patch => Box::new(Patch {
+            kind: patch::BumpKind::Patch,
+        }),
+        ReleaseCmd::Minor => Box::new(Patch {
+            kind: patch::BumpKind::Minor,
+        }),
+        ReleaseCmd::Major => Box::new(Patch {
+            kind: patch::BumpKind::Major,
+        }),
+        ReleaseCmd::Publish {
+            skip_docs,
+            allow_dirty,
+        } => Box::new(Publish {
+            skip_docs,
+            allow_dirty,
+        }),
+        ReleaseCmd::Create { tag, notes_file } => Box::new(Release { tag, notes_file }),
     }
 }
 
