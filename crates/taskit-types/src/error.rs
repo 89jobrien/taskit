@@ -196,6 +196,15 @@ pub enum FlowError {
         help("fix the failing steps, then re-run `taskit flow auto`")
     )]
     CiFailed { failed: Vec<String> },
+
+    #[error("push to '{remote}' failed: {reason}")]
+    #[diagnostic(
+        code(taskit::flow::push_failed),
+        help(
+            "branches are merged locally — fix the remote issue, then push manually or re-run `taskit flow auto`"
+        )
+    )]
+    PushFailed { remote: String, reason: String },
 }
 
 #[derive(Debug, Error, Diagnostic)]

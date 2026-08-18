@@ -224,6 +224,28 @@ fn sync_commit_message(main: &str, develop: &str) -> String {
     format!("flow: sync {main} into {develop}")
 }
 
+fn push_branches(ctx: &Ctx, remote: &str, branches: &[&str]) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    if ctx.dry_run {
+        taskit_output::taskit_dry!("git push {remote} {}", branches.join(" "));
+        return Ok(());
+    }
+    let output = cmd!(sh, "git push {remote} {branches...}")
+        .quiet()
+        .ignore_status()
+        .output()
+        .map_err(TaskitError::other)?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(FlowError::PushFailed {
+            remote: remote.to_string(),
+            reason: stderr.trim().to_string(),
+        }
+        .into());
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct FlowHop {
     pub from: String,
@@ -572,6 +594,16 @@ pub fn auto_with_ci(
     conflicts_resolved +=
         merge_with_resolution(ctx, main, &sync_commit_message(main, develop), resolver)?;
 
+    // Push before clearing state: a failed push leaves the run resumable at
+    // Finishing, where the merges no-op and the push is retried.
+    if flow.push_enabled() {
+        let remote = flow.push_remote();
+        taskit_output::taskit_progress!(
+            "auto: pushing {main}, {develop}, {staging}, {release} → {remote}"
+        );
+        push_branches(ctx, remote, &[main, develop, staging, release])?;
+    }
+
     // Success — clear the state file.
     if !ctx.dry_run {
         crate::flow_state_store::clear(&ctx.root)?;
@@ -881,6 +913,36 @@ release = "rc"
     }
 
     #[test]
+    fn flow_config_push_defaults_off() {
+        let cfg: FlowConfig = toml::from_str("").unwrap();
+        assert!(!cfg.push_enabled());
+        assert_eq!(cfg.push_remote(), "origin");
+    }
+
+    #[test]
+    fn flow_config_push_parses() {
+        let cfg: FlowConfig = toml::from_str(
+            r#"
+push = true
+remote = "github"
+"#,
+        )
+        .unwrap();
+        assert!(cfg.push_enabled());
+        assert_eq!(cfg.push_remote(), "github");
+    }
+
+    #[test]
+    fn push_failed_error_display() {
+        let err = FlowError::PushFailed {
+            remote: "origin".into(),
+            reason: "connection refused".into(),
+        };
+        assert!(err.to_string().contains("push to 'origin' failed"));
+        assert!(err.to_string().contains("connection refused"));
+    }
+
+    #[test]
     fn flow_config_partial_override() {
         let cfg: FlowConfig = toml::from_str(r#"develop = "dev""#).unwrap();
         assert_eq!(cfg.main_branch(), "main");
@@ -1035,6 +1097,69 @@ release = "rc"
         };
         assert_eq!(metric("flow_auto_result"), 0.0);
         assert!(metric("flow_auto_duration_ms") >= 0.0);
+    }
+
+    fn passing_ci_fn() -> impl Fn(&Ctx) -> taskit_types::step::PipelineOutcome {
+        use taskit_types::step::{PipelineOutcome, StepResult, StepStatus};
+        |_: &Ctx| PipelineOutcome {
+            results: vec![StepResult {
+                name: "fmt".into(),
+                status: StepStatus::Pass,
+                duration: std::time::Duration::ZERO,
+                error: None,
+                gate: false,
+                diagnostics: vec![],
+                context: taskit_types::step::StepDiagnosticContext::default(),
+            }],
+            passed: true,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn auto_with_push_updates_remote_branches() {
+        let (_dir, ctx, mut flow) = setup_auto_repo();
+        let bare = tempfile::tempdir().expect("bare tempdir");
+        let bare_path = bare.path().to_str().expect("utf8 path").to_string();
+        cmd!(ctx.sh, "git init --bare {bare_path}")
+            .run()
+            .expect("init bare");
+        cmd!(ctx.sh, "git remote add origin {bare_path}")
+            .run()
+            .expect("add remote");
+        flow.push = Some(true);
+
+        auto_with_ci(&ctx, &flow, &AlwaysResolve, passing_ci_fn())
+            .expect("auto with push should succeed");
+
+        let refs = cmd!(ctx.sh, "git ls-remote --heads origin")
+            .read()
+            .expect("ls-remote");
+        for branch in ["main", "develop", "staging", "release"] {
+            assert!(
+                refs.contains(&format!("refs/heads/{branch}")),
+                "remote should have {branch}, got:\n{refs}"
+            );
+        }
+    }
+
+    #[test]
+    fn auto_push_failure_returns_push_failed_and_keeps_state() {
+        use taskit_types::error::FlowError;
+
+        let (_dir, ctx, mut flow) = setup_auto_repo();
+        // No `origin` remote exists — the push must fail after local merges.
+        flow.push = Some(true);
+
+        let result = auto_with_ci(&ctx, &flow, &AlwaysResolve, passing_ci_fn());
+        match result {
+            Err(taskit_types::error::TaskitError::Flow(FlowError::PushFailed { .. })) => {}
+            other => panic!("expected PushFailed, got {other:?}"),
+        }
+        assert!(
+            crate::flow_state_store::load(&ctx.root).is_some(),
+            "state file should survive a failed push so the run is resumable"
+        );
     }
 
     #[test]

@@ -235,6 +235,12 @@ pub struct FlowConfig {
     /// Conflict resolver used by `flow auto`. Defaults to `baml`.
     #[serde(default)]
     pub conflict_resolver: ConflictResolverKind,
+    /// Push main and the flow branches to `remote` after a successful
+    /// `flow auto`. Defaults to `false` — pushing is opt-in.
+    pub push: Option<bool>,
+    /// Remote that `flow auto` pushes to when `push` is enabled.
+    /// Defaults to `origin`.
+    pub remote: Option<String>,
 }
 
 impl FlowConfig {
@@ -253,6 +259,16 @@ impl FlowConfig {
 
     pub fn release_branch(&self) -> &str {
         self.release.as_deref().unwrap_or("release")
+    }
+
+    /// Whether `flow auto` pushes main and the flow branches after success.
+    pub fn push_enabled(&self) -> bool {
+        self.push.unwrap_or(false)
+    }
+
+    /// Remote that `flow auto` pushes to when `push` is enabled.
+    pub fn push_remote(&self) -> &str {
+        self.remote.as_deref().unwrap_or("origin")
     }
 }
 
