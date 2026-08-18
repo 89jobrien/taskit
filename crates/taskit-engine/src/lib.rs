@@ -1,5 +1,7 @@
 pub mod affected;
 pub mod audit;
+pub mod bootstrap;
+pub mod build;
 pub mod cache;
 pub mod check_deps;
 pub mod check_freshness;

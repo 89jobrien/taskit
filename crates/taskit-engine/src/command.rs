@@ -13,9 +13,9 @@ use taskit_types::step::PipelineOutcome;
 
 use crate::ctx::Ctx;
 use crate::{
-    audit, check_deps, check_freshness, ci, clean, dev_setup, drift, flow, fmt, health, hooks,
-    inspect, install, lint, patch, protocol, publish, quick, release, testing, todo_sync, update,
-    update_claude, version,
+    audit, bootstrap, build, check_deps, check_freshness, ci, clean, dev_setup, drift, flow, fmt,
+    health, hooks, inspect, install, lint, patch, protocol, publish, quick, release, testing,
+    todo_sync, update, update_claude, version,
 };
 
 /// A runnable subcommand. Implementors carry their own parsed arguments and
@@ -202,6 +202,22 @@ pub struct InstallHooks;
 impl Command for InstallHooks {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
         hooks::install_hooks(ctx)
+    }
+}
+
+pub struct Bootstrap;
+impl Command for Bootstrap {
+    fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
+        bootstrap::run(ctx)
+    }
+}
+
+pub struct Build {
+    pub release: bool,
+}
+impl Command for Build {
+    fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
+        build::run(ctx, self.release)
     }
 }
 
