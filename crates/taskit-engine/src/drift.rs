@@ -24,8 +24,8 @@ pub struct DriftReport {
 }
 
 /// Compare `current` against `baseline` readings using the same regression
-/// rule as `taskit drift`: flagged when `current` clears the baseline's p95
-/// by more than [`REGRESSION_FACTOR`].
+/// rule as `taskit health drift`: flagged when `current` clears the
+/// baseline's p95 by more than `REGRESSION_FACTOR`.
 pub fn analyze(baseline: &[f64], current: f64) -> DriftReport {
     let baseline_mean = mean(baseline);
     let baseline_p95 = percentile(baseline, 0.95);

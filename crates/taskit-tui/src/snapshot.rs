@@ -30,10 +30,10 @@ pub struct Snapshot {
     pub last_ci_passed: Option<bool>,
     pub ci_duration_drift: Option<DriftReport>,
     /// Raw `ci_duration_ms` readings, oldest first, capped to the last
-    /// [`SPARKLINE_POINTS`] — feeds the dashboard's `Sparkline` widget.
+    /// `SPARKLINE_POINTS` — feeds the dashboard's `Sparkline` widget.
     pub ci_duration_history: Vec<u64>,
     /// Raw `ci_passed` readings (0.0/1.0), oldest first, capped to the last
-    /// [`SPARKLINE_POINTS`] — feeds the pass/fail trend strip.
+    /// `SPARKLINE_POINTS` — feeds the pass/fail trend strip.
     pub ci_passed_history: Vec<u64>,
     /// Full telemetry records in the drift window, oldest first — feeds the
     /// scrollable CI History tab.

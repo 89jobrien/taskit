@@ -3,6 +3,7 @@ name = "taskit-core"
 version = "0.8.0"
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "Core types and traits for taskit"
 
 [dependencies]
