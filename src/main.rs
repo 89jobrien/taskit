@@ -74,6 +74,12 @@ enum Cmd {
         #[command(subcommand)]
         sub: FlowCmd,
     },
+    /// Operate on the taskit binary itself: install, test, check tooling
+    #[command(name = "self")]
+    Self_ {
+        #[command(subcommand)]
+        sub: SelfCmd,
+    },
     /// Live terminal dashboard: workspace health, CI telemetry, and drift
     Dashboard,
     /// Generate taskit.toml and Cruxfile for the current workspace
@@ -95,16 +101,12 @@ enum DevCmd {
         #[arg(long)]
         release: bool,
     },
-    /// Install the taskit binary itself (cargo install --path . --force)
-    Install,
     /// Set up a workspace for development: install git hooks and dev tools
     Bootstrap,
     /// Install git hooks that delegate to taskit
     InstallHooks,
     /// Install development tools
     Setup,
-    /// Verify required tools are installed
-    SelfCheck,
     /// Clean build artifacts
     Clean {
         #[arg(long)]
@@ -168,8 +170,16 @@ enum CheckCmd {
     PreCommit,
     /// Run pre-push checks (affected crate lint + test + coverage + drift)
     PrePush,
+}
+
+#[derive(Subcommand)]
+enum SelfCmd {
+    /// Install the taskit binary itself (cargo install --path . --force)
+    Install,
     /// Run taskit's own test suite (hash-cached: skipped when source is unchanged)
-    SelfTest,
+    Test,
+    /// Verify required tools are installed
+    Check,
 }
 
 #[derive(Subcommand)]
@@ -405,6 +415,7 @@ fn to_command(cmd: Cmd, resolver_kind: &ConflictResolverKind) -> Box<dyn Command
             };
             Box::new(Flow { action })
         }
+        Cmd::Self_ { sub } => self_to_command(sub),
         Cmd::Dashboard => Box::new(Dashboard),
         Cmd::Init { .. } => unreachable!("Init is handled before dispatch"),
     }
@@ -413,11 +424,9 @@ fn to_command(cmd: Cmd, resolver_kind: &ConflictResolverKind) -> Box<dyn Command
 fn dev_to_command(cmd: DevCmd) -> Box<dyn Command> {
     match cmd {
         DevCmd::Build { release } => Box::new(Build { release }),
-        DevCmd::Install => Box::new(Install),
         DevCmd::Bootstrap => Box::new(Bootstrap),
         DevCmd::InstallHooks => Box::new(InstallHooks),
         DevCmd::Setup => Box::new(DevSetup),
-        DevCmd::SelfCheck => Box::new(SelfCheck),
         DevCmd::Clean { older_than } => Box::new(Clean { older_than }),
         DevCmd::Update { aggressive } => Box::new(Update { aggressive }),
         DevCmd::UpdateClaudeVersion { version } => Box::new(UpdateClaudeVersion { version }),
@@ -450,7 +459,14 @@ fn check_to_command(cmd: CheckCmd) -> Box<dyn Command> {
         CheckCmd::Deps => Box::new(CheckDeps),
         CheckCmd::PreCommit => Box::new(PreCommit),
         CheckCmd::PrePush => Box::new(PrePush),
-        CheckCmd::SelfTest => Box::new(SelfTest),
+    }
+}
+
+fn self_to_command(cmd: SelfCmd) -> Box<dyn Command> {
+    match cmd {
+        SelfCmd::Install => Box::new(Install),
+        SelfCmd::Test => Box::new(SelfTest),
+        SelfCmd::Check => Box::new(SelfCheck),
     }
 }
 
