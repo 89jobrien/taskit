@@ -153,7 +153,7 @@ pub fn plan_from_discovery() -> Result<InitPlan, TaskitError> {
         deny_toml: true,
         ctx_scaffold: true,
         mdbook: true,
-        xtask: true,
+        xtask: false,
     })
 }
 
@@ -293,7 +293,7 @@ pub fn plan_interactive() -> Result<InitPlan, TaskitError> {
 
     plan.xtask = Confirm::new()
         .with_prompt("Generate / augment xtask/ crate with taskit task dispatchers?")
-        .default(true)
+        .default(false)
         .interact()
         .map_err(TaskitError::other)?;
 
