@@ -1,5 +1,2 @@
 [target.x86_64-unknown-linux-musl]
 pre-build = ["apt-get update && apt-get install -y curl unzip && PROTOC_HOST=github.com && curl -fsSL https://$PROTOC_HOST/protocolbuffers/protobuf/releases/download/v25.3/protoc-25.3-linux-x86_64.zip -o /tmp/protoc.zip && unzip -oq /tmp/protoc.zip -d /usr/local"]
-
-[target.aarch64-unknown-linux-musl]
-pre-build = ["apt-get update && apt-get install -y curl unzip && PROTOC_HOST=github.com && curl -fsSL https://$PROTOC_HOST/protocolbuffers/protobuf/releases/download/v25.3/protoc-25.3-linux-x86_64.zip -o /tmp/protoc.zip && unzip -oq /tmp/protoc.zip -d /usr/local"]
