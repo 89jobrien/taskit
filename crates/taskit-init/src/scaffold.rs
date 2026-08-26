@@ -759,6 +759,24 @@ mod tests {
     }
 
     #[test]
+    fn xtask_fresh_is_rustfmt_clean() {
+        in_tempdir(|dir| {
+            write_xtask(false, false).unwrap();
+            let output = std::process::Command::new("rustfmt")
+                .args(["--edition", "2021", "--check"])
+                .arg(dir.join("xtask/src/main.rs"))
+                .output()
+                .unwrap();
+
+            assert!(
+                output.status.success(),
+                "generated xtask is not rustfmt-clean:\n{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        });
+    }
+
+    #[test]
     fn xtask_fresh_dry_run_no_files() {
         in_tempdir(|dir| {
             write_xtask(false, true).unwrap();
