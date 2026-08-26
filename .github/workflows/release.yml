@@ -227,6 +227,17 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install protobuf
 
+      - name: Configure modern protobuf compiler for cross
+        if: matrix.use_cross
+        run: |
+          cat > Cross.toml <<'EOF'
+          [target.x86_64-unknown-linux-musl]
+          pre-build = ["apt-get update && apt-get install -y curl unzip && PROTOC_HOST=github.com && curl -fsSL https://$PROTOC_HOST/protocolbuffers/protobuf/releases/download/v25.3/protoc-25.3-linux-x86_64.zip -o /tmp/protoc.zip && unzip -oq /tmp/protoc.zip -d /usr/local"]
+
+          [target.aarch64-unknown-linux-musl]
+          pre-build = ["apt-get update && apt-get install -y curl unzip && PROTOC_HOST=github.com && curl -fsSL https://$PROTOC_HOST/protocolbuffers/protobuf/releases/download/v25.3/protoc-25.3-linux-x86_64.zip -o /tmp/protoc.zip && unzip -oq /tmp/protoc.zip -d /usr/local"]
+          EOF
+
       - uses: taiki-e/install-action@6c6fd71fe4fb72c3697d269963d0e15df8adedad # v2.85.10
         if: matrix.use_cross
         with:
