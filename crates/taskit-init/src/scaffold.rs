@@ -462,13 +462,27 @@ fn taskit(args: &[&str]) {
     }
 }
 
-fn task_fmt()           { taskit(&["fmt"]) }
-fn task_fmt_check()     { taskit(&["fmt", "--check"]) }
-fn task_lint()          { taskit(&["lint"]) }
-fn task_test()          { taskit(&["test"]) }
-fn task_ci()            { taskit(&["ci"]) }
-fn task_pre_commit()    { taskit(&["pre-commit"]) }
-fn task_pre_push()      { taskit(&["pre-push"]) }
+fn task_fmt() {
+    taskit(&["fmt"])
+}
+fn task_fmt_check() {
+    taskit(&["fmt", "--check"])
+}
+fn task_lint() {
+    taskit(&["lint"])
+}
+fn task_test() {
+    taskit(&["test"])
+}
+fn task_ci() {
+    taskit(&["ci"])
+}
+fn task_pre_commit() {
+    taskit(&["pre-commit"])
+}
+fn task_pre_push() {
+    taskit(&["pre-push"])
+}
 // --- end taskit-managed ---
 "#;
 
@@ -481,13 +495,13 @@ const XTASK_MAIN_FRESH: &str = r#"//! xtask — build tasks for this workspace.
 fn main() {
     let task = std::env::args().nth(1).unwrap_or_default();
     match task.as_str() {
-        "fmt"           => task_fmt(),
-        "fmt-check"     => task_fmt_check(),
-        "lint"          => task_lint(),
-        "test"          => task_test(),
-        "ci"            => task_ci(),
-        "pre-commit"    => task_pre_commit(),
-        "pre-push"      => task_pre_push(),
+        "fmt" => task_fmt(),
+        "fmt-check" => task_fmt_check(),
+        "lint" => task_lint(),
+        "test" => task_test(),
+        "ci" => task_ci(),
+        "pre-commit" => task_pre_commit(),
+        "pre-push" => task_pre_push(),
         other => {
             eprintln!("unknown task: {other}");
             eprintln!("available: fmt, fmt-check, lint, test, ci, pre-commit, pre-push");
@@ -515,13 +529,27 @@ fn taskit(args: &[&str]) {
     }
 }
 
-fn task_fmt()           { taskit(&["fmt"]) }
-fn task_fmt_check()     { taskit(&["fmt", "--check"]) }
-fn task_lint()          { taskit(&["lint"]) }
-fn task_test()          { taskit(&["test"]) }
-fn task_ci()            { taskit(&["ci"]) }
-fn task_pre_commit()    { taskit(&["pre-commit"]) }
-fn task_pre_push()      { taskit(&["pre-push"]) }
+fn task_fmt() {
+    taskit(&["fmt"])
+}
+fn task_fmt_check() {
+    taskit(&["fmt", "--check"])
+}
+fn task_lint() {
+    taskit(&["lint"])
+}
+fn task_test() {
+    taskit(&["test"])
+}
+fn task_ci() {
+    taskit(&["ci"])
+}
+fn task_pre_commit() {
+    taskit(&["pre-commit"])
+}
+fn task_pre_push() {
+    taskit(&["pre-push"])
+}
 // --- end taskit-managed ---
 "#;
 
