@@ -1,3 +1,7 @@
+// TODO(audit): 968 lines — split candidate. Also the crate-exclusion logic
+// here has been patched 3x for different directory types (ebe2117, bb15aec,
+// af1fa56) because it's a denylist-by-name; consider a general rule instead
+// (e.g. skip anything cargo-metadata excludes / dot-prefixed dirs).
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
@@ -10,8 +14,8 @@ use xshell::cmd;
 
 use crate::ctx::Ctx;
 
-const CACHE_DIR: &str = ".taskit-cache";
-const CACHE_FILE: &str = ".taskit-cache/compile-cache.json";
+const CACHE_DIR: &str = "target/taskit/cache";
+const CACHE_FILE: &str = "target/taskit/cache/compile-cache.json";
 
 // ── cache schema ─────────────────────────────────────────────────────────────
 
@@ -269,10 +273,7 @@ fn collect_rs_files(
 }
 
 fn is_ignored_dir_name(name: &str) -> bool {
-    matches!(
-        name,
-        "target" | ".git" | "node_modules" | ".taskit-cache" | "fuzz"
-    )
+    matches!(name, "target" | ".git" | "node_modules" | "fuzz")
 }
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -872,12 +873,13 @@ mod tests {
 
     #[test]
     fn regression_taskit_cache_dir_excluded_from_crate_roots() {
-        // .taskit-cache/ may contain a compile-cache.json that must never be
-        // treated as a crate root even if a stray Cargo.toml lands there.
+        // target/taskit/cache/ may contain a compile-cache.json that must never
+        // be treated as a crate root even if a stray Cargo.toml lands there —
+        // covered by the generic "target" exclusion.
         let ws = TempWorkspace::new();
         ws.write_crate("real-crate", "real");
         ws.write(
-            ".taskit-cache/Cargo.toml",
+            "target/taskit/cache/Cargo.toml",
             "[package]\nname = \"phantom\"\n",
         );
 
@@ -887,7 +889,7 @@ mod tests {
         let names: Vec<_> = roots.iter().map(|(n, _)| n.as_str()).collect();
         assert!(
             !names.contains(&"phantom"),
-            ".taskit-cache must be excluded from crate roots"
+            "target/taskit/cache must be excluded from crate roots"
         );
     }
 

@@ -1,3 +1,5 @@
+//! Integration test for `#[taskit_test(offline)]` expansion.
+
 use taskit_macros::taskit_test;
 
 #[taskit_test(offline)]

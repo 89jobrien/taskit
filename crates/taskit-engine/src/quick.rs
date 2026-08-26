@@ -16,7 +16,9 @@ pub fn run(ctx: &Ctx) -> Result<(), TaskitError> {
     ctx.with_silent(|| {
         let outcome = Pipeline::new(false)
             .step("fmt --check (affected)", || fmt::run(ctx, true, true))
-            .step("lint (affected)", || lint::run(ctx, None, true, false))
+            .step("lint (affected)", || {
+                lint::run(ctx, None, true, false, false)
+            })
             .step("compile-tests", || testing::compile::run(ctx))
             .step("test (affected, offline)", || {
                 testing::run::run(ctx, None, true, false, true)
@@ -32,8 +34,10 @@ mod tests {
     // behaviour is covered by their own unit tests.
     // Smoke-test: the module compiles and the public symbol exists.
     #[test]
-    fn quick_run_is_exported() {
+    fn run_is_exported_with_expected_signature() {
         // If this compiles, the public API is intact.
-        let _: fn(&crate::ctx::Ctx) -> Result<(), taskit_types::error::TaskitError> = super::run;
+        let run_fn: fn(&crate::ctx::Ctx) -> Result<(), taskit_types::error::TaskitError> =
+            super::run;
+        assert!(!std::any::type_name_of_val(&run_fn).is_empty());
     }
 }

@@ -57,7 +57,7 @@ pub fn run(ctx: &Ctx, tag: &str, notes_file: Option<&Path>) -> Result<(), Taskit
 }
 
 /// Resolve the GitHub repo: config > git remote > error.
-fn resolve_repo(ctx: &Ctx) -> Result<String, TaskitError> {
+pub(crate) fn resolve_repo(ctx: &Ctx) -> Result<String, TaskitError> {
     // 1. Check config
     if let Some(repo) = ctx.config.release.as_ref().and_then(|r| r.github_repo()) {
         return Ok(repo.to_owned());

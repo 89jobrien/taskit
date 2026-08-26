@@ -1,0 +1,3042 @@
+[
+  {
+    "crate_name": "taskit-testing",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-testing/src/temp_dir.rs",
+    "function": "new",
+    "call_text": "std::env::current_dir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-testing",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-testing/src/temp_dir.rs",
+    "function": "new",
+    "call_text": "std::env::set_current_dir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-testing",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-testing/src/temp_dir.rs",
+    "function": "drop",
+    "call_text": "std::env::set_current_dir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-testing",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-testing/src/temp_dir.rs",
+    "function": "cwd_changes_to_tempdir",
+    "call_text": "std::env::current_dir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-testing",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-testing/src/temp_dir.rs",
+    "function": "cwd_changes_to_tempdir",
+    "call_text": "std::env::current_dir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-testing",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-testing/src/temp_dir.rs",
+    "function": "cwd_changes_to_tempdir",
+    "call_text": "std::env::current_dir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-testing",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-testing/src/temp_dir.rs",
+    "function": "file_isolation_between_guards",
+    "call_text": "std::env::current_dir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-testing",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-testing/src/temp_dir.rs",
+    "function": "file_isolation_between_guards",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-testing",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-testing/src/temp_dir.rs",
+    "function": "file_isolation_between_guards",
+    "call_text": "std::env::set_current_dir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-testing",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-testing/src/macros.rs",
+    "function": "in_temp_dir_basic",
+    "call_text": "std::env::current_dir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-testing",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-testing/src/macros.rs",
+    "function": "in_temp_dir_basic",
+    "call_text": "std::env::current_dir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/flow.rs",
+    "function": "read_conflict_file",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/flow.rs",
+    "function": "merge_with_resolution",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/flow.rs",
+    "function": "auto",
+    "call_text": "auto_with_ci",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/flow.rs",
+    "function": "auto_with_ci",
+    "call_text": "merge_with_resolution",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/flow.rs",
+    "function": "auto_ci_failure_returns_ci_failed_and_stays_on_release",
+    "call_text": "auto_with_ci",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/flow.rs",
+    "function": "auto_ci_pass_completes_finish",
+    "call_text": "auto_with_ci",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/health.rs",
+    "function": "load_baseline",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/health.rs",
+    "function": "write_baseline",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/health.rs",
+    "function": "count_todo_fixme",
+    "call_text": "std::env::current_dir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/health.rs",
+    "function": "count_todo_fixme_in_tree",
+    "call_text": "std::fs::read_dir",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/health.rs",
+    "function": "count_todo_fixme_in_tree",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/health.rs",
+    "function": "today",
+    "call_text": "std::process::Command::new",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/health.rs",
+    "function": "today",
+    "call_text": "output",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/health.rs",
+    "function": "count_todo_fixme_in_dir_scans_crates_and_src_rust_files_only",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/health.rs",
+    "function": "count_todo_fixme_in_dir_scans_crates_and_src_rust_files_only",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/health.rs",
+    "function": "count_todo_fixme_in_dir_scans_crates_and_src_rust_files_only",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/health.rs",
+    "function": "count_todo_fixme_in_dir_scans_crates_and_src_rust_files_only",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/health.rs",
+    "function": "count_todo_fixme_in_dir_scans_crates_and_src_rust_files_only",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/health.rs",
+    "function": "collect",
+    "call_text": "today",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/health.rs",
+    "function": "collect",
+    "call_text": "count_todo_fixme",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/health.rs",
+    "function": "collect",
+    "call_text": "count_todo_fixme",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/health.rs",
+    "function": "run",
+    "call_text": "collect",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/health.rs",
+    "function": "run",
+    "call_text": "collect",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/health.rs",
+    "function": "run",
+    "call_text": "collect",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/health.rs",
+    "function": "count_todo_fixme",
+    "call_text": "count_todo_fixme_in_dir",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/health.rs",
+    "function": "count_todo_fixme_in_dir",
+    "call_text": "count_todo_fixme_in_tree",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/health.rs",
+    "function": "write_and_load_baseline",
+    "call_text": "write_baseline",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/util.rs",
+    "function": "tool_exists_cmd",
+    "call_text": "std::process::Command::new",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/util.rs",
+    "function": "tool_exists_cmd",
+    "call_text": "status",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/util.rs",
+    "function": "tool_exists",
+    "call_text": "tool_exists_cmd",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "verify_dirs",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "compute",
+    "call_text": "std::fs::read_dir",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "file_hash",
+    "call_text": "std::fs::read",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "save",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "save",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "tmpdir",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "file_hash_some_for_existing_file",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "file_hash_is_deterministic",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "file_hash_differs_on_content_change",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "file_hash_differs_on_content_change",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "file_hash_same_content_same_hash",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "file_hash_same_content_same_hash",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "compute_is_deterministic",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "compute_changes_when_file_content_changes",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "compute_changes_when_file_content_changes",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "compute_changes_when_new_file_added",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "compute_changes_when_new_file_added",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "compute_changes_when_file_removed",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "compute_changes_when_file_removed",
+    "call_text": "std::fs::remove_file",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "compute_ignores_non_json_files",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "compute_ignores_non_json_files",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "compute_is_order_independent",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "compute_is_order_independent",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "verify_true_after_update_with_no_changes",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "verify_true_after_update_with_no_changes",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "verify_false_after_cache_file_modified",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "verify_false_after_cache_file_modified",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "verify_false_after_cache_file_modified",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "verify_false_after_new_cache_file_added",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "verify_false_after_new_cache_file_added",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "verify_false_after_new_cache_file_added",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "verify_true_for_empty_stored_hash",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "verify_true_for_empty_stored_hash",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "update_is_idempotent",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "update_is_idempotent",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "update_is_idempotent",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "update_is_idempotent",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "update_creates_master_file_parent_dirs",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "master_is_outside_cache_dir_so_not_included_in_own_hash",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "master_is_outside_cache_dir_so_not_included_in_own_hash",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "master_is_outside_cache_dir_so_not_included_in_own_hash",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "master_is_outside_cache_dir_so_not_included_in_own_hash",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "regression_verify_false_correctly_detects_drift",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "regression_verify_false_correctly_detects_drift",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "regression_verify_false_correctly_detects_drift",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "update",
+    "call_text": "update_dirs",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "verify",
+    "call_text": "verify_dirs",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "update_dirs",
+    "call_text": "compute",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "compute_returns_empty_string_for_missing_dir",
+    "call_text": "compute",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "compute_returns_empty_string_for_empty_dir",
+    "call_text": "tmpdir",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/cache/mod.rs",
+    "function": "verify_true_when_no_master_file",
+    "call_text": "tmpdir",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/clean.rs",
+    "function": "prune_artifacts",
+    "call_text": "std::fs::remove_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/clean.rs",
+    "function": "prune_artifacts",
+    "call_text": "std::fs::remove_file",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/clean.rs",
+    "function": "run",
+    "call_text": "prune_artifacts",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/config.rs",
+    "function": "load",
+    "call_text": "std::env::current_dir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/config.rs",
+    "function": "parse_config",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/config.rs",
+    "function": "write_temp_config",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/config.rs",
+    "function": "find_config_file_finds_file_two_levels_up",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/config.rs",
+    "function": "load_returns_workspace_from_config_file",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/config.rs",
+    "function": "load_returns_workspace_from_config_file",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/config.rs",
+    "function": "load",
+    "call_text": "parse_config",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/config.rs",
+    "function": "find_config_file_finds_file_in_start_dir",
+    "call_text": "write_temp_config",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/config.rs",
+    "function": "find_config_file_finds_file_in_parent",
+    "call_text": "write_temp_config",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/config.rs",
+    "function": "parse_config_empty_file_returns_defaults",
+    "call_text": "write_temp_config",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/config.rs",
+    "function": "parse_config_workspace_crates",
+    "call_text": "write_temp_config",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/config.rs",
+    "function": "parse_config_propagation",
+    "call_text": "write_temp_config",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/config.rs",
+    "function": "parse_config_protocol_surfaces",
+    "call_text": "write_temp_config",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/config.rs",
+    "function": "parse_config_protocol_default_lockfile",
+    "call_text": "write_temp_config",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/config.rs",
+    "function": "parse_config_ci_steps",
+    "call_text": "write_temp_config",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/config.rs",
+    "function": "parse_config_rejects_invalid_toml",
+    "call_text": "write_temp_config",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/discovery.rs",
+    "function": "walk_for_surfaces",
+    "call_text": "std::fs::read_dir",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/discovery.rs",
+    "function": "scan_surfaces_finds_types_rs",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/discovery.rs",
+    "function": "scan_surfaces_finds_types_rs",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/discovery.rs",
+    "function": "scan_surfaces_skips_target_dir",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/discovery.rs",
+    "function": "scan_surfaces_skips_target_dir",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/discovery.rs",
+    "function": "scan_surfaces_finds_graphql_schema",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/discovery.rs",
+    "function": "scan_surfaces_finds_graphql_schema",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/discovery.rs",
+    "function": "scan_surfaces_finds_proto_files",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/discovery.rs",
+    "function": "scan_surfaces_finds_proto_files",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/discovery.rs",
+    "function": "scan_surfaces_skips_hidden_dirs",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/discovery.rs",
+    "function": "scan_surfaces_skips_hidden_dirs",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/discovery.rs",
+    "function": "scan_surfaces",
+    "call_text": "walk_for_surfaces",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/discovery.rs",
+    "function": "scan_surfaces_empty_workspace_returns_empty",
+    "call_text": "scan_surfaces",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/flow_state_store.rs",
+    "function": "load",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/flow_state_store.rs",
+    "function": "save",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/flow_state_store.rs",
+    "function": "save",
+    "call_text": "std::fs::rename",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/flow_state_store.rs",
+    "function": "clear",
+    "call_text": "std::fs::remove_file",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/flow_state_store.rs",
+    "function": "save_then_load_round_trips",
+    "call_text": "save",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/flow_state_store.rs",
+    "function": "clear_removes_state_file",
+    "call_text": "save",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/flow_state_store.rs",
+    "function": "save_overwrites_existing_state",
+    "call_text": "save",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/patch.rs",
+    "function": "cargo_toml_paths",
+    "call_text": "std::fs::read_dir",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/patch.rs",
+    "function": "run",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/patch.rs",
+    "function": "run",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/patch.rs",
+    "function": "run",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/patch.rs",
+    "function": "make_temp_workspace",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/patch.rs",
+    "function": "patch_run_bumps_patch_version",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/patch.rs",
+    "function": "minor_run_bumps_minor_version",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/patch.rs",
+    "function": "major_run_bumps_major_version",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/drift.rs",
+    "function": "calculate_lockfile",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/drift.rs",
+    "function": "read_lockfile",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/drift.rs",
+    "function": "write_lockfile",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/drift.rs",
+    "function": "calculate_lockfile_hashes_all_surfaces",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/drift.rs",
+    "function": "calculate_lockfile_hashes_all_surfaces",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/drift.rs",
+    "function": "calculate_lockfile_hash_changes_when_content_changes",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/drift.rs",
+    "function": "calculate_lockfile_hash_changes_when_content_changes",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/drift.rs",
+    "function": "calculate_lockfile_hash_stable_for_unchanged_content",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/drift.rs",
+    "function": "write_temp_lockfile",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/drift.rs",
+    "function": "run",
+    "call_text": "calculate_lockfile",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/drift.rs",
+    "function": "calculate_lockfile_empty_surfaces_produces_empty_lockfile",
+    "call_text": "calculate_lockfile",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/drift.rs",
+    "function": "read_lockfile_rejects_unsupported_version",
+    "call_text": "write_temp_lockfile",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/drift.rs",
+    "function": "read_lockfile_rejects_unknown_algorithm",
+    "call_text": "write_temp_lockfile",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/drift.rs",
+    "function": "read_lockfile_rejects_malformed_json",
+    "call_text": "write_temp_lockfile",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/drift.rs",
+    "function": "read_lockfile_accepts_valid_lockfile",
+    "call_text": "write_temp_lockfile",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/sites.rs",
+    "function": "run",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/sites.rs",
+    "function": "tmp_file",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/sites.rs",
+    "function": "run_passes_when_count_matches",
+    "call_text": "tmp_file",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/sites.rs",
+    "function": "run_fails_when_count_too_low",
+    "call_text": "tmp_file",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/sites.rs",
+    "function": "run_fails_when_count_too_high",
+    "call_text": "tmp_file",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/sites.rs",
+    "function": "run_warn_only_returns_ok_on_mismatch",
+    "call_text": "tmp_file",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/protocol/sites.rs",
+    "function": "run_zero_expected_passes_on_empty_file",
+    "call_text": "tmp_file",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "load_pre_push_cache",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "save_pre_push_cache",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "save_pre_push_cache",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "load_pre_commit_cache",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "save_pre_commit_cache",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "save_pre_commit_cache",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "install_hooks",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "install_hooks",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "install_hooks",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "tmpdir",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "pre_commit_cache_write_produces_valid_master_hash",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "pre_commit_cache_write_produces_valid_master_hash",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "pre_commit_cache_tamper_detected_by_master",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "pre_commit_cache_tamper_detected_by_master",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "pre_commit_cache_tamper_detected_by_master",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "pre_push_cache_write_produces_valid_master_hash",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "pre_push_cache_write_produces_valid_master_hash",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "pre_push_cache_tamper_detected_by_master",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "pre_push_cache_tamper_detected_by_master",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "pre_push_cache_tamper_detected_by_master",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "both_hook_caches_together_produce_valid_master",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "both_hook_caches_together_produce_valid_master",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "both_hook_caches_together_produce_valid_master",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "pre_commit",
+    "call_text": "load_pre_commit_cache",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/hooks.rs",
+    "function": "pre_push",
+    "call_text": "load_pre_push_cache",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "collect_crate_roots",
+    "call_text": "std::fs::read_dir",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "collect_rs_files",
+    "call_text": "std::fs::read_dir",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "file_hash",
+    "call_text": "std::fs::read",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "package_name",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "load_cache",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "write_cache",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "write_cache",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "new",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "write",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "write",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "drop",
+    "call_text": "std::fs::remove_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "file_hash_changes_when_content_changes",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "crate_entry_hash_changes_on_module_change",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "snapshot_hash_changes_when_source_changes",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "write_compile_cache_json",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "write_compile_cache_json",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "compile_cache_master_hash_stable_across_two_writes",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "compile_cache_master_hash_stable_across_two_writes",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "run",
+    "call_text": "snapshot",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "snapshot",
+    "call_text": "file_hash",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "crate_entry",
+    "call_text": "file_hash",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "collect_crate_roots_finds_direct_child_crate",
+    "call_text": "collect_crate_roots",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "collect_crate_roots_skips_workspace_root_manifest",
+    "call_text": "collect_crate_roots",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "collect_crate_roots_skips_target_directory",
+    "call_text": "collect_crate_roots",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "collect_crate_roots_stops_at_nested_crate_root",
+    "call_text": "collect_crate_roots",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "collect_rs_files_finds_rs_files_recursively",
+    "call_text": "collect_rs_files",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "collect_rs_files_skips_non_rs_files",
+    "call_text": "collect_rs_files",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "collect_rs_files_skips_ignored_directories",
+    "call_text": "collect_rs_files",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "collect_rs_files_stops_at_nested_crate_boundary",
+    "call_text": "collect_rs_files",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "crate_entry_hash_stable_for_unchanged_files",
+    "call_text": "crate_entry",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "crate_entry_hash_changes_on_cargo_toml_change",
+    "call_text": "crate_entry",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "crate_entry_modules_map_includes_rs_files_and_manifest",
+    "call_text": "crate_entry",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "snapshot_detects_all_crates",
+    "call_text": "snapshot",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "snapshot_cargo_lock_hash_present_when_file_exists",
+    "call_text": "snapshot",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "snapshot_cargo_lock_hash_empty_when_file_missing",
+    "call_text": "snapshot",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "regression_taskit_cache_dir_excluded_from_crate_roots",
+    "call_text": "collect_crate_roots",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "snapshot_ignores_workspace_excluded_package",
+    "call_text": "snapshot",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "compile_cache_write_produces_valid_master_hash",
+    "call_text": "write_compile_cache_json",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/compile.rs",
+    "function": "compile_cache_tamper_detected_by_master",
+    "call_text": "write_compile_cache_json",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "load_cache",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "save_cache",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "save_cache",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "collect_rs_files",
+    "call_text": "std::fs::read_dir",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "file_hash",
+    "call_text": "std::fs::read",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "tmpdir",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "file_hash_returns_some_for_existing_file",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "file_hash_is_deterministic",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "file_hash_differs_for_different_content",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "file_hash_differs_for_different_content",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "file_hash_same_content_same_hash",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "file_hash_same_content_same_hash",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "collect_rs_files_finds_rs_files",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "collect_rs_files_finds_rs_files",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "collect_rs_files_finds_rs_files",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "collect_rs_files_recurses_into_subdirs",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "collect_rs_files_recurses_into_subdirs",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "collect_rs_files_skips_non_rs_files",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "collect_rs_files_skips_non_rs_files",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "collect_rs_files_hash_changes_when_file_changes",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "collect_rs_files_hash_changes_when_file_changes",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "write_self_test_cache_json",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "write_self_test_cache_json",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "self_test_cache_master_hash_stable_across_two_writes",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "self_test_cache_master_hash_stable_across_two_writes",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "run",
+    "call_text": "compute_source_hash",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "compute_source_hash",
+    "call_text": "collect_rs_files",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "self_test_cache_write_produces_valid_master_hash",
+    "call_text": "tmpdir",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/testing/self_test.rs",
+    "function": "self_test_cache_tamper_detected_by_master",
+    "call_text": "tmpdir",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/ctx.rs",
+    "function": "command_output",
+    "call_text": "std::process::Command::new",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/ctx.rs",
+    "function": "command_output",
+    "call_text": "output",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/ctx.rs",
+    "function": "pipeline_run_context",
+    "call_text": "command_output",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/pipeline_runner.rs",
+    "function": "run_pipeline",
+    "call_text": "std::process::Command::new",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-engine",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-engine/src/pipeline_runner.rs",
+    "function": "run_pipeline",
+    "call_text": "output",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-output",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-output/src/formatter.rs",
+    "function": "write_output",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-output",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-output/src/formatter.rs",
+    "function": "write_output",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-output",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-output/src/formatter.rs",
+    "function": "write_output",
+    "call_text": "std::env::var",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/lib.rs",
+    "function": "emit_file",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/lib.rs",
+    "function": "emit_file",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/lib.rs",
+    "function": "write_cargo_alias",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/lib.rs",
+    "function": "detect_project_name",
+    "call_text": "std::env::current_dir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/lib.rs",
+    "function": "init_refuses_overwrite_without_force",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/lib.rs",
+    "function": "write_cargo_alias_creates_config",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/lib.rs",
+    "function": "write_cargo_alias_creates_config",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/lib.rs",
+    "function": "write_cargo_alias_creates_config",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/lib.rs",
+    "function": "write_cargo_alias_appends_to_existing",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/lib.rs",
+    "function": "write_cargo_alias_appends_to_existing",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/lib.rs",
+    "function": "write_cargo_alias_appends_to_existing",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/lib.rs",
+    "function": "write_cargo_alias_appends_to_existing",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/lib.rs",
+    "function": "run",
+    "call_text": "detect_project_name",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/lib.rs",
+    "function": "run",
+    "call_text": "emit_file",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/lib.rs",
+    "function": "detect_project_name_returns_something",
+    "call_text": "detect_project_name",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "detect_surfaces",
+    "call_text": "std::env::current_dir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "detect_surfaces",
+    "call_text": "std::fs::read_dir",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "detect_surfaces",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "detect_github_repo",
+    "call_text": "std::process::Command::new",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "detect_github_repo",
+    "call_text": "output",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_from_discovery",
+    "call_text": "detect_surfaces",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_from_discovery",
+    "call_text": "detect_surfaces",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_from_discovery",
+    "call_text": "detect_github_repo",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_interactive",
+    "call_text": "plan_from_discovery",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_interactive",
+    "call_text": "plan_from_discovery",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_interactive",
+    "call_text": "plan_from_discovery",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_from_discovery_returns_crates",
+    "call_text": "plan_from_discovery",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_from_discovery_returns_crates",
+    "call_text": "plan_from_discovery",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_from_discovery_returns_crates",
+    "call_text": "plan_from_discovery",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_from_discovery_has_default_steps",
+    "call_text": "plan_from_discovery",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_from_discovery_has_default_steps",
+    "call_text": "plan_from_discovery",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_from_discovery_has_default_steps",
+    "call_text": "plan_from_discovery",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_from_discovery_infers_propagation",
+    "call_text": "plan_from_discovery",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_from_discovery_infers_propagation",
+    "call_text": "plan_from_discovery",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_from_discovery_infers_propagation",
+    "call_text": "plan_from_discovery",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_from_discovery_detects_surfaces",
+    "call_text": "plan_from_discovery",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_from_discovery_detects_surfaces",
+    "call_text": "plan_from_discovery",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_from_discovery_detects_surfaces",
+    "call_text": "plan_from_discovery",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_from_discovery_has_flow",
+    "call_text": "plan_from_discovery",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_from_discovery_has_flow",
+    "call_text": "plan_from_discovery",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_from_discovery_has_flow",
+    "call_text": "plan_from_discovery",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_from_discovery_has_release",
+    "call_text": "plan_from_discovery",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_from_discovery_has_release",
+    "call_text": "plan_from_discovery",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/plan.rs",
+    "function": "plan_from_discovery_has_release",
+    "call_text": "plan_from_discovery",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "write_ctx_scaffold",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "write_git_hooks",
+    "call_text": "std::process::Command::new",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "write_git_hooks",
+    "call_text": "status",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "write_mdbook",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "write_mdbook",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "write_mdbook",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "write_xtask",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "write_xtask",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "write_xtask",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "make_executable",
+    "call_text": "std::fs::metadata",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "in_tempdir",
+    "call_text": "std::env::current_dir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "in_tempdir",
+    "call_text": "std::env::set_current_dir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "in_tempdir",
+    "call_text": "std::env::set_current_dir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "ctx_scaffold_skips_existing",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "deny_toml_content",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "github_ci_content",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "mdbook_scaffold_creates_files",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "mdbook_scaffold_creates_files",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "xtask_fresh_creates_crate",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "xtask_injects_into_existing_main",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "xtask_injects_into_existing_main",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "xtask_injects_into_existing_main",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "xtask_inject_is_idempotent",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "xtask_inject_is_idempotent",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "xtask_inject_is_idempotent",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "xtask_inject_dry_run_no_change",
+    "call_text": "std::fs::create_dir_all",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "xtask_inject_dry_run_no_change",
+    "call_text": "std::fs::write",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "xtask_inject_dry_run_no_change",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "git_hooks_content",
+    "call_text": "std::process::Command::new",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "git_hooks_content",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "git_hooks_content",
+    "call_text": "std::fs::read_to_string",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "git_hooks_content",
+    "call_text": "output",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "write_git_hooks",
+    "call_text": "make_executable",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "ctx_scaffold_creates_dirs",
+    "call_text": "in_tempdir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "ctx_scaffold_creates_dirs",
+    "call_text": "write_ctx_scaffold",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "ctx_scaffold_skips_existing",
+    "call_text": "in_tempdir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "ctx_scaffold_dry_run_no_files",
+    "call_text": "write_ctx_scaffold",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "ctx_scaffold_dry_run_no_files",
+    "call_text": "in_tempdir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "deny_toml_content",
+    "call_text": "in_tempdir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "deny_toml_dry_run_no_file",
+    "call_text": "in_tempdir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "github_ci_content",
+    "call_text": "in_tempdir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "mdbook_scaffold_creates_files",
+    "call_text": "in_tempdir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "xtask_fresh_creates_crate",
+    "call_text": "in_tempdir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "xtask_fresh_dry_run_no_files",
+    "call_text": "in_tempdir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "xtask_fresh_dry_run_no_files",
+    "call_text": "write_xtask",
+    "category": "FS"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "xtask_injects_into_existing_main",
+    "call_text": "in_tempdir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "xtask_inject_is_idempotent",
+    "call_text": "in_tempdir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "xtask_inject_dry_run_no_change",
+    "call_text": "in_tempdir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit-init",
+    "crate_version": "0.7.0",
+    "file": "crates/taskit-init/src/scaffold.rs",
+    "function": "git_hooks_content",
+    "call_text": "in_tempdir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "xtask",
+    "crate_version": "0.1.0",
+    "file": "xtask/src/main.rs",
+    "function": "taskit",
+    "call_text": "std::process::Command::new",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "xtask",
+    "crate_version": "0.1.0",
+    "file": "xtask/src/main.rs",
+    "function": "taskit",
+    "call_text": "std::process::Command::new",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "xtask",
+    "crate_version": "0.1.0",
+    "file": "xtask/src/main.rs",
+    "function": "taskit",
+    "call_text": "status",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "xtask",
+    "crate_version": "0.1.0",
+    "file": "xtask/src/main.rs",
+    "function": "taskit",
+    "call_text": "status",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "xtask",
+    "crate_version": "0.1.0",
+    "file": "xtask/src/main.rs",
+    "function": "main",
+    "call_text": "task_fmt",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "xtask",
+    "crate_version": "0.1.0",
+    "file": "xtask/src/main.rs",
+    "function": "task_fmt",
+    "call_text": "taskit",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "xtask",
+    "crate_version": "0.1.0",
+    "file": "xtask/src/main.rs",
+    "function": "task_fmt_check",
+    "call_text": "taskit",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "xtask",
+    "crate_version": "0.1.0",
+    "file": "xtask/src/main.rs",
+    "function": "task_lint",
+    "call_text": "taskit",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "xtask",
+    "crate_version": "0.1.0",
+    "file": "xtask/src/main.rs",
+    "function": "task_test",
+    "call_text": "taskit",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "xtask",
+    "crate_version": "0.1.0",
+    "file": "xtask/src/main.rs",
+    "function": "task_ci",
+    "call_text": "taskit",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "xtask",
+    "crate_version": "0.1.0",
+    "file": "xtask/src/main.rs",
+    "function": "task_pre_commit",
+    "call_text": "taskit",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "xtask",
+    "crate_version": "0.1.0",
+    "file": "xtask/src/main.rs",
+    "function": "task_pre_push",
+    "call_text": "taskit",
+    "category": "PROC"
+  },
+  {
+    "crate_name": "taskit",
+    "crate_version": "0.7.0",
+    "file": "src/main.rs",
+    "function": "main",
+    "call_text": "std::env::set_current_dir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit",
+    "crate_version": "0.7.0",
+    "file": "src/baml_client/runtime.rs",
+    "function": "to_baml_args",
+    "call_text": "std::env::vars",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit",
+    "crate_version": "0.7.0",
+    "file": "src/baml_client/runtime.rs",
+    "function": "get_runtime",
+    "call_text": "std::env::current_dir",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit",
+    "crate_version": "0.7.0",
+    "file": "src/baml_client/runtime.rs",
+    "function": "get_runtime",
+    "call_text": "std::env::vars",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit",
+    "crate_version": "0.7.0",
+    "file": "src/baml_client/runtime.rs",
+    "function": "new_image_from_url",
+    "call_text": "get_runtime",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit",
+    "crate_version": "0.7.0",
+    "file": "src/baml_client/runtime.rs",
+    "function": "new_image_from_base64",
+    "call_text": "get_runtime",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit",
+    "crate_version": "0.7.0",
+    "file": "src/baml_client/runtime.rs",
+    "function": "new_audio_from_url",
+    "call_text": "get_runtime",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit",
+    "crate_version": "0.7.0",
+    "file": "src/baml_client/runtime.rs",
+    "function": "new_audio_from_base64",
+    "call_text": "get_runtime",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit",
+    "crate_version": "0.7.0",
+    "file": "src/baml_client/runtime.rs",
+    "function": "new_pdf_from_url",
+    "call_text": "get_runtime",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit",
+    "crate_version": "0.7.0",
+    "file": "src/baml_client/runtime.rs",
+    "function": "new_pdf_from_base64",
+    "call_text": "get_runtime",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit",
+    "crate_version": "0.7.0",
+    "file": "src/baml_client/runtime.rs",
+    "function": "new_video_from_url",
+    "call_text": "get_runtime",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit",
+    "crate_version": "0.7.0",
+    "file": "src/baml_client/runtime.rs",
+    "function": "new_video_from_base64",
+    "call_text": "get_runtime",
+    "category": "ENV"
+  },
+  {
+    "crate_name": "taskit",
+    "crate_version": "0.7.0",
+    "file": "src/baml_client/runtime.rs",
+    "function": "new_collector",
+    "call_text": "get_runtime",
+    "category": "ENV"
+  }
+]

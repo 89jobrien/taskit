@@ -7,8 +7,11 @@ use crate::ctx::Ctx;
 /// A version bump kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BumpKind {
+    /// Increment patch version (`x.y.z -> x.y.(z+1)`).
     Patch,
+    /// Increment minor version and reset patch.
     Minor,
+    /// Increment major version and reset minor/patch.
     Major,
 }
 
@@ -69,6 +72,7 @@ pub(crate) fn replace_version(content: &str, old: &str, new: &str) -> String {
     )
 }
 
+/// Run workspace version bump for the selected kind.
 pub fn run(ctx: &Ctx, kind: BumpKind) -> Result<(), TaskitError> {
     let root = &ctx.root;
 

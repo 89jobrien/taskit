@@ -1,0 +1,85 @@
+# rustqual.toml — workspace quality policy
+#
+# Keep generated artifacts and integration roots from dominating the quality
+# signal, while preserving detection for real production and test code.
+
+ignore_functions = [
+    "main",
+    "test_*",
+]
+exclude_files = [
+    # Generated BAML client code is regenerated from baml_src and should not be
+    # refactored by hand to satisfy rustqual.
+    "src/baml_client/**",
+]
+strict_closures = false
+strict_iterator_chains = false
+allow_recursion = false
+strict_error_propagation = false
+max_suppression_ratio = 0.05
+fail_on_warnings = false
+
+[complexity]
+enabled = true
+max_cognitive = 18
+max_cyclomatic = 11
+max_nesting_depth = 5
+max_function_lines = 68
+include_nesting_penalty = true
+detect_magic_numbers = true
+detect_unsafe = true
+detect_error_handling = true
+allowed_magic_numbers = ["0", "1", "-1", "2"]
+
+[duplicates]
+enabled = true
+similarity_threshold = 0.85
+min_tokens = 30
+min_lines = 5
+min_statements = 3
+ignore_tests = true
+ignore_trait_impls = true
+# rustqual cannot trace proc-macro entry points, integration-test helpers, or
+# public APIs consumed across workspace/published crate boundaries. Keep the
+# rest of DRY detection enabled and rely on Rust/clippy for private dead code.
+detect_dead_code = false
+detect_wildcard_imports = true
+detect_repeated_matches = true
+
+[boilerplate]
+enabled = true
+suggest_crates = true
+
+[srp]
+enabled = true
+smell_threshold = 0.6
+max_fields = 12
+max_methods = 20
+max_fan_out = 10
+lcom4_threshold = 2
+weights = [0.4, 0.25, 0.15, 0.2]
+file_length_baseline = 300
+file_length_ceiling = 800
+max_independent_clusters = 2
+min_cluster_statements = 5
+max_parameters = 5
+
+[coupling]
+enabled = true
+max_instability = 0.8
+max_fan_in = 15
+max_fan_out = 12
+check_sdp = true
+
+[test_quality]
+enabled = true
+# coverage_file = "lcov.info"
+
+[weights]
+iosp         = 0.22
+complexity   = 0.18
+dry          = 0.13
+srp          = 0.18
+coupling     = 0.09
+test_quality = 0.10
+architecture = 0.10

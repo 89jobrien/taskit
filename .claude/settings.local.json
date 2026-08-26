@@ -1,5 +1,6 @@
 {
   "enabledPlugins": {
     "orca-strait@bazaar": false
-  }
+  },
+  "outputStyle": "GmCtx"
 }

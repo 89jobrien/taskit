@@ -1,18 +1,27 @@
 use serde::{Deserialize, Serialize};
 
+/// Current phase of an in-progress `flow auto` execution.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FlowPhase {
+    /// Promote branch changes from staging to release.
     Promoting,
+    /// Run and evaluate CI checks on the promoted state.
     CiGate,
+    /// Finalize merges and cleanup after CI passes.
     Finishing,
 }
 
+/// Persisted state used to resume flow operations safely.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FlowState {
+    /// Active phase.
     pub phase: FlowPhase,
+    /// Staging branch name.
     pub staging: String,
+    /// Release branch name.
     pub release: String,
+    /// Main branch name.
     pub main: String,
     /// SHA of the merge commit on `release` after promote succeeds; None until then.
     pub merge_sha: Option<String>,
@@ -22,6 +31,7 @@ pub struct FlowState {
 }
 
 impl FlowState {
+    /// Create initial flow state at the promote phase.
     pub fn promoting(staging: &str, release: &str, main: &str) -> Self {
         Self {
             phase: FlowPhase::Promoting,
@@ -33,6 +43,7 @@ impl FlowState {
         }
     }
 
+    /// User-facing recovery hint for the current phase.
     pub fn hint(&self) -> &'static str {
         match self.phase {
             FlowPhase::Promoting => "re-run `taskit flow auto` to resume from the promote step",

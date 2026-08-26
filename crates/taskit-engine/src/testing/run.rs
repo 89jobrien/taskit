@@ -4,6 +4,7 @@ use xshell::cmd;
 
 use crate::{ctx::Ctx, util};
 
+/// Run nextest for one crate, affected crates, or the full workspace.
 pub fn run(
     ctx: &Ctx,
     crate_name: Option<&str>,

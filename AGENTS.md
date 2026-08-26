@@ -1,183 +1,178 @@
-# taskit — Agent Operating Guide
+# taskit AGENT Instructions
 
-This guide instructs AI coding agents (Claude, Copilot, or any shell-capable LLM)
-how to work effectively in the taskit codebase.
+This guide is for coding agents working in `/Users/joe/dev/taskit`.
 
-## Identity
+## Project Snapshot
 
-You are working on **taskit**, a standalone, config-driven Rust binary for running
-CI pipelines in any Rust workspace. The codebase uses hexagonal architecture
-(ports/adapters) with Rust edition 2024.
+- Language: Rust (`edition = 2024`)
+- Root binary: `taskit` in `src/main.rs`
+- Architecture: multi-crate hexagonal (ports/adapters)
+- Shared contracts/errors/types: `crates/taskit-types`
+- Core trait ports: `crates/taskit-core`
+- Orchestration/commands: `crates/taskit-engine`
 
-## Primary Toolkit: `cargo` Commands
+## Workspace Layout
 
-All development workflows use `cargo` and the `taskit` binary directly.
+```text
+taskit/
+├── src/                    # CLI entrypoint + adapter wiring
+├── crates/taskit-types/    # config, errors, step/output/flow types
+├── crates/taskit-core/     # pipeline/conflict ports + conformance
+├── crates/taskit-engine/   # CI, flow, protocol, health, test orchestration
+├── crates/taskit-init/     # init discovery + taskit.toml/Cruxfile renderers
+├── crates/taskit-output/   # output formatter + sink abstractions
+├── crates/taskit-tui/      # dashboard app/ui/snapshots
+├── crates/taskit-crux/     # Crux integration/stub
+├── crates/taskit-testing/  # shared test helpers/macros
+├── crates/taskit-macros/   # proc macros
+├── taskit.toml             # runtime configuration
+└── taskit-protocol.lock    # protocol drift lockfile
+```
 
-### Build & Quality
+## Build Commands
 
-| Command                                     | Purpose                                 |
-| ------------------------------------------- | --------------------------------------- |
-| `cargo build`                               | Build all crates                        |
-| `cargo build --release`                     | Build release binaries                  |
-| `cargo check`                               | Type-check without compiling            |
-| `cargo fmt --check`                         | Check formatting (no modify)            |
-| `cargo fmt`                                 | Format all Rust code                    |
-| `cargo clippy --all-targets -- -D warnings` | Lint all crates                         |
-| `cargo nextest run --workspace`             | Run all tests via nextest               |
-| `cargo nextest run -p taskit-engine`        | Test one crate                          |
-| `cargo nextest run -E 'test(pipeline)'`     | Filter tests by name                    |
-| `cargo test --doc`                          | Run doc tests                           |
-| `cargo deny check`                          | Check for license/advisory issues       |
-| `taskit pre-commit`                         | Run pre-commit checks                   |
+```bash
+cargo check --workspace
+cargo build --workspace
+cargo build --release --workspace
+```
 
-### Testing
+Run the CLI:
 
-Tests are colocated in each module under `#[cfg(test)]` blocks. Run full suite:
+```bash
+cargo run -p taskit -- --help
+cargo run -p taskit -- check quick
+```
+
+## Lint + Format Commands
+
+```bash
+cargo fmt --all
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+```
+
+taskit wrappers:
+
+```bash
+taskit check fmt --check
+taskit check lint
+taskit check quick
+taskit check ci --fail-fast
+```
+
+## Test Commands
+
+Preferred full test suite:
 
 ```bash
 cargo nextest run --workspace
 ```
 
-Filter by crate:
+Run one crate:
 
 ```bash
-cargo nextest run -p taskit-core
 cargo nextest run -p taskit-engine
-cargo nextest run -p taskit-init
-cargo nextest run -p taskit-crux
 ```
 
-Filter by test name:
+Run a single test by name (nextest filter):
 
 ```bash
-cargo nextest run -E 'test(config_parsing)'
+cargo nextest run -p taskit-engine -E 'test(merge_with_resolution_resolver_resolves_conflict)'
 ```
 
-## Workspace Layout
+Run one integration test file:
 
-```
-taskit/
-├── Cargo.toml              # Workspace manifest
-├── src/                    # Binary entry point (main.rs)
-├── crates/
-│   ├── taskit-core/        # Shared types: Config, StepResult, PipelineRunner
-│   ├── taskit-engine/      # CI pipeline, step execution, output formatters
-│   ├── taskit-init/        # InitPlan discovery, TOML/Cruxfile rendering
-│   └── taskit-crux/        # EmbeddedCruxRunner stub (feature-gated)
-├── taskit-protocol.lock    # Protocol drift tracking (hashes)
-├── Cargo.lock              # Reproducible builds
-└── README.md
+```bash
+cargo test -p taskit-engine --test flow_integration
 ```
 
-## Code Conventions
+Run one exact test function with output:
 
-### Rust (Edition 2024)
-
-- **Line width**: 100 characters
-- **Linting**: `cargo clippy --all-targets -- -D warnings` (strict)
-- **Error handling**: `anyhow::Result<T>`, propagate with `?`, no `unwrap()` in
-  production
-- **Naming**: PascalCase structs/enums, snake_case functions, SCREAMING_SNAKE_CASE
-  constants
-- **Imports**: Group by external crate, then std
-- **Tests**: Unit tests in `mod tests {}`, integration tests in `tests/`
-- **Test isolation**: Use dependency injection, avoid `set_var` side effects
-
-### Commit Messages
-
-Follow [Conventional Commits](https://www.conventionalcommits.org/):
-
-```
-<type>(<scope>): <description>
+```bash
+cargo test -p taskit-engine --test flow_integration \
+  merge_with_resolution_resolver_resolves_conflict -- --exact --nocapture
 ```
 
-Types: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`
+taskit test wrappers:
 
-## Crate Responsibilities
+```bash
+taskit test run --crate-name taskit-engine
+taskit test coverage --crate-name taskit-engine --threshold 80
+```
 
-| Crate           | Role                                                        |
-| --------------- | ----------------------------------------------------------- |
-| `taskit`        | Binary entry point; CLI parsing (clap) and dispatch         |
-| `taskit-core`   | Shared types: Config, StepResult, PipelineRunner trait      |
-| `taskit-engine` | CI pipeline, config loading, output formatters, execution   |
-| `taskit-init`   | InitPlan discovery, TOML/Cruxfile rendering, interactive UI |
-| `taskit-crux`   | EmbeddedCruxRunner stub (feature-gated, optional)           |
+## Recommended Validation Loop
 
-## Workflow: Implement a Feature
+```bash
+cargo fmt --all
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo nextest run --workspace
+```
 
-1. **Understand the architecture**: Read the relevant crate's module docs and
-   existing code. taskit uses hexagonal patterns — ports in traits, adapters in
-   implementations.
+## Code Style Guidelines
 
-2. **Write tests first**: Add unit tests in `#[cfg(test)]` blocks, integration
-   tests in `tests/` if needed.
+### Formatting
 
-3. **Implement the feature**: Follow naming conventions, keep lines under 100
-   chars, use `anyhow::Result<T>`.
+- Always apply rustfmt output; do not hand-align.
+- Keep functions focused; extract helpers for long logic.
+- Keep comments sparse; only document non-obvious invariants.
 
-4. **Validate locally**:
+### Imports
 
-   ```bash
-   cargo fmt
-   cargo clippy --all-targets -- -D warnings
-   cargo nextest run --workspace
-   ```
+- Let rustfmt manage order/grouping.
+- Prefer explicit imports over glob imports.
+- Use `as` aliases only for collisions or readability.
 
-5. **Commit** with a conventional message.
+### Naming
 
-## Workflow: Debug a Test Failure
+- Types/enums/traits: `PascalCase`
+- Functions/modules/fields: `snake_case`
+- Constants/statics: `SCREAMING_SNAKE_CASE`
+- Tests: behavior-oriented names with clear expected outcomes.
 
-1. **Identify the failing test**:
+### Types and Boundaries
 
-   ```bash
-   cargo nextest run --workspace
-   ```
+- Use shared domain/config types from `taskit-types` across crate boundaries.
+- Keep trait ports in `taskit-core`; implementations in engine/adapters.
+- Prefer `&str`/`&Path` at boundaries unless ownership is required.
+- Avoid ad-hoc tuples/strings when a domain type exists.
 
-2. **Run just that test with output**:
+### Error Handling
 
-   ```bash
-   cargo nextest run -E 'test(my_test_name)' --nocapture
-   ```
+- Return `Result<T, TaskitError>` at fallible boundaries.
+- Prefer specific variants (`ConfigError`, `FlowError`, `ProtocolError`, etc.).
+- Use `?` and `TaskitResultExt` for context mapping.
+- Avoid `unwrap`/`expect` in production code.
+- `unwrap`/`expect` is acceptable in tests when invariants are explicit.
 
-3. **Use `dbg!` macro or print debug info** in the test
+### Testing Practices
 
-4. **Run doc tests** if your change touches documentation:
+- Keep unit tests near implementation (`#[cfg(test)]`).
+- Use integration tests in `crates/*/tests/` for crate-level behavior.
+- Cover flow transitions, gate behavior, and typed error paths.
 
-   ```bash
-   cargo test --doc
-   ```
+## Architecture Guardrails
 
-## Key Dependencies
+- Keep `src/main.rs` focused on CLI parsing and dispatch.
+- Put orchestration in `taskit-engine`, not in CLI glue.
+- Intentional protocol-surface changes require lockfile updates:
 
-- **CLI**: `clap` (derive), **Serialization**: `serde` + `toml`
-- **Error handling**: `anyhow`
-- **Testing**: `cargo-nextest`
+```bash
+taskit protocol drift --update
+```
 
-## Environment Variables
+## Cursor / Copilot Rules
 
-| Variable         | Purpose                                |
-| ---------------- | -------------------------------------- |
-| `RUST_BACKTRACE` | Backtrace on panic (`1` or `full`)     |
-| `RUST_LOG`       | Logging filter (if using `env_logger`) |
+Repository scan found no editor-agent rule files:
 
-## Safety & Guardrails
+- `.cursor/rules/` not present
+- `.cursorrules` not present
+- `.github/copilot-instructions.md` not present
 
-- **No `unwrap()` in production code** — use `?` operator or `anyhow::Context`
-- **No hardcoded paths** — inject as function args or struct fields
-- **No `unsafe` without clear justification** — document the safety invariant
-- **Git**: Never force-push unless explicitly instructed
+If those files are added later, treat them as higher-priority constraints and mirror them here.
 
-## When to Ask
+## Pointers
 
-- If adding a new crate to the workspace
-- If changing the public API of a crate
-- If introducing a major architectural change
-- If unsure which crate owns a responsibility
-
-Before acting, state:
-
-1. Which crate will be modified
-2. The specific files you plan to touch
-3. Whether you'll use TDD or direct edit
-
-Wait for confirmation if ambiguous.
+- Flow behavior: `crates/taskit-engine/src/flow.rs`
+- CLI behavior: `src/main.rs`
+- Command dispatch: `crates/taskit-engine/src/command.rs`

@@ -1,32 +1,40 @@
 use miette::{Diagnostic, NamedSource, SourceSpan};
 use thiserror::Error;
 
+/// Top-level error type used across taskit commands and crates.
 #[derive(Debug, Error, Diagnostic)]
 pub enum TaskitError {
+    /// Configuration parsing or validation error.
     #[error(transparent)]
     #[diagnostic(transparent)]
     Config(#[from] ConfigError),
 
+    /// Pipeline execution error.
     #[error(transparent)]
     #[diagnostic(transparent)]
     Pipeline(#[from] PipelineError),
 
+    /// Protocol drift or lockfile error.
     #[error(transparent)]
     #[diagnostic(transparent)]
     Protocol(#[from] ProtocolError),
 
+    /// Workspace initialization error.
     #[error(transparent)]
     #[diagnostic(transparent)]
     Init(#[from] InitError),
 
+    /// Branch flow automation error.
     #[error(transparent)]
     #[diagnostic(transparent)]
     Flow(#[from] FlowError),
 
+    /// Underlying I/O error.
     #[error("io error: {0}")]
     #[diagnostic(code(taskit::io))]
     Io(#[from] std::io::Error),
 
+    /// Internal or contextualized error from dynamic sources.
     #[error("{0}")]
     #[diagnostic(code(taskit::internal))]
     Other(Box<dyn std::error::Error + Send + Sync>),
@@ -39,6 +47,7 @@ impl TaskitError {
     }
 }
 
+/// Errors related to reading and validating taskit configuration.
 #[derive(Debug, Error, Diagnostic)]
 pub enum ConfigError {
     #[error("config file not found: {path}")]
@@ -46,24 +55,39 @@ pub enum ConfigError {
         code(taskit::config::not_found),
         help("run `taskit init` to generate taskit.toml")
     )]
-    NotFound { path: String },
+    /// Config file could not be found.
+    NotFound {
+        /// Config path that could not be found.
+        path: String,
+    },
 
     #[error("failed to parse config")]
     #[diagnostic(code(taskit::config::parse))]
+    /// Config file exists but failed to parse.
     Parse {
         #[source_code]
+        /// Source content used by diagnostics.
         src: NamedSource<String>,
         #[label("parse error here")]
+        /// Span of the parse failure.
         span: SourceSpan,
         #[source]
+        /// Parsing error returned by TOML/serde.
         reason: Box<dyn std::error::Error + Send + Sync>,
     },
 
     #[error("invalid config: {message}")]
     #[diagnostic(code(taskit::config::invalid), help("{hint}"))]
-    Invalid { message: String, hint: String },
+    /// Parsed config failed semantic validation.
+    Invalid {
+        /// Validation error message.
+        message: String,
+        /// Suggested remediation hint.
+        hint: String,
+    },
 }
 
+/// Errors produced while running a command pipeline.
 #[derive(Debug, Error, Diagnostic)]
 pub enum PipelineError {
     #[error("pipeline failed: {failed_count} step(s) failed")]
@@ -71,13 +95,18 @@ pub enum PipelineError {
         code(taskit::pipeline::failed),
         help("fix the failing steps above, then re-run")
     )]
+    /// One or more steps failed.
     Failed {
+        /// Number of failed steps.
         failed_count: usize,
         #[source_code]
+        /// Rendered pipeline summary source.
         src: NamedSource<String>,
         #[label("pipeline result")]
+        /// Span covering the failed pipeline summary.
         span: SourceSpan,
         #[related]
+        /// Per-step nested errors.
         step_errors: Vec<StepError>,
     },
 
@@ -86,13 +115,17 @@ pub enum PipelineError {
         code(taskit::pipeline::gate_failed),
         help("gates are mandatory — fix before continuing")
     )]
+    /// A gate step failed, so execution stopped.
     GateFailed {
+        /// Name of the failing gate step.
         name: String,
         #[source]
+        /// Optional underlying cause from the step.
         reason: Option<Box<dyn std::error::Error + Send + Sync>>,
     },
 }
 
+/// Errors related to protocol drift lockfile enforcement.
 #[derive(Debug, Error, Diagnostic)]
 pub enum ProtocolError {
     #[error("protocol drift detected in surface '{name}'")]
@@ -100,9 +133,13 @@ pub enum ProtocolError {
         code(taskit::protocol::drift),
         help("run `taskit check-protocol-drift --update` to accept")
     )]
+    /// A tracked surface hash differs from lockfile expectation.
     Drift {
+        /// Surface name.
         name: String,
+        /// Hash value from lockfile.
         expected: String,
+        /// Newly computed hash value.
         actual: String,
     },
 
@@ -111,31 +148,49 @@ pub enum ProtocolError {
         code(taskit::protocol::lockfile_missing),
         help("run `taskit check-protocol-drift --update` to generate")
     )]
-    LockfileMissing { path: String },
+    /// Lockfile path does not exist.
+    LockfileMissing {
+        /// Missing lockfile path.
+        path: String,
+    },
 
     #[error("lockfile is stale")]
     #[diagnostic(
         code(taskit::protocol::stale),
         help("re-run `taskit check-protocol-drift --update`")
     )]
+    /// Lockfile schema/content is stale or malformed.
     Stale,
 }
 
+/// Errors raised by `taskit init` workflows.
 #[derive(Debug, Error, Diagnostic)]
 pub enum InitError {
     #[error("taskit.toml already exists")]
     #[diagnostic(code(taskit::init::exists), help("use --force to overwrite"))]
+    /// Target files already exist and overwrite was not requested.
     AlreadyExists,
 
     #[error("cargo metadata failed: {reason}")]
     #[diagnostic(code(taskit::init::metadata))]
-    CargoMetadata { reason: String },
+    /// Cargo metadata discovery failed.
+    CargoMetadata {
+        /// Human-readable error from metadata collection.
+        reason: String,
+    },
 
     #[error("failed to write {file}: {reason}")]
     #[diagnostic(code(taskit::init::write))]
-    WriteFile { file: String, reason: String },
+    /// A generated file could not be written.
+    WriteFile {
+        /// Path of the file that failed to write.
+        file: String,
+        /// Human-readable write failure reason.
+        reason: String,
+    },
 }
 
+/// Errors raised by the branch promotion flow.
 #[derive(Debug, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum FlowError {
@@ -144,17 +199,28 @@ pub enum FlowError {
         code(taskit::flow::wrong_branch),
         help("switch to '{expected}' before running this command")
     )]
-    WrongBranch { expected: String, actual: String },
+    /// Command ran on the wrong branch for the requested operation.
+    WrongBranch {
+        /// Branch required for this operation.
+        expected: String,
+        /// Current checked-out branch.
+        actual: String,
+    },
 
     #[error("branch '{branch}' is not a flow branch")]
     #[diagnostic(
         code(taskit::flow::not_a_flow_branch),
         help("flow promote must be run on {develop}, {staging}, or {release}")
     )]
+    /// Current branch is outside the configured flow branch set.
     NotAFlowBranch {
+        /// Current branch name.
         branch: String,
+        /// Configured development branch.
         develop: String,
+        /// Configured staging branch.
         staging: String,
+        /// Configured release branch.
         release: String,
     },
 
@@ -163,47 +229,93 @@ pub enum FlowError {
         code(taskit::flow::protected),
         help("commit to '{staging}' and use `taskit flow promote`")
     )]
-    ProtectedBranch { branch: String, staging: String },
+    /// Direct commits are blocked on protected branches.
+    ProtectedBranch {
+        /// Protected branch name.
+        branch: String,
+        /// Suggested staging branch for commits.
+        staging: String,
+    },
 
     #[error("branch '{branch}' does not exist")]
     #[diagnostic(
         code(taskit::flow::missing_branch),
         help("create it with: git branch {branch}")
     )]
-    MissingBranch { branch: String },
+    /// Required branch is missing from the repository.
+    MissingBranch {
+        /// Missing branch name.
+        branch: String,
+    },
 
     #[error("branch '{branch}' has uncommitted changes")]
     #[diagnostic(
         code(taskit::flow::dirty),
         help("commit or stash changes before flow operations")
     )]
-    DirtyWorktree { branch: String },
+    /// Worktree contains uncommitted changes.
+    DirtyWorktree {
+        /// Branch where uncommitted changes were detected.
+        branch: String,
+    },
 
     #[error("merge failed: {reason}")]
     #[diagnostic(code(taskit::flow::merge_failed))]
-    MergeFailed { reason: String },
+    /// A git merge operation failed.
+    MergeFailed {
+        /// Underlying merge failure reason.
+        reason: String,
+    },
 
     #[error("merge conflict needs human review: {path} — {reason}")]
     #[diagnostic(
         code(taskit::flow::needs_human),
         help("resolve manually, then run `taskit flow finish`")
     )]
-    NeedsHuman { path: String, reason: String },
+    /// Automatic conflict resolution could not complete safely.
+    NeedsHuman {
+        /// File path that requires manual conflict resolution.
+        path: String,
+        /// Reason automatic resolution stopped.
+        reason: String,
+    },
 
     #[error("CI failed on release: {}", failed.join(", "))]
     #[diagnostic(
         code(taskit::flow::ci_failed),
         help("fix the failing steps, then re-run `taskit flow auto`")
     )]
-    CiFailed { failed: Vec<String> },
+    /// CI gate failed during flow promotion.
+    CiFailed {
+        /// Names of CI steps that failed.
+        failed: Vec<String>,
+    },
+
+    #[error("push to '{remote}' failed: {reason}")]
+    #[diagnostic(
+        code(taskit::flow::push_failed),
+        help(
+            "branches are merged locally — fix the remote issue, then push manually or re-run `taskit flow auto`"
+        )
+    )]
+    /// Push to remote failed after local promotion succeeded.
+    PushFailed {
+        /// Remote name that rejected the push.
+        remote: String,
+        /// Underlying push failure reason.
+        reason: String,
+    },
 }
 
+/// Error details for one failing pipeline step.
 #[derive(Debug, Error, Diagnostic)]
 #[error("step \"{name}\" failed")]
 #[diagnostic(severity(error))]
 pub struct StepError {
+    /// Step name.
     pub name: String,
     #[help]
+    /// Optional extra detail message.
     pub detail: Option<String>,
 }
 
@@ -212,7 +324,9 @@ pub struct StepError {
 /// Replaces `.map_err(|e| TaskitError::other(format!("msg: {e}")))`
 /// with `.err_context("msg")?`.
 pub trait TaskitResultExt<T> {
+    /// Convert any error into `TaskitError::Other` with static context text.
     fn err_context(self, msg: &str) -> Result<T, TaskitError>;
+    /// Convert any error into `TaskitError::Other` with lazily-built context.
     fn err_context_with<F: FnOnce() -> String>(self, f: F) -> Result<T, TaskitError>;
 }
 

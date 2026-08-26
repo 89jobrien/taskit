@@ -5,7 +5,12 @@ use taskit_types::step::DiagnosticRecord;
 #[derive(Debug, Clone)]
 pub enum Message {
     /// Step lifecycle event.
-    StepProgress { step: String, event: StepEvent },
+    StepProgress {
+        /// Step name.
+        step: String,
+        /// Lifecycle event payload.
+        event: StepEvent,
+    },
     /// General progress message.
     Progress(String),
     /// Something was skipped.
@@ -23,8 +28,20 @@ pub enum Message {
 /// Lifecycle events for a pipeline step.
 #[derive(Debug, Clone)]
 pub enum StepEvent {
+    /// Step has started.
     Started,
-    Passed { duration: Duration },
-    Failed { duration: Duration, error: String },
+    /// Step passed.
+    Passed {
+        /// Runtime duration.
+        duration: Duration,
+    },
+    /// Step failed.
+    Failed {
+        /// Runtime duration.
+        duration: Duration,
+        /// Human-readable failure message.
+        error: String,
+    },
+    /// Step was skipped.
     Skipped,
 }

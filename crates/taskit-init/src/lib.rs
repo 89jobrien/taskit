@@ -1,6 +1,12 @@
+//! Workspace bootstrap and scaffolding helpers for `taskit init`.
+
+/// Init planning and capability discovery.
 pub mod plan;
+/// Cruxfile rendering utilities.
 pub mod render_cruxfile;
+/// taskit.toml rendering utilities.
 pub mod render_toml;
+/// Scaffolding writers for hooks/CI/docs.
 pub mod scaffold;
 
 use std::path::Path;

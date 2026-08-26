@@ -1,4 +1,4 @@
-//! Builder for [`StepResult`] — eliminates 6-field struct literals in tests.
+//! Builder for [`taskit_types::step::StepResult`] — eliminates 6-field struct literals in tests.
 
 use std::time::Duration;
 
@@ -18,6 +18,7 @@ pub struct StepBuilder {
 }
 
 impl StepBuilder {
+    /// Start a new builder for the given step name.
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
@@ -29,38 +30,46 @@ impl StepBuilder {
         }
     }
 
+    /// Set the explicit status.
     pub fn status(mut self, status: StepStatus) -> Self {
         self.status = status;
         self
     }
 
+    /// Mark the step as failed.
     pub fn fail(self) -> Self {
         self.status(StepStatus::Fail)
     }
 
+    /// Mark the step as skipped.
     pub fn skip(self) -> Self {
         self.status(StepStatus::Skipped)
     }
 
+    /// Set the step duration.
     pub fn duration(mut self, duration: Duration) -> Self {
         self.duration = duration;
         self
     }
 
+    /// Set the step duration from milliseconds.
     pub fn duration_ms(self, ms: u64) -> Self {
         self.duration(Duration::from_millis(ms))
     }
 
+    /// Attach an error message.
     pub fn error(mut self, error: impl Into<String>) -> Self {
         self.error = Some(error.into());
         self
     }
 
+    /// Mark this step as a gating step.
     pub fn gate(mut self) -> Self {
         self.gate = true;
         self
     }
 
+    /// Append a warning-level diagnostic record.
     pub fn diagnostic(mut self, rule_id: impl Into<String>, message: impl Into<String>) -> Self {
         self.diagnostics.push(DiagnosticRecord {
             rule_id: rule_id.into(),
@@ -73,6 +82,7 @@ impl StepBuilder {
         self
     }
 
+    /// Build the final `StepResult`.
     pub fn build(self) -> StepResult {
         StepResult {
             name: self.name,

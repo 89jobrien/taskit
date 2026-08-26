@@ -2,7 +2,11 @@
 # See: embarkstudios.github.io/cargo-deny/
 
 [advisories]
-ignore = []
+ignore = [
+  # paste: unmaintained, no safe upgrade available. Pulled in transitively by
+  # ratatui (taskit-tui's dep). Revisit when ratatui drops it or a fork lands.
+  "RUSTSEC-2024-0436",
+]
 
 [licenses]
 allow = [

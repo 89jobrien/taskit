@@ -1,20 +1,33 @@
+//! Output formatting and sink abstractions for taskit CLI messages.
+
+/// Output formatters for pipeline outcomes.
 pub mod formatter;
 mod macros;
+/// Message/event types emitted by commands.
 pub mod message;
+/// Sink trait abstraction.
 pub mod sink;
+/// Concrete sink implementations.
 pub mod sinks;
+/// Thread-local sink management utilities.
 pub mod thread_sink;
 
-// Re-exports for convenience
+/// Re-exported formatter types and helpers.
 pub use formatter::{
     DiagnosticFormatter, GithubFormatter, HumanFormatter, JsonFormatter, JunitFormatter,
     OutputFormatter, SarifFormatter, formatter_for, write_output,
 };
+/// Re-exported message/event types.
 pub use message::{Message, StepEvent};
+/// Re-exported sink trait.
 pub use sink::MessageSink;
+/// Re-exported buffer sink.
 pub use sinks::buffer::BufferSink;
+/// Re-exported stderr sink.
 pub use sinks::stderr::StderrSink;
+/// Re-exported tee sink.
 pub use sinks::tee::TeeSink;
+/// Re-exported thread-local sink accessors.
 pub use thread_sink::{set_sink, sink};
 
 #[cfg(test)]

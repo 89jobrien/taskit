@@ -1,12 +1,15 @@
 use crate::message::Message;
 use crate::sink::MessageSink;
 
+// TODO(audit): only constructed in this crate's own tests — not adopted in
+// any production output path yet.
 /// Fan-out sink: sends to multiple sinks simultaneously.
 pub struct TeeSink {
     children: Vec<Box<dyn MessageSink>>,
 }
 
 impl TeeSink {
+    /// Create a tee sink from child sinks.
     pub fn new(children: Vec<Box<dyn MessageSink>>) -> Self {
         Self { children }
     }

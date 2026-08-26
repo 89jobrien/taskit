@@ -3,6 +3,7 @@ use xshell::cmd;
 
 use crate::ctx::Ctx;
 
+/// Run Rust formatting checks or writes, optionally scoped to affected crates.
 pub fn run(ctx: &Ctx, check: bool, affected: bool) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     let ws = ctx.ws();
