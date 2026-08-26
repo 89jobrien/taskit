@@ -143,6 +143,7 @@ exec taskit pre-commit
 #!/bin/sh
 # Delegate to taskit pre-push checks.
 # Install: git config core.hooksPath .githooks
+unset $(git rev-parse --local-env-vars)
 exec taskit pre-push
 ",
         dry_run,
@@ -873,6 +874,16 @@ mod tests {
             assert!(pre_commit.contains("taskit pre-commit"));
             let pre_push = std::fs::read_to_string(dir.join(".githooks/pre-push")).unwrap();
             assert!(pre_push.contains("taskit pre-push"));
+            let unset = pre_push
+                .find("unset $(git rev-parse --local-env-vars)")
+                .expect("pre-push hook should clear Git's local environment");
+            let taskit = pre_push
+                .find("exec taskit pre-push")
+                .expect("pre-push hook should delegate to taskit");
+            assert!(
+                unset < taskit,
+                "Git's local environment must be cleared first"
+            );
         });
     }
 }
