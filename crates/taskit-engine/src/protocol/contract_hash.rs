@@ -55,6 +55,7 @@ pub fn normalize(content: &str) -> String {
     normalized.join("\n") + "\n"
 }
 
+/// Compute the SHA-256 digest of normalized contract content as lowercase hex.
 pub fn hash(normalized: &str) -> String {
     let digest = Sha256::digest(normalized.as_bytes());
     hex::encode(digest)

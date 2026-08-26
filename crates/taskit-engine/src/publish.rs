@@ -14,9 +14,14 @@ const PUBLISH_ORDER: &[&str] = &[
     "taskit-engine",
     "taskit-init",
     "taskit-crux",
+    "taskit-tui",
     "taskit",
 ];
 
+/// Run workspace crate publishing in dependency order.
+///
+/// Applies CLI/config overrides for docs and dirty-tree behavior, then emits a
+/// structured pipeline result.
 pub fn run(ctx: &Ctx, skip_docs: bool, allow_dirty: bool) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     let dry_run = ctx.dry_run;
@@ -80,7 +85,7 @@ mod tests {
 
     #[test]
     fn publish_order_has_all_crates() {
-        assert_eq!(PUBLISH_ORDER.len(), 9);
+        assert_eq!(PUBLISH_ORDER.len(), 10);
         for name in [
             "taskit-types",
             "taskit-macros",
@@ -90,6 +95,7 @@ mod tests {
             "taskit-engine",
             "taskit-init",
             "taskit-crux",
+            "taskit-tui",
             "taskit",
         ] {
             assert!(PUBLISH_ORDER.contains(&name), "missing {name}");
@@ -114,6 +120,16 @@ mod tests {
     #[test]
     fn engine_before_root() {
         assert!(pos("taskit-engine") < pos("taskit"));
+    }
+
+    #[test]
+    fn engine_before_tui() {
+        assert!(pos("taskit-engine") < pos("taskit-tui"));
+    }
+
+    #[test]
+    fn tui_before_root() {
+        assert!(pos("taskit-tui") < pos("taskit"));
     }
 
     // --- Finding 6: config fallback logic tests ---

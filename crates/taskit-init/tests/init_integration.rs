@@ -1,3 +1,5 @@
+//! Integration tests for init plan and renderer outputs.
+
 use taskit_init::plan::{self, InitPlan};
 use taskit_init::render_cruxfile::render_cruxfile;
 use taskit_init::render_toml::render_toml;

@@ -1,3 +1,4 @@
+// TODO(audit): 814 lines — split candidate.
 use taskit_core::conflict_resolver::ConflictResolver;
 use taskit_types::config::FlowConfig;
 use taskit_types::conflict::ConflictFile;
@@ -15,18 +16,41 @@ fn current_branch(sh: &Shell) -> Result<String, TaskitError> {
 }
 
 fn branch_exists(sh: &Shell, branch: &str) -> Result<bool, TaskitError> {
+    // `.ignore_status()` is required: xshell's `.output()` treats a nonzero
+    // exit as an `Err` by default, but a nonexistent branch is exactly the
+    // (non-error) `false` case this function needs to report.
     let result = cmd!(sh, "git rev-parse --verify --quiet {branch}")
         .quiet()
+        .ignore_status()
         .output()
         .map_err(TaskitError::other)?;
     Ok(result.status.success())
+}
+
+/// A porcelain status line's path is everything after the 2-character status
+/// code and the space that follows it (e.g. `" M .ctx/HANDOFF.foo.yaml"`).
+/// For renames this is `"old/path -> new/path"`.
+fn porcelain_path(line: &str) -> &str {
+    line.get(3..).unwrap_or("")
+}
+
+/// Whether a porcelain status line only touches paths under `.ctx/` — safe to
+/// ignore in the dirty-worktree check. Renames must have both the old and new
+/// path under `.ctx/`, since a rename that moves a file *out* of `.ctx/`
+/// changes a real tracked path even though its old path matched.
+fn is_ctx_only(line: &str) -> bool {
+    let path = porcelain_path(line);
+    match path.split_once(" -> ") {
+        Some((old, new)) => old.starts_with(".ctx/") && new.starts_with(".ctx/"),
+        None => path.starts_with(".ctx/"),
+    }
 }
 
 fn is_clean(sh: &Shell) -> Result<bool, TaskitError> {
     let output = cmd!(sh, "git status --porcelain")
         .read()
         .map_err(TaskitError::other)?;
-    Ok(output.trim().is_empty())
+    Ok(output.lines().all(is_ctx_only))
 }
 
 fn require_clean(sh: &Shell, branch: &str) -> Result<(), TaskitError> {
@@ -106,16 +130,18 @@ pub(crate) fn read_conflict_file(sh: &Shell, path: &str) -> Result<ConflictFile,
 /// Attempt a `--no-ff` merge; on conflict invoke `resolver`; on escalation return the error.
 /// On successful resolution, stages all resolved files and completes the merge via
 /// `git commit --no-edit`.
+/// Returns the number of conflicted files resolved (0 on the fast,
+/// no-conflict path).
 pub fn merge_with_resolution(
     ctx: &Ctx,
     branch: &str,
     message: &str,
     resolver: &dyn ConflictResolver,
-) -> Result<(), TaskitError> {
+) -> Result<usize, TaskitError> {
     let sh = &ctx.sh;
     if ctx.dry_run {
         taskit_output::taskit_dry!("git merge --no-ff {branch} -m \"{message}\"");
-        return Ok(());
+        return Ok(0);
     }
     let output = cmd!(sh, "git merge --no-ff {branch} -m {message}")
         .quiet()
@@ -123,7 +149,7 @@ pub fn merge_with_resolution(
         .output()
         .map_err(TaskitError::other)?;
     if output.status.success() {
-        return Ok(());
+        return Ok(0);
     }
     let porcelain = cmd!(sh, "git status --porcelain")
         .read()
@@ -141,6 +167,7 @@ pub fn merge_with_resolution(
         .map(|p| read_conflict_file(sh, p))
         .collect::<Result<_, _>>()?;
     let resolved = resolver.resolve(&files)?;
+    let conflict_count = resolved.len();
     for r in &resolved {
         let abs_path = ctx.root.join(&r.path);
         std::fs::write(&abs_path, &r.content).map_err(TaskitError::other)?;
@@ -149,12 +176,15 @@ pub fn merge_with_resolution(
             .run()
             .map_err(TaskitError::other)?;
     }
-    cmd!(sh, "git commit --no-edit").run().map_err(|e| {
-        FlowError::MergeFailed {
-            reason: e.to_string(),
-        }
-        .into()
-    })
+    cmd!(sh, "git commit --no-edit")
+        .run()
+        .map(|()| conflict_count)
+        .map_err(|e| {
+            FlowError::MergeFailed {
+                reason: e.to_string(),
+            }
+            .into()
+        })
 }
 
 fn merge_no_ff(ctx: &Ctx, branch: &str, message: &str) -> Result<(), TaskitError> {
@@ -190,18 +220,67 @@ fn checkout(ctx: &Ctx, branch: &str) -> Result<(), TaskitError> {
     Ok(())
 }
 
-pub fn status(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
+fn sync_commit_message(main: &str, develop: &str) -> String {
+    format!("flow: sync {main} into {develop}")
+}
+
+fn push_branches(ctx: &Ctx, remote: &str, branches: &[&str]) -> Result<(), TaskitError> {
+    let sh = &ctx.sh;
+    if ctx.dry_run {
+        taskit_output::taskit_dry!("git push {remote} {}", branches.join(" "));
+        return Ok(());
+    }
+    let output = cmd!(sh, "git push {remote} {branches...}")
+        .quiet()
+        .ignore_status()
+        .output()
+        .map_err(TaskitError::other)?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(FlowError::PushFailed {
+            remote: remote.to_string(),
+            reason: stderr.trim().to_string(),
+        }
+        .into());
+    }
+    Ok(())
+}
+
+/// Ahead/behind relation for one flow branch hop.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FlowHop {
+    /// Source branch.
+    pub from: String,
+    /// Target branch.
+    pub to: String,
+    /// Commits source is ahead of target.
+    pub ahead: usize,
+    /// Commits source is behind target.
+    pub behind: usize,
+    /// Whether both branches exist locally.
+    pub branches_exist: bool,
+}
+
+/// Snapshot of flow status for all configured branch hops.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FlowStatusReport {
+    /// Current checked-out branch.
+    pub current_branch: String,
+    /// main→develop→staging→release→main, in that order.
+    pub hops: Vec<FlowHop>,
+}
+
+/// Pure data variant of `status()` — `status()` calls this and prints each
+/// hop, with no output change from before this function existed.
+pub fn status_report(ctx: &Ctx, flow: &FlowConfig) -> Result<FlowStatusReport, TaskitError> {
     let sh = &ctx.sh;
     let main = flow.main_branch();
     let develop = flow.develop_branch();
     let staging = flow.staging_branch();
     let release = flow.release_branch();
-    let current = current_branch(sh)?;
+    let current_branch = current_branch(sh)?;
 
-    taskit_output::taskit_progress!("Flow status (current branch: {current})");
-    taskit_output::taskit_progress!("");
-
-    // main → develop → staging → release → main
+    let mut hops = Vec::with_capacity(4);
     for (from, to) in [
         (main, develop),
         (develop, staging),
@@ -209,11 +288,50 @@ pub fn status(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
         (release, main),
     ] {
         if !branch_exists(sh, from)? || !branch_exists(sh, to)? {
-            taskit_output::taskit_progress!("{from} -> {to}: (branch missing)");
+            hops.push(FlowHop {
+                from: from.to_string(),
+                to: to.to_string(),
+                ahead: 0,
+                behind: 0,
+                branches_exist: false,
+            });
             continue;
         }
         let (ahead, behind) = ahead_behind(sh, from, to)?;
-        taskit_output::taskit_progress!("{from} -> {to}: {ahead} ahead, {behind} behind");
+        hops.push(FlowHop {
+            from: from.to_string(),
+            to: to.to_string(),
+            ahead,
+            behind,
+            branches_exist: true,
+        });
+    }
+
+    Ok(FlowStatusReport {
+        current_branch,
+        hops,
+    })
+}
+
+/// Print flow status for the configured branch chain.
+pub fn status(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
+    let report = status_report(ctx, flow)?;
+
+    taskit_output::taskit_progress!("Flow status (current branch: {})", report.current_branch);
+    taskit_output::taskit_progress!("");
+
+    for hop in &report.hops {
+        if !hop.branches_exist {
+            taskit_output::taskit_progress!("{} -> {}: (branch missing)", hop.from, hop.to);
+        } else {
+            taskit_output::taskit_progress!(
+                "{} -> {}: {} ahead, {} behind",
+                hop.from,
+                hop.to,
+                hop.ahead,
+                hop.behind
+            );
+        }
     }
     Ok(())
 }
@@ -229,7 +347,7 @@ pub fn sync(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
     require_branch_exists(sh, main)?;
 
     taskit_output::taskit_progress!("Syncing {main} -> {develop}");
-    merge_no_ff(ctx, main, &format!("flow: sync {main} into {develop}"))?;
+    merge_no_ff(ctx, main, &sync_commit_message(main, develop))?;
     taskit_output::taskit_ok!("Done. {develop} is up to date with {main}.");
     Ok(())
 }
@@ -285,7 +403,7 @@ pub fn promote(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
             &format!("flow: promote {release} into {main}"),
         )?;
         checkout(ctx, develop)?;
-        merge_no_ff(ctx, main, &format!("flow: sync {main} into {develop}"))?;
+        merge_no_ff(ctx, main, &sync_commit_message(main, develop))?;
         taskit_output::taskit_ok!("Done. Now on {develop}. All branches are in sync.");
     } else {
         return Err(FlowError::NotAFlowBranch {
@@ -300,6 +418,7 @@ pub fn promote(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
     Ok(())
 }
 
+/// Enforce protected-branch rules for current branch.
 pub fn guard(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     let current = current_branch(sh)?;
@@ -347,6 +466,9 @@ pub fn auto_with_ci(
     use taskit_types::flow_state::{FlowPhase, FlowState};
     use taskit_types::step::StepStatus;
 
+    let start = std::time::Instant::now();
+    let mut conflicts_resolved: usize = 0;
+
     let sh = &ctx.sh;
     let develop = flow.develop_branch();
     let staging = flow.staging_branch();
@@ -380,7 +502,7 @@ pub fn auto_with_ci(
 
         taskit_output::taskit_progress!("auto: promoting {develop} → {staging}");
         checkout(ctx, staging)?;
-        merge_with_resolution(
+        conflicts_resolved += merge_with_resolution(
             ctx,
             develop,
             &format!("flow: promote {develop} into {staging}"),
@@ -389,7 +511,7 @@ pub fn auto_with_ci(
 
         taskit_output::taskit_progress!("auto: staging {staging} → {release}");
         checkout(ctx, release)?;
-        merge_with_resolution(
+        conflicts_resolved += merge_with_resolution(
             ctx,
             staging,
             &format!("flow: stage {staging} into {release}"),
@@ -440,6 +562,14 @@ pub fn auto_with_ci(
             taskit_output::taskit_err!(
                 "auto: CI failed on {release} — staying on {release} for investigation"
             );
+            let _ = crate::telemetry::record(
+                ctx,
+                &[
+                    ("flow_auto_duration_ms", start.elapsed().as_millis() as f64),
+                    ("flow_auto_result", 0.0),
+                    ("flow_auto_conflicts", conflicts_resolved as f64),
+                ],
+            );
             return Err(FlowError::CiFailed { failed }.into());
         }
         taskit_output::taskit_ok!("auto: CI passed on {release}");
@@ -462,7 +592,7 @@ pub fn auto_with_ci(
 
     taskit_output::taskit_progress!("auto: finishing {release} → {main}");
     checkout(ctx, main)?;
-    merge_with_resolution(
+    conflicts_resolved += merge_with_resolution(
         ctx,
         release,
         &format!("flow: finish {release} into {main}"),
@@ -471,20 +601,82 @@ pub fn auto_with_ci(
 
     taskit_output::taskit_progress!("auto: syncing {main} → {develop}");
     checkout(ctx, develop)?;
-    merge_with_resolution(
-        ctx,
-        main,
-        &format!("flow: sync {main} into {develop}"),
-        resolver,
-    )?;
+    conflicts_resolved +=
+        merge_with_resolution(ctx, main, &sync_commit_message(main, develop), resolver)?;
+
+    // Push before clearing state: a failed push leaves the run resumable at
+    // Finishing, where the merges no-op and the push is retried.
+    if flow.push_enabled() {
+        let remote = flow.push_remote();
+        taskit_output::taskit_progress!(
+            "auto: pushing {main}, {develop}, {staging}, {release} → {remote}"
+        );
+        push_branches(ctx, remote, &[main, develop, staging, release])?;
+    }
 
     // Success — clear the state file.
     if !ctx.dry_run {
         crate::flow_state_store::clear(&ctx.root)?;
     }
 
+    let _ = crate::telemetry::record(
+        ctx,
+        &[
+            ("flow_auto_duration_ms", start.elapsed().as_millis() as f64),
+            ("flow_auto_result", 1.0),
+            ("flow_auto_conflicts", conflicts_resolved as f64),
+        ],
+    );
+
     taskit_output::taskit_ok!("auto: done. {develop} is in sync with {main}.");
     Ok(())
+}
+
+#[cfg(test)]
+pub(crate) mod tests_support {
+    use super::*;
+    use taskit_types::config::Config;
+    use taskit_types::output_format::OutputFormat;
+
+    /// Minimal repo with `main`/`staging`/`release`, `staging` one commit
+    /// ahead — enough for a fast-path (no-conflict) merge.
+    pub(crate) fn merge_test_repo() -> (tempfile::TempDir, Ctx, FlowConfig) {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let sh = Shell::new().expect("shell");
+        sh.change_dir(dir.path());
+        cmd!(sh, "git init -b main").run().expect("git init");
+        cmd!(sh, "git config user.email test@example.com")
+            .run()
+            .expect("email");
+        cmd!(sh, "git config user.name Test").run().expect("name");
+        sh.write_file("README.md", "# test\n").expect("write");
+        cmd!(sh, "git add README.md").run().expect("add");
+        cmd!(sh, "git commit -m init").run().expect("commit");
+        cmd!(sh, "git branch staging")
+            .run()
+            .expect("branch staging");
+        cmd!(sh, "git branch release")
+            .run()
+            .expect("branch release");
+        cmd!(sh, "git checkout staging")
+            .run()
+            .expect("checkout staging");
+        sh.write_file("feature.txt", "feature\n").expect("write");
+        cmd!(sh, "git add feature.txt").run().expect("add");
+        cmd!(sh, "git commit -m feat").run().expect("commit");
+        cmd!(sh, "git checkout release")
+            .run()
+            .expect("checkout release");
+
+        let ctx = Ctx::new(
+            sh,
+            dir.path().to_path_buf(),
+            Config::default(),
+            false,
+            OutputFormat::Human,
+        );
+        (dir, ctx, FlowConfig::default())
+    }
 }
 
 #[cfg(test)]
@@ -515,6 +707,47 @@ mod tests {
             }
             .into())
         }
+    }
+
+    #[test]
+    fn porcelain_path_strips_status_code() {
+        assert_eq!(
+            porcelain_path(" M .ctx/HANDOFF.foo.yaml"),
+            ".ctx/HANDOFF.foo.yaml"
+        );
+        assert_eq!(porcelain_path("?? src/lib.rs"), "src/lib.rs");
+        assert_eq!(porcelain_path(""), "");
+    }
+
+    #[test]
+    fn is_ctx_only_true_for_plain_ctx_path() {
+        assert!(is_ctx_only(" M .ctx/HANDOFF.foo.yaml"));
+        assert!(is_ctx_only("?? .ctx/scratch.txt"));
+    }
+
+    #[test]
+    fn is_ctx_only_false_for_non_ctx_path() {
+        assert!(!is_ctx_only(" M src/lib.rs"));
+        assert!(!is_ctx_only("?? new.txt"));
+    }
+
+    #[test]
+    fn is_ctx_only_true_for_rename_within_ctx() {
+        assert!(is_ctx_only(
+            "R  .ctx/HANDOFF.old.yaml -> .ctx/HANDOFF.new.yaml"
+        ));
+    }
+
+    #[test]
+    fn is_ctx_only_false_for_rename_out_of_ctx() {
+        // Old path matched .ctx/, but the rename moves it to a real tracked
+        // path — must not be silently ignored.
+        assert!(!is_ctx_only("R  .ctx/HANDOFF.foo.yaml -> src/handoff.yaml"));
+    }
+
+    #[test]
+    fn is_ctx_only_false_for_rename_into_ctx() {
+        assert!(!is_ctx_only("R  src/handoff.yaml -> .ctx/HANDOFF.foo.yaml"));
     }
 
     #[test]
@@ -551,6 +784,16 @@ mod tests {
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
         assert!(msg.contains("src/lib.rs"), "got: {msg}");
+    }
+
+    #[test]
+    fn merge_with_resolution_fast_path_returns_zero_conflicts() {
+        let (_dir, ctx, _flow) = tests_support::merge_test_repo();
+        // No conflict: `staging` merges cleanly into `release`, so the
+        // resolver must not be called.
+        let count = merge_with_resolution(&ctx, "staging", "flow: fast path", &AlwaysResolve)
+            .expect("fast-path merge should succeed");
+        assert_eq!(count, 0);
     }
 
     #[test]
@@ -680,12 +923,87 @@ release = "rc"
     }
 
     #[test]
+    fn flow_config_push_defaults_off() {
+        let cfg: FlowConfig = toml::from_str("").unwrap();
+        assert!(!cfg.push_enabled());
+        assert_eq!(cfg.push_remote(), "origin");
+    }
+
+    #[test]
+    fn flow_config_push_parses() {
+        let cfg: FlowConfig = toml::from_str(
+            r#"
+push = true
+remote = "github"
+"#,
+        )
+        .unwrap();
+        assert!(cfg.push_enabled());
+        assert_eq!(cfg.push_remote(), "github");
+    }
+
+    #[test]
+    fn push_failed_error_display() {
+        let err = FlowError::PushFailed {
+            remote: "origin".into(),
+            reason: "connection refused".into(),
+        };
+        assert!(err.to_string().contains("push to 'origin' failed"));
+        assert!(err.to_string().contains("connection refused"));
+    }
+
+    #[test]
     fn flow_config_partial_override() {
         let cfg: FlowConfig = toml::from_str(r#"develop = "dev""#).unwrap();
         assert_eq!(cfg.main_branch(), "main");
         assert_eq!(cfg.develop_branch(), "dev");
         assert_eq!(cfg.staging_branch(), "staging");
         assert_eq!(cfg.release_branch(), "release");
+    }
+
+    #[test]
+    fn status_report_flags_missing_branches_and_computes_ahead_behind() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let sh = xshell::Shell::new().expect("shell");
+        sh.change_dir(dir.path());
+        cmd!(sh, "git init -b main").run().expect("git init");
+        cmd!(sh, "git config user.email test@example.com")
+            .run()
+            .expect("email");
+        cmd!(sh, "git config user.name Test").run().expect("name");
+        sh.write_file("README.md", "# test\n").expect("write");
+        cmd!(sh, "git add README.md").run().expect("add");
+        cmd!(sh, "git commit -m init").run().expect("commit");
+        cmd!(sh, "git branch develop")
+            .run()
+            .expect("branch develop");
+        // staging/release intentionally not created.
+
+        let ctx = Ctx::new(
+            sh,
+            dir.path().to_path_buf(),
+            taskit_types::config::Config::default(),
+            false,
+            taskit_types::output_format::OutputFormat::Human,
+        );
+        let flow = default_flow();
+
+        let report = status_report(&ctx, &flow).expect("status_report should succeed");
+        assert_eq!(report.current_branch, "main");
+        assert_eq!(report.hops.len(), 4);
+
+        let main_to_develop = &report.hops[0];
+        assert_eq!(main_to_develop.from, "main");
+        assert_eq!(main_to_develop.to, "develop");
+        assert!(main_to_develop.branches_exist);
+        assert_eq!(main_to_develop.ahead, 0);
+        assert_eq!(main_to_develop.behind, 0);
+
+        let develop_to_staging = &report.hops[1];
+        assert!(
+            !develop_to_staging.branches_exist,
+            "staging doesn't exist yet"
+        );
     }
 
     // ── auto_with_ci tests (CI gate path) ─────────────────────────────────────
@@ -773,6 +1091,85 @@ release = "rc"
             "release",
             "should stay on release after CI failure"
         );
+
+        use crate::telemetry::TelemetryStore;
+        let store = crate::telemetry::NdjsonStore::new(ctx.root.clone());
+        let records = store.load_window(7).expect("load telemetry window");
+        let last = records
+            .last()
+            .expect("a flow_auto telemetry record should have been written");
+        let metric = |name: &str| {
+            last.metrics
+                .iter()
+                .find(|m| m.name == name)
+                .unwrap_or_else(|| panic!("missing metric {name}"))
+                .value
+        };
+        assert_eq!(metric("flow_auto_result"), 0.0);
+        assert!(metric("flow_auto_duration_ms") >= 0.0);
+    }
+
+    fn passing_ci_fn() -> impl Fn(&Ctx) -> taskit_types::step::PipelineOutcome {
+        use taskit_types::step::{PipelineOutcome, StepResult, StepStatus};
+        |_: &Ctx| PipelineOutcome {
+            results: vec![StepResult {
+                name: "fmt".into(),
+                status: StepStatus::Pass,
+                duration: std::time::Duration::ZERO,
+                error: None,
+                gate: false,
+                diagnostics: vec![],
+                context: taskit_types::step::StepDiagnosticContext::default(),
+            }],
+            passed: true,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn auto_with_push_updates_remote_branches() {
+        let (_dir, ctx, mut flow) = setup_auto_repo();
+        let bare = tempfile::tempdir().expect("bare tempdir");
+        let bare_path = bare.path().to_str().expect("utf8 path").to_string();
+        cmd!(ctx.sh, "git init --bare {bare_path}")
+            .run()
+            .expect("init bare");
+        cmd!(ctx.sh, "git remote add origin {bare_path}")
+            .run()
+            .expect("add remote");
+        flow.push = Some(true);
+
+        auto_with_ci(&ctx, &flow, &AlwaysResolve, passing_ci_fn())
+            .expect("auto with push should succeed");
+
+        let refs = cmd!(ctx.sh, "git ls-remote --heads origin")
+            .read()
+            .expect("ls-remote");
+        for branch in ["main", "develop", "staging", "release"] {
+            assert!(
+                refs.contains(&format!("refs/heads/{branch}")),
+                "remote should have {branch}, got:\n{refs}"
+            );
+        }
+    }
+
+    #[test]
+    fn auto_push_failure_returns_push_failed_and_keeps_state() {
+        use taskit_types::error::FlowError;
+
+        let (_dir, ctx, mut flow) = setup_auto_repo();
+        // No `origin` remote exists — the push must fail after local merges.
+        flow.push = Some(true);
+
+        let result = auto_with_ci(&ctx, &flow, &AlwaysResolve, passing_ci_fn());
+        match result {
+            Err(taskit_types::error::TaskitError::Flow(FlowError::PushFailed { .. })) => {}
+            other => panic!("expected PushFailed, got {other:?}"),
+        }
+        assert!(
+            crate::flow_state_store::load(&ctx.root).is_some(),
+            "state file should survive a failed push so the run is resumable"
+        );
     }
 
     #[test]
@@ -810,5 +1207,22 @@ release = "rc"
             "develop",
             "should land on develop after auto completes"
         );
+
+        use crate::telemetry::TelemetryStore;
+        let store = crate::telemetry::NdjsonStore::new(ctx.root.clone());
+        let records = store.load_window(7).expect("load telemetry window");
+        let last = records
+            .last()
+            .expect("a flow_auto telemetry record should have been written");
+        let metric = |name: &str| {
+            last.metrics
+                .iter()
+                .find(|m| m.name == name)
+                .unwrap_or_else(|| panic!("missing metric {name}"))
+                .value
+        };
+        assert_eq!(metric("flow_auto_result"), 1.0);
+        assert!(metric("flow_auto_duration_ms") >= 0.0);
+        assert_eq!(metric("flow_auto_conflicts"), 0.0);
     }
 }

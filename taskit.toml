@@ -9,6 +9,7 @@ crates = [
   { dir = "crates/taskit-output", pkg = "taskit-output" },
   { dir = "crates/taskit-macros", pkg = "taskit-macros" },
   { dir = "crates/taskit-init", pkg = "taskit-init" },
+  { dir = "crates/taskit-tui", pkg = "taskit-tui" },
   { dir = "", pkg = "taskit" },
 ]
 # offline_skip = "test(/.*network.*/)"
@@ -20,7 +21,7 @@ dependents = ["taskit-crux", "taskit-crux", "taskit-engine", "taskit-engine", "t
 
 [[workspace.propagation]]
 source = "taskit-engine"
-dependents = ["taskit"]
+dependents = ["taskit-tui", "taskit"]
 
 [[workspace.propagation]]
 source = "taskit-init"
@@ -39,8 +40,12 @@ source = "taskit-testing"
 dependents = ["taskit-crux", "taskit-engine", "taskit-output", "taskit-macros", "taskit-init"]
 
 [[workspace.propagation]]
+source = "taskit-tui"
+dependents = ["taskit"]
+
+[[workspace.propagation]]
 source = "taskit-types"
-dependents = ["taskit-core", "taskit-crux", "taskit-testing", "taskit-engine", "taskit-output", "taskit-macros", "taskit-init", "taskit"]
+dependents = ["taskit-core", "taskit-crux", "taskit-testing", "taskit-engine", "taskit-output", "taskit-macros", "taskit-init", "taskit-tui", "taskit"]
 
 [protocol]
 # lockfile = "taskit-protocol.lock"
@@ -155,6 +160,7 @@ publish_order = [
   "taskit-output",
   "taskit-init",
   "taskit-engine",
+  "taskit-tui",
   "taskit",
 ]
 # skip_docs   = false  # skip `cargo doc` before publishing

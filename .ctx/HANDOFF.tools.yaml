@@ -1,0 +1,41 @@
+generated: 2026-06-27
+since_days: 30
+sessions_scanned: 3
+total_commands: 399
+top_supported:
+  - command: cargo test
+    count: 4
+    rule: no-bash-use-nu
+    rtk_equivalent: rtk cargo
+    est_savings_tokens: 1167
+    est_savings_pct: 90
+  - command: cd /Users/joe/dev/godmode
+    count: 1
+    rule: no-cd-use-absolute-paths
+    est_savings_tokens: 9
+  - command: git log
+    count: 1
+    rule: no-bash-use-nu
+    est_savings_tokens: 132
+  - command: mkdir
+    count: 1
+    rule: no-bash-use-nu
+    est_savings_tokens: 132
+  - command: grep
+    count: 1
+    rule: no-grep-use-tool
+    est_savings_tokens: 74
+  - command: cargo check
+    count: 1
+    rule: no-bash-use-nu
+    est_savings_tokens: 132
+top_unhandled:
+  - base_command: nu
+    count: 388
+    example: "nu -c \"open /Users/joe/dev/taskit/Cargo.toml | get dev-dependencies? | default {..."
+  - base_command: git commit
+    count: 1
+    example: "git commit -m \"$(cat <<'EOF'\nfeat(taskit): add taskit-init and taskit-crux crate..."
+  - base_command: git add
+    count: 1
+    example: "git add CLAUDE.md crates/taskit-core/src/output_format.rs crates/taskit-crux/src..."

@@ -4,14 +4,18 @@ target/
 .pytest_cache/
 .ruff_cache/
 .venv/
-.taskit-cache/
 .claude/settings.local.json
+.claude/worktrees/
+.kgx/
 *.local.md
+.taskit/
 
 # handoff-begin
 .ctx/*
-.ctx/HANDOFF.godmode.*.yaml
+!.ctx/HANDOFF.*.yaml
+.ctx/HANDOFF.*.state.yaml
 .ctx/HANDOFF.*.state.json
-!.ctx/handoff.*.config.toml.example
 # handoff-end
-.taskit-state.json
+docs/dist/
+session-report-*.html
+*-gm-graph.svg

@@ -44,6 +44,7 @@ pub fn discover_with(
             } else {
                 Some(m.pkg.clone())
             },
+            exclude_from_version_check: false,
         })
         .collect();
 
@@ -91,7 +92,7 @@ pub fn load() -> Result<Workspace, TaskitError> {
     if let Some(config_path) = find_config_file(&cwd) {
         let root = config_path
             .parent()
-            .expect("config file always has a parent directory")
+            .ok_or_else(|| TaskitError::other("config file path has no parent directory"))?
             .to_path_buf();
         let mut config = parse_config(&config_path)?;
         let root = match &config.workspace.root {
@@ -353,6 +354,7 @@ cmd = "lint"
         let e = CrateEntry {
             dir: "foo".into(),
             pkg: None,
+            exclude_from_version_check: false,
         };
         assert_eq!(e.pkg_name(), "foo");
     }
@@ -362,6 +364,7 @@ cmd = "lint"
         let e = CrateEntry {
             dir: "foo".into(),
             pkg: Some("bar".into()),
+            exclude_from_version_check: false,
         };
         assert_eq!(e.pkg_name(), "bar");
     }
@@ -375,6 +378,7 @@ cmd = "lint"
                 crates: vec![CrateEntry {
                     dir: "discovered".into(),
                     pkg: None,
+                    exclude_from_version_check: false,
                 }],
                 propagation: vec![],
                 offline_skip: None,
@@ -394,6 +398,7 @@ cmd = "lint"
                 crates: vec![CrateEntry {
                     dir: "explicit".into(),
                     pkg: None,
+                    exclude_from_version_check: false,
                 }],
                 propagation: vec![],
                 offline_skip: None,
@@ -406,6 +411,7 @@ cmd = "lint"
                 crates: vec![CrateEntry {
                     dir: "discovered".into(),
                     pkg: None,
+                    exclude_from_version_check: false,
                 }],
                 propagation: vec![],
                 offline_skip: None,

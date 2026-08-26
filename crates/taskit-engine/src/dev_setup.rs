@@ -37,9 +37,12 @@ fn confirm(prompt: &str) -> bool {
     if stdin().read_line(&mut line).is_err() {
         return false;
     }
-    matches!(line.trim(), "y" | "Y")
+    confirm_response_accepted(line.trim())
 }
 
+fn confirm_response_accepted(response: &str) -> bool {
+    matches!(response, "y" | "Y")
+}
 /// Ensure `cargo-binstall` is available, bootstrapping via `cargo install` if
 /// the user consents. Returns an error if it is absent and the user declines.
 fn ensure_binstall(ctx: &Ctx) -> Result<(), TaskitError> {
@@ -62,6 +65,7 @@ fn ensure_binstall(ctx: &Ctx) -> Result<(), TaskitError> {
     ctx.run(cmd!(sh, "cargo install cargo-binstall"))
 }
 
+/// Install required development tooling for taskit workflows.
 pub fn setup(ctx: &Ctx) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     taskit_output::taskit_progress!("Installing development tools...");
@@ -93,6 +97,7 @@ fn check_label(name: &str) -> &str {
     }
 }
 
+/// Verify required/optional tool presence and cache integrity.
 pub fn self_check() -> Result<(), TaskitError> {
     taskit_output::taskit_progress!("{:<COL_TOOL$} {:<COL_STATUS$} Notes", "Tool", "Status");
     taskit_output::taskit_progress!("{}", "-".repeat(SEPARATOR_WIDTH));
@@ -134,14 +139,15 @@ pub fn self_check() -> Result<(), TaskitError> {
         ));
     }
     match crate::cache::verify() {
-        Ok(true) => {
-            taskit_output::taskit_ok!("{:<COL_TOOL$} OK      cache integrity", ".taskit-cache")
-        }
+        Ok(true) => taskit_output::taskit_ok!(
+            "{:<COL_TOOL$} OK      cache integrity",
+            "target/taskit/cache"
+        ),
         Ok(false) => taskit_output::taskit_progress!(
             "{:<COL_TOOL$} DRIFT   run any taskit command to rebuild",
-            ".taskit-cache"
+            "target/taskit/cache"
         ),
-        Err(e) => taskit_output::taskit_err!("{:<COL_TOOL$} ERROR   {e}", ".taskit-cache"),
+        Err(e) => taskit_output::taskit_err!("{:<COL_TOOL$} ERROR   {e}", "target/taskit/cache"),
     }
     Ok(())
 }
@@ -216,15 +222,15 @@ mod tests {
     // --- confirm response parsing ---
 
     #[test]
-    fn confirm_response_y_and_uppercase_y_accepted() {
-        assert!(matches!("y", "y" | "Y"));
-        assert!(matches!("Y", "y" | "Y"));
+    fn confirm_response_accepted_accepts_y_and_uppercase_y() {
+        assert!(confirm_response_accepted("y"));
+        assert!(confirm_response_accepted("Y"));
     }
 
     #[test]
-    fn confirm_response_n_and_other_rejected() {
-        assert!(!matches!("n", "y" | "Y"));
-        assert!(!matches!("", "y" | "Y"));
-        assert!(!matches!("yes", "y" | "Y"));
+    fn confirm_response_accepted_rejects_n_empty_and_yes() {
+        assert!(!confirm_response_accepted("n"));
+        assert!(!confirm_response_accepted(""));
+        assert!(!confirm_response_accepted("yes"));
     }
 }

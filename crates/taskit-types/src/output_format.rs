@@ -2,13 +2,19 @@
 #[derive(Debug, Clone, Copy, Default, clap::ValueEnum)]
 pub enum OutputFormat {
     #[default]
+    /// Human-friendly console output.
     Human,
     /// One line per step; expands failed steps when verbose_on_failure is set.
     Compact,
+    /// Structured JSON output for tooling.
     Json,
+    /// GitHub Actions annotation format.
     Github,
+    /// JUnit XML output for CI parsers.
     Junit,
+    /// Rich diagnostic text output with source context.
     Diagnostic,
+    /// SARIF output for security/code scanning tools.
     Sarif,
 }
 

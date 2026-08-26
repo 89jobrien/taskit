@@ -1,8 +1,8 @@
 //! Execution context threaded through every command.
 //!
 //! `Ctx` replaces the former process-global `runner::DRY_RUN` / `SILENT`
-//! statics with an injected dependency: it owns the [`Shell`], the parsed
-//! [`Config`], and the run-time flags (`dry_run`, `output`, transient
+//! statics with an injected dependency: it owns the [`xshell::Shell`], the parsed
+//! [`taskit_types::config::Config`], and the run-time flags (`dry_run`, `output`, transient
 //! `silent`). Command implementations receive `&Ctx` and route all shell
 //! execution through its methods, so dry-run and output behaviour are visible
 //! in signatures rather than read from ambient state.
@@ -21,8 +21,11 @@ use xshell::{Cmd, Shell};
 
 /// Captured output from a command execution.
 pub struct CapturedOutput {
+    /// Captured standard output.
     pub stdout: String,
+    /// Captured standard error.
     pub stderr: String,
+    /// True when process exit status is successful.
     pub success: bool,
 }
 

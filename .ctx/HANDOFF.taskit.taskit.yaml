@@ -1,0 +1,28 @@
+project: taskit
+id: taskit
+updated: 2026-08-23
+items: []
+log:
+- date: 2026-08-23T00:00:00Z
+  summary: Committed and pushed CLI self-subcommand refactor (Install/SelfCheck/SelfTest -> taskit self install/check/test); full workspace test suite green
+  commits: []
+  commits_since_last_handoff: 1
+  head_commits:
+  - 49b7d90 refactor(taskit): move Install/SelfCheck/SelfTest under new `self` subcommand
+  - 031cca6 chore(rust-audit): fix C-METADATA and C-LINK findings across workspace
+  - 74cde48 docs: update handoff
+  - 6ed2319 chore: gitignore generated session-report/graph artifacts
+  - e4054e8 chore(xtask): add depgraph-report.py for architecture-health audits
+  tests:
+    total: 733
+    passed: 733
+    skipped: 0
+ahead_behind:
+  ahead: 0
+  behind: 0
+branch: develop
+head_sha: 49b7d90
+notes: |-
+  - Working tree clean, develop in sync with origin/develop
+  - No open items
+upstream_tracking: origin/develop

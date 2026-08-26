@@ -7,8 +7,11 @@ use crate::config::PropagationEntry;
 /// A discovered workspace crate from cargo metadata.
 #[derive(Debug, Clone)]
 pub struct DiscoveredCrate {
+    /// Crate directory relative to workspace root.
     pub dir: String,
+    /// Cargo package name.
     pub pkg: String,
+    /// Absolute path to the crate manifest.
     pub manifest_path: PathBuf,
 }
 
@@ -21,7 +24,9 @@ pub(crate) struct DiscoveredSurface {
 
 /// Port: abstracts cargo metadata retrieval for testability.
 pub trait MetadataSource {
+    /// Return all workspace members.
     fn workspace_members(&self) -> Result<Vec<DiscoveredCrate>, TaskitError>;
+    /// Return `(dependency, dependent)` edges for workspace-internal deps.
     fn intra_workspace_deps(&self) -> Result<Vec<(String, String)>, TaskitError>;
 }
 
@@ -137,6 +142,7 @@ fn infer_crate_name(rel_path: &str) -> &str {
 
 /// Production adapter: reads cargo metadata from the real workspace.
 pub struct CargoMetadataSource {
+    /// Workspace root where `cargo metadata` should run.
     pub workspace_root: PathBuf,
 }
 
@@ -193,7 +199,11 @@ impl MetadataSource for CargoMetadataSource {
 
         let mut edges = Vec::new();
         for pkg_id in &metadata.workspace_members {
-            let pkg = metadata.packages.iter().find(|p| &p.id == pkg_id).unwrap();
+            let pkg = metadata
+                .packages
+                .iter()
+                .find(|p| &p.id == pkg_id)
+                .ok_or_else(|| TaskitError::other("workspace member not found in packages"))?;
             for dep in &pkg.dependencies {
                 if member_names.contains(&dep.name) {
                     edges.push((dep.name.clone(), pkg.name.clone()));

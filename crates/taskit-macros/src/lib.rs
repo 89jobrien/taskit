@@ -1,3 +1,5 @@
+//! Procedural macros used by taskit crates.
+
 mod config_defaults;
 mod taskit_test;
 

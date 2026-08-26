@@ -1,3 +1,5 @@
+//! Integration test for bare `#[taskit_test]` usage.
+
 use taskit_macros::taskit_test;
 
 #[taskit_test]

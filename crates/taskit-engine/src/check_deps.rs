@@ -3,6 +3,7 @@ use xshell::cmd;
 
 use crate::ctx::Ctx;
 
+/// Run dependency-usage checks via `cargo-machete`.
 pub fn run(ctx: &Ctx) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     taskit_output::taskit_progress!("Checking for unused dependencies...");

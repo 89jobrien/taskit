@@ -20,8 +20,8 @@ pipeline orchestration. Users invoke `taskit` directly or via
 
 Binary name: `taskit`
 Install: `cargo install taskit`
-Usage: `taskit fmt`, `taskit lint`, `taskit ci`, etc.
-Cargo alias: `cargo taskit ci` via `.cargo/config.toml`
+Usage: `taskit check fmt`, `taskit check lint`, `taskit check ci`, etc.
+Cargo alias: `cargo taskit check ci` via `.cargo/config.toml`
 
 ---
 
@@ -160,11 +160,11 @@ taskit ci
 
 ## Cache
 
-`.taskit-cache/` stores ephemeral per-step caches (pre-commit, pre-push,
-compile, self-test). A master hash file (`.taskit-cache/master-hash`)
-tracks SHA-256 integrity over all `.json` cache files. `taskit self-check`
+`target/taskit/cache/` stores ephemeral per-step caches (pre-commit, pre-push,
+compile, self-test). A master hash file (`target/taskit/cache/master-hash`)
+tracks SHA-256 integrity over all `.json` cache files. `taskit dev self-check`
 verifies cache integrity. The cache is ephemeral and can be deleted at
-any time via `taskit clean`.
+any time via `taskit dev clean`.
 
 ---
 

@@ -3,9 +3,9 @@ use std::path::Path;
 use taskit_types::error::TaskitError;
 use taskit_types::flow_state::FlowState;
 
-const STATE_FILE: &str = ".taskit-state.json";
+const STATE_FILE: &str = "target/taskit/state.json";
 
-/// Read `.taskit-state.json` from the workspace root.
+/// Read `target/taskit/state.json` from the workspace root.
 /// Returns `None` if the file is absent or cannot be parsed.
 pub fn load(root: &Path) -> Option<FlowState> {
     let path = root.join(STATE_FILE);
@@ -13,10 +13,13 @@ pub fn load(root: &Path) -> Option<FlowState> {
     serde_json::from_str(&content).ok()
 }
 
-/// Write `.taskit-state.json` atomically (write to `.tmp`, then rename).
+/// Write `target/taskit/state.json` atomically (write to `.tmp`, then rename).
 pub fn save(root: &Path, state: &FlowState) -> Result<(), TaskitError> {
     let path = root.join(STATE_FILE);
-    let tmp = root.join(".taskit-state.json.tmp");
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| TaskitError::other(e.to_string()))?;
+    }
+    let tmp = root.join("target/taskit/state.json.tmp");
     let json =
         serde_json::to_string_pretty(state).map_err(|e| TaskitError::other(e.to_string()))?;
     std::fs::write(&tmp, json).map_err(|e| TaskitError::other(e.to_string()))?;
@@ -24,7 +27,7 @@ pub fn save(root: &Path, state: &FlowState) -> Result<(), TaskitError> {
     Ok(())
 }
 
-/// Delete `.taskit-state.json`; no-op if absent.
+/// Delete `target/taskit/state.json`; no-op if absent.
 pub fn clear(root: &Path) -> Result<(), TaskitError> {
     let path = root.join(STATE_FILE);
     match std::fs::remove_file(&path) {
@@ -63,9 +66,9 @@ mod tests {
         let dir = tmp_dir();
         let state = FlowState::promoting("s", "r", "m");
         save(dir.path(), &state).expect("save");
-        assert!(dir.path().join(".taskit-state.json").exists());
+        assert!(dir.path().join("target/taskit/state.json").exists());
         clear(dir.path()).expect("clear");
-        assert!(!dir.path().join(".taskit-state.json").exists());
+        assert!(!dir.path().join("target/taskit/state.json").exists());
     }
 
     #[test]

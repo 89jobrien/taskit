@@ -13,6 +13,7 @@ fn find_package_version<'a>(packages: &'a [serde_json::Value], name: &str) -> &'
         .unwrap_or("unknown")
 }
 
+/// Print workspace crate versions and active rustc version.
 pub fn run(ctx: &Ctx) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     let ws = ctx.ws();

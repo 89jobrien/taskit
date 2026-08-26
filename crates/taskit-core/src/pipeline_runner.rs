@@ -8,6 +8,7 @@ use taskit_types::step::PipelineOutcome;
 /// Adapters: `BuiltinRunner` (taskit-engine), `SubprocessCruxRunner`
 /// (taskit-engine), `EmbeddedCruxRunner` (taskit-crux).
 pub trait PipelineRunner {
+    /// Execute the configured pipeline and return its aggregate outcome.
     fn run_pipeline(
         &self,
         config_path: &Path,
