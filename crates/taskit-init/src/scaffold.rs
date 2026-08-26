@@ -143,6 +143,7 @@ exec taskit pre-commit
 #!/bin/sh
 # Delegate to taskit pre-push checks.
 # Install: git config core.hooksPath .githooks
+unset $(git rev-parse --local-env-vars)
 exec taskit pre-push
 ",
         dry_run,
@@ -462,13 +463,27 @@ fn taskit(args: &[&str]) {
     }
 }
 
-fn task_fmt()           { taskit(&["fmt"]) }
-fn task_fmt_check()     { taskit(&["fmt", "--check"]) }
-fn task_lint()          { taskit(&["lint"]) }
-fn task_test()          { taskit(&["test"]) }
-fn task_ci()            { taskit(&["ci"]) }
-fn task_pre_commit()    { taskit(&["pre-commit"]) }
-fn task_pre_push()      { taskit(&["pre-push"]) }
+fn task_fmt() {
+    taskit(&["fmt"])
+}
+fn task_fmt_check() {
+    taskit(&["fmt", "--check"])
+}
+fn task_lint() {
+    taskit(&["lint"])
+}
+fn task_test() {
+    taskit(&["test"])
+}
+fn task_ci() {
+    taskit(&["ci"])
+}
+fn task_pre_commit() {
+    taskit(&["pre-commit"])
+}
+fn task_pre_push() {
+    taskit(&["pre-push"])
+}
 // --- end taskit-managed ---
 "#;
 
@@ -481,13 +496,13 @@ const XTASK_MAIN_FRESH: &str = r#"//! xtask — build tasks for this workspace.
 fn main() {
     let task = std::env::args().nth(1).unwrap_or_default();
     match task.as_str() {
-        "fmt"           => task_fmt(),
-        "fmt-check"     => task_fmt_check(),
-        "lint"          => task_lint(),
-        "test"          => task_test(),
-        "ci"            => task_ci(),
-        "pre-commit"    => task_pre_commit(),
-        "pre-push"      => task_pre_push(),
+        "fmt" => task_fmt(),
+        "fmt-check" => task_fmt_check(),
+        "lint" => task_lint(),
+        "test" => task_test(),
+        "ci" => task_ci(),
+        "pre-commit" => task_pre_commit(),
+        "pre-push" => task_pre_push(),
         other => {
             eprintln!("unknown task: {other}");
             eprintln!("available: fmt, fmt-check, lint, test, ci, pre-commit, pre-push");
@@ -515,13 +530,27 @@ fn taskit(args: &[&str]) {
     }
 }
 
-fn task_fmt()           { taskit(&["fmt"]) }
-fn task_fmt_check()     { taskit(&["fmt", "--check"]) }
-fn task_lint()          { taskit(&["lint"]) }
-fn task_test()          { taskit(&["test"]) }
-fn task_ci()            { taskit(&["ci"]) }
-fn task_pre_commit()    { taskit(&["pre-commit"]) }
-fn task_pre_push()      { taskit(&["pre-push"]) }
+fn task_fmt() {
+    taskit(&["fmt"])
+}
+fn task_fmt_check() {
+    taskit(&["fmt", "--check"])
+}
+fn task_lint() {
+    taskit(&["lint"])
+}
+fn task_test() {
+    taskit(&["test"])
+}
+fn task_ci() {
+    taskit(&["ci"])
+}
+fn task_pre_commit() {
+    taskit(&["pre-commit"])
+}
+fn task_pre_push() {
+    taskit(&["pre-push"])
+}
 // --- end taskit-managed ---
 "#;
 
@@ -759,6 +788,24 @@ mod tests {
     }
 
     #[test]
+    fn xtask_fresh_is_rustfmt_clean() {
+        in_tempdir(|dir| {
+            write_xtask(false, false).unwrap();
+            let output = std::process::Command::new("rustfmt")
+                .args(["--edition", "2021", "--check"])
+                .arg(dir.join("xtask/src/main.rs"))
+                .output()
+                .unwrap();
+
+            assert!(
+                output.status.success(),
+                "generated xtask is not rustfmt-clean:\n{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        });
+    }
+
+    #[test]
     fn xtask_fresh_dry_run_no_files() {
         in_tempdir(|dir| {
             write_xtask(false, true).unwrap();
@@ -827,6 +874,16 @@ mod tests {
             assert!(pre_commit.contains("taskit pre-commit"));
             let pre_push = std::fs::read_to_string(dir.join(".githooks/pre-push")).unwrap();
             assert!(pre_push.contains("taskit pre-push"));
+            let unset = pre_push
+                .find("unset $(git rev-parse --local-env-vars)")
+                .expect("pre-push hook should clear Git's local environment");
+            let taskit = pre_push
+                .find("exec taskit pre-push")
+                .expect("pre-push hook should delegate to taskit");
+            assert!(
+                unset < taskit,
+                "Git's local environment must be cleared first"
+            );
         });
     }
 }
