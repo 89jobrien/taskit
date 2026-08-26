@@ -1,9 +1,9 @@
 //! Telemetry storage port, for historical drift analysis.
 //!
-//! [`TelemetryStore`] is the port: commands that produce time-series-worthy
+//! [`crate::telemetry::TelemetryStore`] is the port: commands that produce time-series-worthy
 //! metrics (CI duration, health counts, ...) record through it, and
 //! [`drift`](crate::drift) reads back a bounded window through it. The only
-//! adapter today is [`NdjsonStore`], an append-only NDJSON layout under
+//! adapter today is [`crate::telemetry::NdjsonStore`], an append-only NDJSON layout under
 //! `.taskit/telemetry/<YYYY>/<MM>/<DD>/history.ndjson`, partitioned by day so
 //! a windowed read doesn't have to parse the whole history. Swapping to a
 //! different backing store (SQLite, DuckDB, ...) means adding a new
@@ -20,16 +20,22 @@ use crate::ctx::Ctx;
 const TELEMETRY_DIR: &str = ".taskit/telemetry";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// One named numeric measurement.
 pub struct MetricPoint {
+    /// Metric identifier (for example `ci_duration_ms`).
     pub name: String,
+    /// Numeric value for the metric.
     pub value: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// Telemetry envelope containing timestamped metric points.
 pub struct TelemetryRecord {
     /// RFC 3339 timestamp (UTC).
     pub timestamp: String,
+    /// Git commit SHA associated with this recording, if available.
     pub git_sha: Option<String>,
+    /// Metric points captured for this record.
     pub metrics: Vec<MetricPoint>,
 }
 
@@ -50,6 +56,7 @@ pub struct NdjsonStore {
 }
 
 impl NdjsonStore {
+    /// Create an NDJSON telemetry store rooted at `root`.
     pub fn new(root: impl Into<PathBuf>) -> Self {
         Self { root: root.into() }
     }

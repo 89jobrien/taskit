@@ -65,6 +65,7 @@ fn ensure_binstall(ctx: &Ctx) -> Result<(), TaskitError> {
     ctx.run(cmd!(sh, "cargo install cargo-binstall"))
 }
 
+/// Install required development tooling for taskit workflows.
 pub fn setup(ctx: &Ctx) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     taskit_output::taskit_progress!("Installing development tools...");
@@ -96,6 +97,7 @@ fn check_label(name: &str) -> &str {
     }
 }
 
+/// Verify required/optional tool presence and cache integrity.
 pub fn self_check() -> Result<(), TaskitError> {
     taskit_output::taskit_progress!("{:<COL_TOOL$} {:<COL_STATUS$} Notes", "Tool", "Status");
     taskit_output::taskit_progress!("{}", "-".repeat(SEPARATOR_WIDTH));

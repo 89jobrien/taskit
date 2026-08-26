@@ -12,6 +12,7 @@ pub fn tool_exists(name: &str) -> bool {
     tool_exists_cmd(name, &["--version"])
 }
 
+/// Check if a tool invocation succeeds for an explicit command line.
 pub fn tool_exists_cmd(program: &str, args: &[&str]) -> bool {
     std::process::Command::new(program)
         .args(args)

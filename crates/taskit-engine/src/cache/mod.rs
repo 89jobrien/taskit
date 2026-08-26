@@ -18,6 +18,7 @@ const CACHE_DIR: &str = "target/taskit/cache";
 pub(crate) const MASTER_FILE: &str = "target/taskit/cache/master-hash";
 
 #[derive(Serialize, Deserialize, Default, PartialEq, Debug)]
+/// Persisted master hash metadata for the cache directory.
 pub struct MasterHash {
     /// SHA-256 over all `.json` files in `.taskit-cache/` sorted by path.
     pub hash: String,
@@ -41,6 +42,7 @@ pub fn verify() -> Result<bool, TaskitError> {
 
 // ── parameterised core (testable) ─────────────────────────────────────────────
 
+/// Recompute and write the master hash for explicit cache/master paths.
 pub fn update_dirs(cache_dir: &Path, master_file: &Path) -> Result<(), TaskitError> {
     if !cache_dir.exists() {
         return Ok(());
@@ -50,6 +52,7 @@ pub fn update_dirs(cache_dir: &Path, master_file: &Path) -> Result<(), TaskitErr
     Ok(())
 }
 
+/// Verify a specific cache directory against a specific master hash file.
 pub fn verify_dirs(cache_dir: &Path, master_file: &Path) -> Result<bool, TaskitError> {
     if !master_file.exists() {
         return Ok(true);

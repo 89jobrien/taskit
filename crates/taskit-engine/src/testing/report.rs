@@ -3,6 +3,7 @@ use xshell::cmd;
 
 use crate::ctx::Ctx;
 
+/// Generate workspace HTML coverage artifacts via `cargo llvm-cov`.
 pub fn run(ctx: &Ctx) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     taskit_output::taskit_progress!("Generating unified coverage report...");

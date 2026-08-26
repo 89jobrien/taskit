@@ -16,10 +16,15 @@ const REGRESSION_FACTOR: f64 = 1.20;
 /// without CLI side effects (e.g. `taskit-tui`) can reuse the same analysis.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DriftReport {
+    /// Arithmetic mean of baseline samples.
     pub baseline_mean: f64,
+    /// 95th percentile of baseline samples.
     pub baseline_p95: f64,
+    /// Most recent metric value.
     pub current: f64,
+    /// Percent delta of current vs baseline mean.
     pub delta_pct: f64,
+    /// True when current exceeds regression threshold.
     pub regressed: bool,
 }
 

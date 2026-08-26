@@ -1,3 +1,5 @@
+//! Integration tests for flow branch promotion and merge behavior.
+
 use taskit_core::conflict_resolver::ConflictResolver;
 use taskit_engine::ctx::Ctx;
 use taskit_engine::flow::{self, merge_with_resolution};

@@ -1,4 +1,4 @@
-//! Conformance helpers for [`PipelineRunner`] implementations.
+//! Conformance helpers for [`crate::pipeline_runner::PipelineRunner`] implementations.
 //!
 //! These are public when the `test-support` feature is enabled, allowing
 //! downstream crates to verify their adapter satisfies the trait contract.

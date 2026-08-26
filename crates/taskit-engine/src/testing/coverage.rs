@@ -5,7 +5,9 @@ use crate::ctx::Ctx;
 
 /// What to measure coverage over.
 pub enum CoverageScope<'a> {
+    /// Collect coverage for a single package.
     Package(&'a str),
+    /// Collect coverage for the entire workspace.
     Workspace,
 }
 

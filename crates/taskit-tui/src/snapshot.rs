@@ -23,11 +23,17 @@ const FLOW_AUTO_CONFLICTS_METRIC: &str = "flow_auto_conflicts";
 const DRIFT_WINDOW_DAYS: u64 = 7;
 const SPARKLINE_POINTS: usize = 30;
 
+/// Collected dashboard data model for a single refresh tick.
 pub struct Snapshot {
+    /// Local refresh timestamp (`HH:MM:SS`).
     pub refreshed_at: String,
+    /// Last stored health baseline, if present.
     pub baseline: Option<HealthBaseline>,
+    /// Number of CI pass/fail metric samples in the window.
     pub ci_run_count: usize,
+    /// Last observed CI pass/fail sample.
     pub last_ci_passed: Option<bool>,
+    /// Drift analysis against previous CI duration samples.
     pub ci_duration_drift: Option<DriftReport>,
     /// Raw `ci_duration_ms` readings, oldest first, capped to the last
     /// `SPARKLINE_POINTS` — feeds the dashboard's `Sparkline` widget.
@@ -42,6 +48,7 @@ pub struct Snapshot {
     pub flow_status: Option<FlowStatusReport>,
     /// Resumable `flow auto` state, if a run was interrupted mid-pipeline.
     pub flow_state: Option<FlowState>,
+    /// Active flow conflict resolver mode from config.
     pub flow_conflict_resolver: ConflictResolverKind,
     /// Raw `flow_auto_duration_ms` readings, oldest first, capped like
     /// `ci_duration_history`.
@@ -49,11 +56,14 @@ pub struct Snapshot {
     /// Raw `flow_auto_result` readings (0/1), oldest first, capped like
     /// `ci_passed_history`.
     pub flow_auto_result_history: Vec<u64>,
+    /// Last observed `flow_auto_conflicts` value, rounded.
     pub flow_auto_conflicts_last: Option<u64>,
+    /// Protocol drift status for configured surfaces.
     pub protocol_drift: Option<ProtocolDriftStatus>,
 }
 
 impl Snapshot {
+    /// Collect a fresh snapshot from baseline, telemetry, flow, and protocol state.
     pub fn collect(ctx: &Ctx) -> Self {
         let baseline = health::load_baseline(ctx.root()).ok();
         let store = NdjsonStore::new(ctx.root());

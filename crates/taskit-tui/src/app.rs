@@ -8,16 +8,23 @@ use taskit_engine::ctx::Ctx;
 use crate::snapshot::Snapshot;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Top-level dashboard tabs.
 pub enum Tab {
+    /// Summary metrics and quick status cards.
     Overview,
+    /// Workspace crate inventory.
     Crates,
+    /// Recent CI/telemetry history.
     History,
+    /// Flow/branch promotion state.
     Flow,
 }
 
 impl Tab {
+    /// Ordered tab list used for keyboard cycling.
     pub const ALL: [Tab; 4] = [Tab::Overview, Tab::Crates, Tab::History, Tab::Flow];
 
+    /// Human-friendly tab title.
     pub fn title(self) -> &'static str {
         match self {
             Tab::Overview => "Overview",
@@ -28,16 +35,20 @@ impl Tab {
     }
 }
 
+/// Mutable UI session state for the dashboard runtime.
 pub struct App {
+    /// Currently active top-level tab.
     pub active_tab: Tab,
     /// Workspace member crate names, fetched once at startup via `cargo
     /// metadata` — cheap enough to shell out for once, too slow to refetch
     /// on every 500ms tick.
     pub crate_names: Vec<String>,
+    /// Scroll offset for the active tab content.
     pub scroll: u16,
 }
 
 impl App {
+    /// Create a new dashboard app state from the runtime context.
     pub fn new(ctx: &Ctx) -> Self {
         Self {
             active_tab: Tab::Overview,
@@ -46,6 +57,7 @@ impl App {
         }
     }
 
+    /// Advance to the next tab, wrapping at the end.
     pub fn next_tab(&mut self) {
         let idx = Tab::ALL
             .iter()
@@ -55,6 +67,7 @@ impl App {
         self.scroll = 0;
     }
 
+    /// Move to the previous tab, wrapping at the beginning.
     pub fn prev_tab(&mut self) {
         let idx = Tab::ALL
             .iter()
@@ -64,26 +77,32 @@ impl App {
         self.scroll = 0;
     }
 
+    /// Scroll down by one row.
     pub fn scroll_down(&mut self) {
         self.scroll = self.scroll.saturating_add(1);
     }
 
+    /// Scroll up by one row.
     pub fn scroll_up(&mut self) {
         self.scroll = self.scroll.saturating_sub(1);
     }
 
+    /// Scroll down by one page increment.
     pub fn scroll_down_page(&mut self) {
         self.scroll = self.scroll.saturating_add(10);
     }
 
+    /// Scroll up by one page increment.
     pub fn scroll_up_page(&mut self) {
         self.scroll = self.scroll.saturating_sub(10);
     }
 
+    /// Jump to the top of the current tab content.
     pub fn scroll_top(&mut self) {
         self.scroll = 0;
     }
 
+    /// Jump toward the bottom of the current tab content.
     pub fn scroll_bottom(&mut self) {
         self.scroll = u16::MAX;
     }
@@ -103,6 +122,7 @@ impl App {
         u16::try_from(rows.saturating_sub(1)).unwrap_or(u16::MAX)
     }
 
+    /// Clamp scroll offset to the active tab's available row range.
     pub fn clamp_scroll(&mut self, snapshot: &Snapshot) {
         self.scroll = self.scroll.min(self.max_scroll(snapshot));
     }

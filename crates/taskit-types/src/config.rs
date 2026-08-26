@@ -1,18 +1,26 @@
 use serde::Deserialize;
 use std::path::PathBuf;
 
+/// Default minimum passing percentage used by coverage checks.
 pub const DEFAULT_COVERAGE_THRESHOLD: f64 = 80.0;
 
+/// Severity class for config validation diagnostics.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DiagnosticSeverity {
+    /// Validation issue that should fail command execution.
     Error,
+    /// Non-fatal validation issue worth surfacing to the user.
     Warning,
 }
 
+/// A single result emitted by `Config::validate`.
 #[derive(Debug, Clone)]
 pub struct ConfigDiagnostic {
+    /// Severity of this diagnostic.
     pub severity: DiagnosticSeverity,
+    /// Dot-path style field identifier (for example `flow.main`).
     pub field: String,
+    /// Human-readable message describing the issue.
     pub message: String,
 }
 
@@ -38,6 +46,7 @@ fn default_verbose_on_failure() -> bool {
     true
 }
 
+/// Output rendering defaults for CLI commands.
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct OutputConfig {
     /// Default output format when `--output` flag is not provided.
@@ -47,18 +56,28 @@ pub struct OutputConfig {
     pub verbose_on_failure: bool,
 }
 
+/// Root taskit configuration loaded from `taskit.toml`.
 #[derive(Debug, Default, Deserialize)]
 pub struct Config {
     #[serde(default)]
+    /// Workspace crate graph and related settings.
     pub workspace: WorkspaceConfig,
+    /// Protocol drift configuration.
     pub protocol: Option<ProtocolConfig>,
+    /// CI step/pipeline configuration.
     pub ci: Option<CiConfig>,
+    /// Coverage command defaults.
     pub coverage: Option<CoverageConfig>,
+    /// Branch-flow automation settings.
     pub flow: Option<FlowConfig>,
+    /// Release/publish settings.
     pub release: Option<ReleaseConfig>,
+    /// Health inspection thresholds.
     pub inspect: Option<InspectConfig>,
+    /// Artifact cleanup settings.
     pub clean: Option<CleanConfig>,
     #[serde(default)]
+    /// Output rendering defaults.
     pub output: OutputConfig,
 }
 
@@ -124,25 +143,34 @@ impl Config {
     }
 }
 
+/// Workspace-level configuration for crate discovery and propagation.
 #[derive(Debug, Default, Deserialize)]
 pub struct WorkspaceConfig {
+    /// Explicit workspace root override, relative to the discovered `taskit.toml`.
     pub root: Option<PathBuf>,
     #[serde(default)]
+    /// Ordered crate entries used by affected-crate detection.
     pub crates: Vec<CrateEntry>,
     #[serde(default)]
+    /// Dependency propagation rules for affected-crate expansion.
     pub propagation: Vec<PropagationEntry>,
+    /// Optional nextest expression for tests skipped in offline mode.
     pub offline_skip: Option<String>,
 }
 
 impl WorkspaceConfig {
+    /// Return the configured offline-skip expression.
     pub fn offline_skip_expr(&self) -> Option<String> {
         self.offline_skip.clone()
     }
 }
 
+/// Per-crate metadata used by workspace operations.
 #[derive(Debug, Deserialize)]
 pub struct CrateEntry {
+    /// Relative directory path for the crate.
     pub dir: String,
+    /// Cargo package name override when it differs from `dir`.
     pub pkg: Option<String>,
     /// Skip this crate's version when checking workspace version consistency
     /// (`taskit version`, health baseline `versions_consistent`). For crates
@@ -153,61 +181,83 @@ pub struct CrateEntry {
 }
 
 impl CrateEntry {
+    /// Package name used for Cargo invocations.
     pub fn pkg_name(&self) -> &str {
         self.pkg.as_deref().unwrap_or(&self.dir)
     }
 }
 
+/// Mapping from one crate to dependent crates for propagation.
 #[derive(Debug, Clone, Deserialize)]
 pub struct PropagationEntry {
+    /// Crate whose changes trigger propagation.
     pub source: String,
+    /// Crates marked affected when `source` changes.
     pub dependents: Vec<String>,
 }
 
+/// Protocol drift settings and tracked surfaces.
 #[derive(Debug, Deserialize)]
 pub struct ProtocolConfig {
     #[serde(default)]
+    /// Contract surfaces hashed into the protocol lockfile.
     pub surfaces: Vec<SurfaceEntry>,
+    /// Path to the protocol lockfile.
     pub lockfile: Option<String>,
 }
 
 impl ProtocolConfig {
+    /// Effective lockfile path, defaulting to `taskit-protocol.lock`.
     pub fn lockfile_path(&self) -> &str {
         self.lockfile.as_deref().unwrap_or("taskit-protocol.lock")
     }
 }
 
+/// One file surface tracked for protocol drift.
 #[derive(Debug, Deserialize)]
 pub struct SurfaceEntry {
+    /// Stable surface identifier used in reports.
     pub name: String,
+    /// Relative file path to hash.
     pub path: String,
 }
 
+/// CI pipeline configuration.
 #[derive(Debug, Default, Deserialize)]
 pub struct CiConfig {
     #[serde(default)]
+    /// Ordered steps to execute for `taskit check ci`.
     pub steps: Vec<CiStep>,
     #[serde(default)]
+    /// Optional Crux pipeline file path.
     pub cruxfile: Option<String>,
     /// Stop the pipeline on the first failing step.
     pub fail_fast: Option<bool>,
 }
 
+/// A single configured CI step.
 #[derive(Debug, Deserialize)]
 pub struct CiStep {
+    /// Display name of the step.
     pub name: String,
+    /// Logical command key or command string to execute.
     pub cmd: String,
     #[serde(default)]
+    /// Whether this step is a gate that blocks later steps on failure.
     pub gate: bool,
 }
 
+/// Coverage defaults used by `taskit test coverage`.
 #[derive(Debug, Deserialize)]
 pub struct CoverageConfig {
+    /// Crate to measure by default.
     pub crate_name: String,
+    /// Minimum passing threshold percentage.
     pub threshold: Option<f64>,
 }
 
 impl CoverageConfig {
+    /// Effective coverage threshold, falling back to the default when invalid.
     pub fn threshold(&self) -> f64 {
         match self.threshold {
             Some(threshold) if threshold.is_finite() && threshold > 0.0 => threshold,
@@ -218,6 +268,7 @@ impl CoverageConfig {
 
 #[derive(Debug, Default, Clone, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
+/// Conflict-resolution strategy for automated flow operations.
 pub enum ConflictResolverKind {
     /// LLM-assisted resolver via BAML (requires API key at runtime).
     #[default]
@@ -226,11 +277,16 @@ pub enum ConflictResolverKind {
     None,
 }
 
+/// Branch and conflict-resolution settings for `taskit flow`.
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct FlowConfig {
+    /// Mainline branch name.
     pub main: Option<String>,
+    /// Primary development branch name.
     pub develop: Option<String>,
+    /// Staging branch name.
     pub staging: Option<String>,
+    /// Release branch name.
     pub release: Option<String>,
     /// Conflict resolver used by `flow auto`. Defaults to `baml`.
     #[serde(default)]
@@ -244,6 +300,7 @@ pub struct FlowConfig {
 }
 
 impl FlowConfig {
+    /// Mainline branch name, defaulting to `main`.
     pub fn main_branch(&self) -> &str {
         self.main.as_deref().unwrap_or("main")
     }
@@ -253,10 +310,12 @@ impl FlowConfig {
         self.develop.as_deref().unwrap_or("develop")
     }
 
+    /// Staging branch name, defaulting to `staging`.
     pub fn staging_branch(&self) -> &str {
         self.staging.as_deref().unwrap_or("staging")
     }
 
+    /// Release branch name, defaulting to `release`.
     pub fn release_branch(&self) -> &str {
         self.release.as_deref().unwrap_or("release")
     }
@@ -272,6 +331,7 @@ impl FlowConfig {
     }
 }
 
+/// Release and publishing configuration.
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct ReleaseConfig {
     /// GitHub repo in `owner/name` format (e.g. `89jobrien/taskit`).
@@ -287,6 +347,7 @@ pub struct ReleaseConfig {
 }
 
 impl ReleaseConfig {
+    /// GitHub repository slug (`owner/name`) when configured.
     pub fn github_repo(&self) -> Option<&str> {
         self.github_repo.as_deref()
     }
@@ -306,6 +367,7 @@ pub struct InspectConfig {
     pub max_todo_fixme: Option<usize>,
 }
 
+/// Cleanup command configuration.
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct CleanConfig {
     /// Remove artifacts older than this many days (e.g. `"7d"`).

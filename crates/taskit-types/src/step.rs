@@ -1,10 +1,14 @@
 use std::fmt;
 use std::time::Duration;
 
+/// Result status for an executed pipeline step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StepStatus {
+    /// Step completed successfully.
     Pass,
+    /// Step failed.
     Fail,
+    /// Step did not run.
     Skipped,
 }
 
@@ -21,8 +25,11 @@ impl fmt::Display for StepStatus {
 /// Severity level for a diagnostic finding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiagnosticLevel {
+    /// Error-level diagnostic that should fail quality gates.
     Error,
+    /// Warning-level diagnostic.
     Warning,
+    /// Informational diagnostic.
     Note,
 }
 
@@ -84,12 +91,18 @@ pub struct PipelineRunContext {
     pub workspace_members: Vec<String>,
 }
 
+/// Result of a single pipeline step execution.
 #[derive(Debug, Clone)]
 pub struct StepResult {
+    /// Step display name.
     pub name: String,
+    /// Final status.
     pub status: StepStatus,
+    /// Step runtime.
     pub duration: Duration,
+    /// Human-readable failure detail when the step fails.
     pub error: Option<String>,
+    /// Whether this step is a gate.
     pub gate: bool,
     /// Per-finding diagnostics captured from the tool's structured output.
     pub diagnostics: Vec<DiagnosticRecord>,
@@ -97,10 +110,14 @@ pub struct StepResult {
     pub context: StepDiagnosticContext,
 }
 
+/// Aggregated outcome for a full pipeline run.
 #[derive(Debug, Default)]
 pub struct PipelineOutcome {
+    /// Per-step execution results.
     pub results: Vec<StepResult>,
+    /// Total pipeline runtime.
     pub total: Duration,
+    /// Overall pass/fail state.
     pub passed: bool,
     /// Best-effort run provenance for diagnostics.
     pub context: Option<PipelineRunContext>,

@@ -45,8 +45,11 @@ impl Drift {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Summary status returned by read-only protocol drift checks.
 pub struct ProtocolDriftStatus {
+    /// Whether any protocol surfaces are configured.
     pub configured: bool,
+    /// Names of configured surfaces whose current hash differs from lockfile.
     pub drifted_surfaces: Vec<String>,
 }
 

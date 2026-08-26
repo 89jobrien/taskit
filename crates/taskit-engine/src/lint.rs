@@ -4,6 +4,7 @@ use xshell::cmd;
 
 use crate::{ctx::Ctx, util};
 
+/// Run clippy checks/fixes across workspace or selected crates.
 pub fn run(
     ctx: &Ctx,
     crate_name: Option<&str>,

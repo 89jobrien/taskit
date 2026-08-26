@@ -18,6 +18,10 @@ const PUBLISH_ORDER: &[&str] = &[
     "taskit",
 ];
 
+/// Run workspace crate publishing in dependency order.
+///
+/// Applies CLI/config overrides for docs and dirty-tree behavior, then emits a
+/// structured pipeline result.
 pub fn run(ctx: &Ctx, skip_docs: bool, allow_dirty: bool) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     let dry_run = ctx.dry_run;

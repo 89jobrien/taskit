@@ -4,11 +4,16 @@ use crate::ctx::Ctx;
 use crate::health::{self, HealthBaseline};
 use crate::step::{Pipeline, PipelineOutcome};
 
+/// Thresholds used by `taskit health inspect` gate checks.
 #[derive(Debug, Clone, Default)]
 pub struct Thresholds {
+    /// Maximum allowed clippy warnings.
     pub max_clippy_warnings: usize,
+    /// Maximum allowed clippy errors.
     pub max_clippy_errors: usize,
+    /// Maximum allowed test failures.
     pub max_test_failures: usize,
+    /// Optional maximum allowed TODO/FIXME count.
     pub max_todo_fixme: Option<usize>,
 }
 
@@ -72,6 +77,7 @@ fn threshold_check(name: &str, value: usize, limit: usize) -> Result<(), TaskitE
     }
 }
 
+/// Run inspect checks and render a pipeline-style report.
 pub fn run(
     ctx: &Ctx,
     max_warnings: Option<usize>,

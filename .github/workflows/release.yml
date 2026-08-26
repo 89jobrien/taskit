@@ -1,18 +1,185 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Exact next SemVer (without the v prefix)"
+        required: true
+        type: string
+      release_ref:
+        description: "Branch to release and receive the release commit"
+        required: true
+        default: "release"
+        type: string
+      confirmation:
+        description: "Type release to authorize publishing and push"
+        required: true
+        type: string
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+permissions:
+  contents: read
 
 jobs:
+  release:
+    name: Validate, gate, version, and tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.release_ref }}
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+
+      - uses: taiki-e/install-action@6c6fd71fe4fb72c3697d269963d0e15df8adedad # v2.85.10
+        with:
+          tool: cargo-nextest,cargo-llvm-cov,cargo-deny,cargo-machete,git-cliff
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-release-gates-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-release-gates-
+
+      - name: Install Taskit from this revision
+        run: cargo install --path . --locked
+
+      - name: Validate release request
+        id: plan
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+          RELEASE_REF: ${{ inputs.release_ref }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          test "$CONFIRMATION" = release || {
+            echo "confirmation must be exactly 'release'" >&2
+            exit 1
+          }
+          [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
+            echo "Taskit release supports stable major.minor.patch versions only" >&2
+            exit 1
+          }
+          git check-ref-format --branch "$RELEASE_REF" >/dev/null
+          git fetch --force --tags origin "+refs/heads/$RELEASE_REF:refs/remotes/origin/$RELEASE_REF"
+          git fetch --force origin "+refs/heads/develop:refs/remotes/origin/develop"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/remotes/origin/$RELEASE_REF")" || {
+            echo "checked-out revision does not match origin/$RELEASE_REF" >&2
+            exit 1
+          }
+          git merge-base --is-ancestor refs/remotes/origin/develop HEAD || {
+            echo "$RELEASE_REF does not contain the latest origin/develop" >&2
+            exit 1
+          }
+
+          CURRENT="$(cargo metadata --no-deps --format-version 1 |
+            jq -er '.packages[] | select(.name == "taskit") | .version')"
+          IFS=. read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          case "$VERSION" in
+            "$MAJOR.$MINOR.$((PATCH + 1))") BUMP="patch" ;;
+            "$MAJOR.$((MINOR + 1)).0") BUMP="minor" ;;
+            "$((MAJOR + 1)).0.0") BUMP="major" ;;
+            *)
+              echo "$VERSION is not Taskit's next patch, minor, or major version from $CURRENT" >&2
+              exit 1
+              ;;
+          esac
+
+          TAG="v$VERSION"
+          if git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null ||
+             git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "tag already exists: $TAG" >&2
+            exit 1
+          fi
+
+          BASE_TAG="$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD 2>/dev/null || true)"
+          test -n "$BASE_TAG" || {
+            echo "no prior v* tag found" >&2
+            exit 1
+          }
+          if git diff --quiet "$BASE_TAG..HEAD" --; then
+            echo "no changes since $BASE_TAG" >&2
+            exit 1
+          fi
+
+          # Taskit's release contract is intentionally lockstep: release bump
+          # updates every workspace package, and taskit.toml supplies the full
+          # dependency-ordered publish set. This conservatively includes every
+          # affected crate and all transitive downstream dependents.
+          taskit --dry-run release "$BUMP"
+          taskit --dry-run release publish
+
+          {
+            echo "bump=$BUMP"
+            echo "tag=$TAG"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run Taskit release gates
+        run: |
+          set -euo pipefail
+          taskit check ci --fail-fast
+          taskit protocol audit
+          taskit changelog preview
+
+      - name: Apply Taskit release
+        id: release
+        env:
+          BUMP: ${{ steps.plan.outputs.bump }}
+          RELEASE_REF: ${{ inputs.release_ref }}
+          TAG: ${{ steps.plan.outputs.tag }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+
+          taskit changelog unreleased
+          taskit release "$BUMP"
+          taskit dev build
+
+          ACTUAL="$(cargo metadata --locked --no-deps --format-version 1 |
+            jq -er '.packages[] | select(.name == "taskit") | .version')"
+          test "$ACTUAL" = "$VERSION" || {
+            echo "Taskit produced $ACTUAL, expected $VERSION" >&2
+            exit 1
+          }
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Cargo.toml Cargo.lock CHANGELOG.md crates/*/Cargo.toml
+          git diff --cached --check
+          git commit -m "chore(release): taskit $TAG"
+          git tag -a "$TAG" -m "taskit $TAG"
+          git push --atomic origin "HEAD:refs/heads/$RELEASE_REF" "refs/tags/$TAG"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
   build:
-    name: build ${{ matrix.target }}
+    name: Build ${{ matrix.target }}
+    needs: release
     runs-on: ${{ matrix.runner }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - target: x86_64-unknown-linux-musl
@@ -28,11 +195,15 @@ jobs:
             runner: macos-latest
             use_cross: false
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - uses: actions/cache@v4
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry
@@ -40,54 +211,115 @@ jobs:
             target
           key: ${{ runner.os }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-${{ matrix.target }}-release-
-      - uses: taiki-e/install-action@v2
+
+      - uses: taiki-e/install-action@6c6fd71fe4fb72c3697d269963d0e15df8adedad # v2.85.10
         if: matrix.use_cross
         with:
           tool: cross
-      - name: build
+
+      - name: Build taskit
+        env:
+          TARGET: ${{ matrix.target }}
+          USE_CROSS: ${{ matrix.use_cross }}
         run: |
-          if [[ "${{ matrix.use_cross }}" == "true" ]]; then
-            cross build --release --target ${{ matrix.target }}
+          set -euo pipefail
+          if [ "$USE_CROSS" = true ]; then
+            cross build --release --locked --target "$TARGET" -p taskit --bin taskit
           else
-            cargo build --release --target ${{ matrix.target }}
+            cargo build --release --locked --target "$TARGET" -p taskit --bin taskit
           fi
-      - name: package
+
+      - name: Package and verify archive
+        env:
+          TAG: ${{ needs.release.outputs.tag }}
+          TARGET: ${{ matrix.target }}
         run: |
-          VERSION=${GITHUB_REF_NAME}
-          TARGET=${{ matrix.target }}
-          ARCHIVE="taskit-${VERSION}-${TARGET}.tar.gz"
+          set -euo pipefail
+          ARCHIVE="taskit-${TAG}-${TARGET}.tar.gz"
+          test -x "target/${TARGET}/release/taskit"
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/taskit dist/
-          tar -czf "${ARCHIVE}" -C dist taskit
-      - uses: actions/upload-artifact@v4
+          cp "target/${TARGET}/release/taskit" dist/taskit
+          tar -czf "$ARCHIVE" -C dist taskit
+          test "$(tar -tzf "$ARCHIVE")" = taskit
+
+      - name: Upload binary archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: taskit-${{ matrix.target }}
-          path: "*.tar.gz"
-          retention-days: 1
+          path: taskit-${{ needs.release.outputs.tag }}-${{ matrix.target }}.tar.gz
+          if-no-files-found: error
+          retention-days: 7
 
-  release:
-    name: create GitHub release
+  publish:
+    name: Publish crates with Taskit
+    needs: [release, build]
     runs-on: ubuntu-latest
-    needs: build
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Taskit from release tag
+        run: cargo install --path . --locked
+
+      - name: Publish configured workspace crates
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: taskit release publish
+
+  github-release:
+    name: Create GitHub release with Taskit
+    needs: [release, build, publish]
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: git-cliff
-      - name: generate release notes
-        id: notes
-        run: |
-          git-cliff --latest --strip header > RELEASE_NOTES.md
-      - uses: actions/download-artifact@v4
+          ref: ${{ needs.release.outputs.tag }}
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Taskit from release tag
+        run: cargo install --path . --locked
+
+      - name: Download binary archives
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: artifacts
+          pattern: taskit-*
           merge-multiple: true
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: artifacts/*.tar.gz
-          body_path: RELEASE_NOTES.md
-          draft: false
+
+      - name: Verify release assets
+        env:
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          for TARGET in \
+            x86_64-unknown-linux-musl \
+            aarch64-unknown-linux-musl \
+            x86_64-apple-darwin \
+            aarch64-apple-darwin; do
+            ARCHIVE="artifacts/taskit-${TAG}-${TARGET}.tar.gz"
+            test -f "$ARCHIVE"
+            test "$(tar -tzf "$ARCHIVE")" = taskit
+          done
+          (cd artifacts && sha256sum ./*.tar.gz > SHA256SUMS)
+
+      - name: Create release and upload assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          taskit release create "$TAG"
+          gh release upload "$TAG" artifacts/*.tar.gz artifacts/SHA256SUMS --clobber

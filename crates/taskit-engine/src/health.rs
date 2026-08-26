@@ -12,12 +12,18 @@ const BASELINE_FILE: &str = ".health-baseline.json";
 const TELEMETRY_WINDOW_DAYS: u64 = 30;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// Snapshot of health metrics used for regression gating.
 pub struct HealthBaseline {
+    /// Baseline collection date.
     pub date: String,
+    /// Aggregate test counts.
     pub tests: TestCounts,
+    /// Aggregate clippy counts.
     pub clippy: ClippyCounts,
+    /// Total TODO/FIXME markers in workspace sources.
     pub todo_fixme: usize,
     #[serde(default)]
+    /// Aggregate safety-marker counts.
     pub safety: SafetyCounts,
     /// Workspace line-coverage percentage. `None` unless collected with
     /// `--with-coverage` (expensive: compiles with instrumentation).
@@ -27,29 +33,42 @@ pub struct HealthBaseline {
     /// `TELEMETRY_WINDOW_DAYS` days. `None` if `taskit ci` hasn't run yet.
     #[serde(default)]
     pub ci_duration_ms: Option<f64>,
+    /// Number of workspace crates considered.
     pub crates: usize,
+    /// Whether workspace crate versions are aligned.
     pub versions_consistent: bool,
+    /// Workspace version string.
     pub version: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// Parsed nextest summary totals.
 pub struct TestCounts {
+    /// Total discovered tests.
     pub total: usize,
+    /// Passing tests.
     pub passed: usize,
+    /// Failing tests.
     pub failed: usize,
+    /// Skipped tests.
     pub skipped: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// Parsed clippy diagnostic totals.
 pub struct ClippyCounts {
+    /// Number of clippy warnings.
     pub warnings: usize,
+    /// Number of clippy errors.
     pub errors: usize,
 }
 
 /// Counts of `.unwrap()`/`.expect()` and `warn!()` call sites in workspace source.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct SafetyCounts {
+    /// Count of `.unwrap()`/`.expect()` call sites.
     pub unwrap_count: usize,
+    /// Count of `warn!()` call sites.
     pub warn_count: usize,
 }
 

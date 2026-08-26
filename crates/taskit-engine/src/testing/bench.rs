@@ -19,6 +19,9 @@ fn build_bench_args(crate_name: Option<&str>, save_baseline: bool) -> Vec<String
     args
 }
 
+/// Run benchmarks for one crate or the whole workspace.
+///
+/// When `save_baseline` is true, forwards `--save-baseline main` to Criterion.
 pub fn run(ctx: &Ctx, crate_name: Option<&str>, save_baseline: bool) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     let args = build_bench_args(crate_name, save_baseline);

@@ -12,7 +12,9 @@ mod app;
 mod snapshot;
 mod ui;
 
+/// Dashboard application state.
 pub use app::{App, Tab};
+/// Snapshot model used to render the dashboard.
 pub use snapshot::Snapshot;
 
 use std::io;

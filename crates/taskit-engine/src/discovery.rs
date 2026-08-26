@@ -7,8 +7,11 @@ use crate::config::PropagationEntry;
 /// A discovered workspace crate from cargo metadata.
 #[derive(Debug, Clone)]
 pub struct DiscoveredCrate {
+    /// Crate directory relative to workspace root.
     pub dir: String,
+    /// Cargo package name.
     pub pkg: String,
+    /// Absolute path to the crate manifest.
     pub manifest_path: PathBuf,
 }
 
@@ -21,7 +24,9 @@ pub(crate) struct DiscoveredSurface {
 
 /// Port: abstracts cargo metadata retrieval for testability.
 pub trait MetadataSource {
+    /// Return all workspace members.
     fn workspace_members(&self) -> Result<Vec<DiscoveredCrate>, TaskitError>;
+    /// Return `(dependency, dependent)` edges for workspace-internal deps.
     fn intra_workspace_deps(&self) -> Result<Vec<(String, String)>, TaskitError>;
 }
 
@@ -137,6 +142,7 @@ fn infer_crate_name(rel_path: &str) -> &str {
 
 /// Production adapter: reads cargo metadata from the real workspace.
 pub struct CargoMetadataSource {
+    /// Workspace root where `cargo metadata` should run.
     pub workspace_root: PathBuf,
 }
 

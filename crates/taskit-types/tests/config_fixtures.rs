@@ -1,3 +1,5 @@
+//! Integration tests for parsing and validating config fixtures.
+
 use taskit_types::config::Config;
 
 #[test]

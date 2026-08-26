@@ -3,6 +3,7 @@ use xshell::cmd;
 
 use crate::ctx::Ctx;
 
+/// Clean workspace artifacts, optionally sweeping by age.
 pub fn run(ctx: &Ctx, older_than: Option<&str>) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     // CLI flag wins; fall back to [clean] older_than in taskit.toml.

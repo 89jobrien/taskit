@@ -1,3 +1,5 @@
+//! Crux pipeline runner adapter implementations.
+
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -17,6 +19,7 @@ pub struct EmbeddedCruxRunner {
 }
 
 impl EmbeddedCruxRunner {
+    /// Create a runner for the given Cruxfile path.
     pub fn new(cruxfile_path: PathBuf) -> Self {
         Self { cruxfile_path }
     }

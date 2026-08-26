@@ -11,9 +11,11 @@ use taskit_types::step::{
 
 /// Port: formats pipeline results for different output targets.
 pub trait OutputFormatter {
+    /// Render a full pipeline outcome into this formatter's target representation.
     fn render(&self, outcome: &PipelineOutcome) -> String;
 }
 
+/// Build a formatter instance for the requested output format.
 pub fn formatter_for(format: OutputFormat) -> Box<dyn OutputFormatter> {
     match format {
         OutputFormat::Human => Box::new(HumanFormatter),
@@ -34,6 +36,7 @@ const COL_NAME: usize = 30;
 const COL_STATUS: usize = 10;
 const SEPARATOR_WIDTH: usize = 55;
 
+/// Human-readable table formatter.
 pub struct HumanFormatter;
 
 impl OutputFormatter for HumanFormatter {
@@ -92,7 +95,9 @@ impl OutputFormatter for HumanFormatter {
 
 // -- Compact -----------------------------------------------------------------
 
+/// Compact single-line-per-step formatter.
 pub struct CompactFormatter {
+    /// Whether to include failure details inline.
     pub verbose_on_failure: bool,
 }
 
@@ -200,6 +205,7 @@ fn json_step_context(ctx: &StepDiagnosticContext) -> Option<JsonStepContext> {
     })
 }
 
+/// Pretty JSON formatter.
 pub struct JsonFormatter;
 
 impl OutputFormatter for JsonFormatter {
@@ -240,6 +246,7 @@ impl OutputFormatter for JsonFormatter {
 
 // -- GitHub Actions ----------------------------------------------------------
 
+/// GitHub Actions annotation and summary formatter.
 pub struct GithubFormatter;
 
 impl OutputFormatter for GithubFormatter {
@@ -336,6 +343,7 @@ impl OutputFormatter for GithubFormatter {
 
 // -- JUnit XML ---------------------------------------------------------------
 
+/// JUnit XML formatter.
 pub struct JunitFormatter;
 
 impl OutputFormatter for JunitFormatter {
@@ -404,6 +412,7 @@ fn xml_escape(s: &str) -> String {
 
 // -- Diagnostic (miette) -----------------------------------------------------
 
+/// Miette-based diagnostic formatter.
 pub struct DiagnosticFormatter;
 
 impl OutputFormatter for DiagnosticFormatter {
@@ -460,6 +469,7 @@ impl OutputFormatter for DiagnosticFormatter {
 
 // -- SARIF 2.1.0 -------------------------------------------------------------
 
+/// SARIF 2.1.0 formatter.
 pub struct SarifFormatter;
 
 impl OutputFormatter for SarifFormatter {

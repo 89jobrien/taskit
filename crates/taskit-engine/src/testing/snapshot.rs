@@ -3,6 +3,7 @@ use xshell::cmd;
 
 use crate::ctx::Ctx;
 
+/// Launch interactive review for pending insta snapshots.
 pub fn run(ctx: &Ctx) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     taskit_output::taskit_progress!("Reviewing pending insta snapshots...");

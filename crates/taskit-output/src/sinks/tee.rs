@@ -9,6 +9,7 @@ pub struct TeeSink {
 }
 
 impl TeeSink {
+    /// Create a tee sink from child sinks.
     pub fn new(children: Vec<Box<dyn MessageSink>>) -> Self {
         Self { children }
     }

@@ -35,10 +35,15 @@ struct OutdatedDependency {
 /// A dependency with an update available, flattened with its owning crate.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DependencyUpdate {
+    /// Workspace crate that declares the dependency.
     pub crate_name: String,
+    /// Dependency package name.
     pub name: String,
+    /// Currently used version.
     pub project: String,
+    /// Newest semver-compatible version.
     pub compat: String,
+    /// Newest available version overall.
     pub latest: String,
 }
 
@@ -83,6 +88,7 @@ pub fn parse_outdated_json(output: &str) -> Result<Vec<DependencyUpdate>, Taskit
     Ok(updates)
 }
 
+/// Run dependency freshness checks and optionally fail when stale deps exist.
 pub fn run(ctx: &Ctx, warn_only: bool) -> Result<(), TaskitError> {
     taskit_output::taskit_progress!("Checking dependency freshness...");
 

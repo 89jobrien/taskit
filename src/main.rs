@@ -1,3 +1,5 @@
+//! Taskit CLI entrypoint and command-line dispatch wiring.
+
 #[allow(
     clippy::all,
     non_snake_case,
@@ -10,8 +12,9 @@ mod flow_resolver;
 
 use clap::{CommandFactory, Parser, Subcommand};
 use std::env;
+use taskit_engine::changelog::ChangelogMode;
 use taskit_engine::command::{
-    Audit, Bench, Bootstrap, Build, CheckDeps, CheckFreshness, CheckProtocolDrift,
+    Audit, Bench, Bootstrap, Build, Changelog, CheckDeps, CheckFreshness, CheckProtocolDrift,
     CheckProtocolSites, Ci, Clean, Command, CompileTests, Coverage, DevSetup, Drift, Flow,
     FlowAction, Fmt, Fuzz, Health, Inspect, Install, InstallHooks, Lint, Patch, PreCommit, PrePush,
     Proptest, Publish, Quick, Release, SelfCheck, SelfTest, SnapshotReview, Test, TestReport,
@@ -91,6 +94,23 @@ enum Cmd {
         #[arg(long)]
         interactive: bool,
     },
+    /// Generate or preview CHANGELOG.md using git-cliff
+    Changelog {
+        #[command(subcommand)]
+        sub: Option<ChangelogCmd>,
+    },
+}
+
+#[derive(Subcommand)]
+enum ChangelogCmd {
+    /// Prepend unreleased changes to CHANGELOG.md
+    Unreleased,
+    /// Regenerate the complete CHANGELOG.md
+    Full,
+    /// Prepend the latest tagged release to CHANGELOG.md
+    Latest,
+    /// Print unreleased changes without writing a file
+    Preview,
 }
 
 #[derive(Subcommand)]
@@ -417,6 +437,14 @@ fn to_command(cmd: Cmd, resolver_kind: &ConflictResolverKind) -> Box<dyn Command
         }
         Cmd::Self_ { sub } => self_to_command(sub),
         Cmd::Dashboard => Box::new(Dashboard),
+        Cmd::Changelog { sub } => Box::new(Changelog {
+            mode: match sub {
+                None | Some(ChangelogCmd::Unreleased) => ChangelogMode::Unreleased,
+                Some(ChangelogCmd::Full) => ChangelogMode::Full,
+                Some(ChangelogCmd::Latest) => ChangelogMode::Latest,
+                Some(ChangelogCmd::Preview) => ChangelogMode::Preview,
+            },
+        }),
         Cmd::Init { .. } => unreachable!("Init is handled before dispatch"),
     }
 }
@@ -644,4 +672,22 @@ fn main() -> miette::Result<()> {
         .unwrap_or_default();
     let command = to_command(cli.cmd, &resolver_kind);
     command.run(&ctx).map_err(Into::into)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn changelog_modes_parse() {
+        for args in [
+            vec!["taskit", "changelog"],
+            vec!["taskit", "changelog", "unreleased"],
+            vec!["taskit", "changelog", "full"],
+            vec!["taskit", "changelog", "latest"],
+            vec!["taskit", "changelog", "preview"],
+        ] {
+            assert!(Cli::try_parse_from(args).is_ok());
+        }
+    }
 }

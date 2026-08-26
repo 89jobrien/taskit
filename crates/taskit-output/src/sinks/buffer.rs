@@ -12,20 +12,24 @@ pub struct BufferSink {
 }
 
 impl BufferSink {
+    /// Create an empty in-memory buffer sink.
     pub fn new() -> Self {
         Self {
             messages: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
+    /// Return a snapshot of buffered messages.
     pub fn messages(&self) -> Vec<Message> {
         self.with_messages(|messages| messages.clone())
     }
 
+    /// Number of buffered messages.
     pub fn len(&self) -> usize {
         self.with_messages(|messages| messages.len())
     }
 
+    /// Whether no messages have been emitted.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

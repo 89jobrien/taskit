@@ -246,17 +246,25 @@ fn push_branches(ctx: &Ctx, remote: &str, branches: &[&str]) -> Result<(), Taski
     Ok(())
 }
 
+/// Ahead/behind relation for one flow branch hop.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FlowHop {
+    /// Source branch.
     pub from: String,
+    /// Target branch.
     pub to: String,
+    /// Commits source is ahead of target.
     pub ahead: usize,
+    /// Commits source is behind target.
     pub behind: usize,
+    /// Whether both branches exist locally.
     pub branches_exist: bool,
 }
 
+/// Snapshot of flow status for all configured branch hops.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FlowStatusReport {
+    /// Current checked-out branch.
     pub current_branch: String,
     /// main→develop→staging→release→main, in that order.
     pub hops: Vec<FlowHop>,
@@ -305,6 +313,7 @@ pub fn status_report(ctx: &Ctx, flow: &FlowConfig) -> Result<FlowStatusReport, T
     })
 }
 
+/// Print flow status for the configured branch chain.
 pub fn status(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
     let report = status_report(ctx, flow)?;
 
@@ -409,6 +418,7 @@ pub fn promote(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
     Ok(())
 }
 
+/// Enforce protected-branch rules for current branch.
 pub fn guard(ctx: &Ctx, flow: &FlowConfig) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     let current = current_branch(sh)?;

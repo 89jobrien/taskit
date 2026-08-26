@@ -105,6 +105,7 @@ fn any_rust_file(staged: &str) -> bool {
     staged.lines().any(|l| l.ends_with(".rs"))
 }
 
+/// Run pre-commit gate checks for staged Rust changes.
 pub fn pre_commit(ctx: &Ctx) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     taskit_output::taskit_progress!("Running pre-commit checks (Rust only)...");
@@ -156,6 +157,7 @@ pub fn pre_commit(ctx: &Ctx) -> Result<(), TaskitError> {
     Ok(())
 }
 
+/// Run pre-push checks on affected crates.
 pub fn pre_push(ctx: &Ctx) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     let ws = ctx.ws();
@@ -263,6 +265,7 @@ const PRE_PUSH_HOOK: &str = "#!/usr/bin/env bash\n\
                              fi\n\n\
                              exit $(( TASKIT_EXIT | ORIG_EXIT ))\n";
 
+/// Install generated git hook wrappers into `.git/hooks`.
 pub fn install_hooks(ctx: &Ctx) -> Result<(), TaskitError> {
     let hooks_dir = ".git/hooks";
 
