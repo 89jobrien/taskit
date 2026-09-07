@@ -18,6 +18,20 @@ use crate::{
     testing, todo_sync, update, update_claude, version,
 };
 
+// Roadmap notes from the 2026-08-31 planning pass.
+// TODO(feature): add `doctor` to diagnose environment/toolchain/hook issues.
+// TODO(feature): add `plan` to preview commands, affected crates, and runtime.
+// TODO(feature): add `bisect` to isolate failure-inducing commits automatically.
+// TODO(feature): add `quarantine` to detect/tag flaky tests from telemetry.
+// TODO(feature): add `release-impact` for per-crate semver bump guidance.
+// TODO(feature): add `policy` support via `taskit-policy.toml` gate rules.
+// TODO(feature): add `verify-docs` drift checks between docs and CLI/config.
+// TODO(feature): add `fix` mode for safe auto-remediation flows.
+// TODO(feature): add `trend` reporting for local historical health metrics.
+// TODO(feature): add `plugin` API for team-specific commands and gates.
+// TODO(feature): add `multi` orchestration across related repositories.
+// TODO(feature): add `attestation` output for build/test provenance metadata.
+
 /// A runnable subcommand. Implementors carry their own parsed arguments and
 /// receive the shared execution context.
 pub trait Command {
