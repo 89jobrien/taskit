@@ -28,7 +28,7 @@ use taskit_types::output_format::OutputFormat;
 use xshell::Shell;
 
 #[derive(Parser)]
-#[command(name = "taskit", about = "Config-driven CI pipeline runner")]
+#[command(name = "taskit", version, about = "Config-driven CI pipeline runner")]
 struct Cli {
     /// Print commands without executing them
     #[arg(long, global = true)]
