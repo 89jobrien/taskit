@@ -132,12 +132,20 @@ pub fn run(ctx: &Ctx, update: bool, warn_only: bool) -> Result<(), TaskitError> 
 
     for marker in &new_markers {
         let key = issue_key(marker);
-        if let Some(number) = adopted.get(&key).copied() {
+        if let Some(issue) = adopted.get(&key) {
+            let number = issue.number;
             taskit_output::taskit_ok!(
                 "todo-sync: reusing issue #{number} for {}:{}",
                 marker.file,
                 marker.line
             );
+            if is_closed(&issue.state) {
+                taskit_output::taskit_warn!(
+                    "todo-sync: issue #{number} for {}:{} is closed; reopen it or drop the citation to track it again",
+                    marker.file,
+                    marker.line
+                );
+            }
             entries.push(SyncedTodo {
                 file: marker.file.clone(),
                 text: marker.text.clone(),
@@ -230,12 +238,23 @@ fn adopt_existing_issues(
     ctx: &Ctx,
     repo: &str,
     markers: &[&TodoMarker],
-) -> Result<HashMap<String, u64>, TaskitError> {
+) -> Result<HashMap<String, IssueSummary>, TaskitError> {
     let issues = list_issues(ctx, repo)?;
     let mut adopted = HashMap::new();
     for marker in markers {
-        if let Some(issue) = find_existing(&issues, marker) {
-            adopted.insert(issue_key(marker), issue.number);
+        match find_existing(&issues, marker) {
+            Some(issue) => {
+                adopted.insert(issue_key(marker), issue.clone());
+            }
+            None => {
+                if let Some(cited) = cited_issue_number(&marker.text) {
+                    taskit_output::taskit_warn!(
+                        "todo-sync: {}:{} cites issue #{cited}, which is not in the repo",
+                        marker.file,
+                        marker.line
+                    );
+                }
+            }
         }
     }
     Ok(adopted)
@@ -266,12 +285,27 @@ fn list_issues(ctx: &Ctx, repo: &str) -> Result<Vec<IssueSummary>, TaskitError> 
     serde_json::from_str(&output.stdout).err_context("failed to parse `gh issue list` output")
 }
 
-/// The lowest-numbered issue already tracking `marker`, if any.
+/// The issue already tracking `marker`, if any.
+///
+/// A `(#N)` citation in the marker wins whenever it resolves to an issue in
+/// the repo — the author named the issue they meant. Citations are often
+/// plan-document numbering rather than GitHub numbers, so an unresolved
+/// citation falls back to matching on title + file instead of dead-ending.
 fn find_existing<'a>(issues: &'a [IssueSummary], marker: &TodoMarker) -> Option<&'a IssueSummary> {
+    if let Some(cited) = cited_issue_number(&marker.text)
+        && let Some(issue) = issues.iter().find(|issue| issue.number == cited)
+    {
+        return Some(issue);
+    }
     issues
         .iter()
         .filter(|issue| issue.title == marker.text && body_tracks_file(&issue.body, &marker.file))
         .min_by_key(|issue| issue.number)
+}
+
+/// True when `gh` reported the issue as closed.
+fn is_closed(state: &str) -> bool {
+    state.eq_ignore_ascii_case("closed")
 }
 
 /// Issue body for a newly created marker.
@@ -318,6 +352,12 @@ fn close_issue(ctx: &Ctx, repo: &str, number: u64) -> Result<(), TaskitError> {
 /// `https://github.com/owner/repo/issues/42`.
 fn parse_issue_number(output: &str) -> Option<u64> {
     output.trim().rsplit('/').next()?.parse().ok()
+}
+
+/// Trailing `(#47)` citation in a marker, which the author uses to name the
+/// issue already tracking it.
+fn cited_issue_number(text: &str) -> Option<u64> {
+    text.strip_suffix(')')?.rsplit_once("(#")?.1.parse().ok()
 }
 
 fn read_lockfile(path: &Path) -> Result<Lockfile, TaskitError> {
@@ -414,6 +454,16 @@ mod tests {
             body: body.to_string(),
             state: "OPEN".to_string(),
         }
+    }
+
+    // -- cited_issue_number --
+
+    #[test]
+    fn cited_issue_number_is_read_from_a_trailing_reference() {
+        assert_eq!(cited_issue_number("TODO(x): do the thing (#47)"), Some(47));
+        assert_eq!(cited_issue_number("TODO: plain"), None);
+        assert_eq!(cited_issue_number("TODO: unterminated (#12"), None);
+        assert_eq!(cited_issue_number("TODO: not a number (#abc)"), None);
     }
 
     // -- parse_issue_number --
@@ -588,5 +638,68 @@ mod tests {
             issue(42, "TODO: a", &issue_body(&marker)),
         ];
         assert_eq!(find_existing(&issues, &marker).map(|i| i.number), Some(42));
+    }
+
+    // -- cited-issue adoption --
+
+    #[test]
+    fn cited_issue_is_adopted_even_when_title_and_file_do_not_match() {
+        let marker = marker("src/a.rs", 12, "TODO(feature): add doctor (#47)");
+        let cited = issue(47, "totally different title", "and a different body");
+        assert_eq!(find_existing(&[cited], &marker).map(|i| i.number), Some(47));
+    }
+
+    #[test]
+    fn cited_issue_wins_over_a_title_and_file_match() {
+        let marker = marker("src/a.rs", 12, "TODO: a (#9)");
+        let issues = [
+            issue(3, "TODO: a", &issue_body(&marker)),
+            issue(9, "TODO: a", &issue_body(&marker)),
+        ];
+        assert_eq!(find_existing(&issues, &marker).map(|i| i.number), Some(9));
+    }
+
+    #[test]
+    fn citation_that_is_not_a_github_number_falls_back_to_title_and_file() {
+        // Plan documents number their own items; those citations must not
+        // stop an existing issue from being reused.
+        let marker = marker("src/a.rs", 12, "TODO(feature)(#21): add attestation");
+        let tracked = issue(
+            59,
+            "TODO(feature)(#21): add attestation",
+            &issue_body(&marker),
+        );
+        assert_eq!(
+            find_existing(&[tracked], &marker).map(|i| i.number),
+            Some(59)
+        );
+    }
+
+    #[test]
+    fn unresolved_citation_without_any_match_adopts_nothing() {
+        let marker = marker("src/a.rs", 12, "TODO(feature)(#21): add attestation");
+        let unrelated = issue(59, "fix(output): unrelated", "nope");
+        assert!(find_existing(&[unrelated], &marker).is_none());
+    }
+
+    // -- closed-issue detection --
+
+    #[test]
+    fn closed_state_is_detected_case_insensitively() {
+        assert!(is_closed("CLOSED"));
+        assert!(is_closed("closed"));
+        assert!(!is_closed("OPEN"));
+        assert!(!is_closed(""));
+    }
+
+    #[test]
+    fn adopted_closed_issue_is_still_reported_for_reuse() {
+        let marker = marker("src/a.rs", 12, "TODO: a");
+        let mut closed = issue(47, "TODO: a", &issue_body(&marker));
+        closed.state = "CLOSED".to_string();
+        let issues = [closed];
+        let found = find_existing(&issues, &marker).expect("closed issue still tracks the marker");
+        assert_eq!(found.number, 47);
+        assert!(is_closed(&found.state), "caller warns on this state");
     }
 }
