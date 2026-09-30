@@ -1112,6 +1112,23 @@ mod tests {
     }
 
     #[test]
+    fn doc_comment_todo_is_still_a_marker() {
+        let todo = todo_marker();
+        let fixme = fixme_marker();
+        assert_eq!(
+            extract_todo_fixme_comment(&format!("/// {todo}: wire the adapter"), &mut false),
+            Some(format!("{todo}: wire the adapter"))
+        );
+        // A bare ` * ` line only carries meaning inside an open block comment,
+        // which is what the flag tracks.
+        let mut in_block = true;
+        assert_eq!(
+            extract_todo_fixme_comment(&format!(" * {fixme}: block body"), &mut in_block),
+            Some(format!("{fixme}: block body"))
+        );
+    }
+
+    #[test]
     fn count_todo_fixme_markers_ignores_metric_labels_and_strings() {
         let todo = todo_marker();
         let fixme = fixme_marker();
