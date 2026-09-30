@@ -20,6 +20,8 @@ use crate::ctx::Ctx;
 use crate::health::extract_todo_fixme_comment;
 use crate::release::gh::resolve_repo;
 
+pub mod dedupe;
+
 const DEFAULT_LOCK_PATH: &str = "taskit-todo-sync.lock";
 /// Upper bound on issues fetched when looking for ones to adopt.
 const ISSUE_SCAN_LIMIT: u32 = 1000;
