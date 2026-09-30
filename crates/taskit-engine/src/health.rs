@@ -1,4 +1,6 @@
-// TODO(audit): 932 lines — split candidate.
+//! Collects and compares workspace health metrics against a baseline.
+
+// TODO(audit)(#27): 932 lines — split candidate.
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use taskit_types::error::{TaskitError, TaskitResultExt};
@@ -272,7 +274,9 @@ pub fn run(ctx: &Ctx, update: bool, with_coverage: bool, gate: bool) -> Result<(
         Err(_) => {
             taskit_output::taskit_progress!("No existing baseline found. Current health:");
             print_summary(&current);
-            taskit_output::taskit_progress!("Run `taskit health --update` to create a baseline.");
+            taskit_output::taskit_progress!(
+                "Run `taskit health check --update` to create a baseline."
+            );
             Ok(())
         }
     }
@@ -1074,6 +1078,25 @@ mod tests {
         ]
         .join("\n");
         assert_eq!(count_todo_fixme_markers(&content), 4);
+    }
+
+    #[test]
+    fn todo_marker_must_lead_the_comment() {
+        let todo = todo_marker();
+        // A citation inside prose is not a marker: it reports on a marker
+        // that lives elsewhere, so tracking it would file a second issue.
+        assert_eq!(
+            extract_todo_fixme_comment(
+                &format!("// see {todo}(unify) in chain_runner.rs:40"),
+                &mut false
+            ),
+            None
+        );
+        // A real marker still is.
+        assert_eq!(
+            extract_todo_fixme_comment(&format!("// {todo}: fix the thing"), &mut false),
+            Some(format!("{todo}: fix the thing"))
+        );
     }
 
     #[test]
