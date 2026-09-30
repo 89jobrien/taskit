@@ -515,9 +515,21 @@ pub(crate) fn extract_todo_fixme_comment(
     }
 }
 
+/// Marker text must *begin* the comment. A citation like
+/// `// see TODO(x) in other.rs` is prose reporting on a marker that lives
+/// elsewhere, so tracking it would file a second issue for that marker.
+///
+/// Leading `/` and `*` are stripped first so doc comments (`///`) and
+/// block-comment bodies (` * `) keep working.
 fn extract_todo_fixme_marker(text: &str) -> Option<String> {
-    let idx = text.find("TODO").or_else(|| text.find("FIXME"))?;
-    Some(text[idx..].trim().to_string())
+    let trimmed = text
+        .trim_start()
+        .trim_start_matches(['/', '*'])
+        .trim_start();
+    if !(trimmed.starts_with("TODO") || trimmed.starts_with("FIXME")) {
+        return None;
+    }
+    Some(trimmed.trim_end().to_string())
 }
 
 fn count_safety(_sh: &Shell) -> Result<SafetyCounts, TaskitError> {
