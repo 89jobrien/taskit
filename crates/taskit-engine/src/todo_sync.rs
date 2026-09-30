@@ -5,8 +5,13 @@
 //! GitHub issue for each new marker and closes the issue for each marker
 //! that has since been removed from source. Mirrors `check-protocol-drift`'s
 //! shape: default run is a read-only gate, `--update` mutates.
+//!
+//! `--update` is idempotent even when the lockfile is missing: before
+//! creating anything it reads the repo's existing issues and adopts the one
+//! already tracking a marker instead of opening a duplicate.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::Path;
 use taskit_types::error::{TaskitError, TaskitResultExt};
 use xshell::cmd;
@@ -16,6 +21,10 @@ use crate::health::extract_todo_fixme_comment;
 use crate::release::gh::resolve_repo;
 
 const DEFAULT_LOCK_PATH: &str = "taskit-todo-sync.lock";
+/// Upper bound on issues fetched when looking for ones to adopt.
+const ISSUE_SCAN_LIMIT: u32 = 1000;
+/// Stable, line-independent tag embedded in created issue bodies.
+const ISSUE_TAG_PREFIX: &str = "taskit-todo-sync";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct Lockfile {
@@ -44,6 +53,19 @@ struct TodoMarker {
     file: String,
     line: usize,
     text: String,
+}
+
+/// An issue already present in the repo, as returned by `gh issue list`.
+#[derive(Debug, Clone, Deserialize)]
+struct IssueSummary {
+    number: u64,
+    title: String,
+    #[serde(default)]
+    body: String,
+    /// `gh` reports this as OPEN/CLOSED. Defaults to empty so partial
+    /// payloads still decode.
+    #[serde(default)]
+    state: String,
 }
 
 /// Run the `todo-sync` subcommand.
@@ -100,7 +122,29 @@ pub fn run(ctx: &Ctx, update: bool, warn_only: bool) -> Result<(), TaskitError> 
         .cloned()
         .collect();
 
+    // A lost or stale lockfile must not produce duplicate issues, so every
+    // new marker is reconciled against the issues that already exist.
+    let adopted = if ctx.dry_run || new_markers.is_empty() {
+        HashMap::new()
+    } else {
+        adopt_existing_issues(ctx, &repo, &new_markers)?
+    };
+
     for marker in &new_markers {
+        let key = issue_key(marker);
+        if let Some(number) = adopted.get(&key).copied() {
+            taskit_output::taskit_ok!(
+                "todo-sync: reusing issue #{number} for {}:{}",
+                marker.file,
+                marker.line
+            );
+            entries.push(SyncedTodo {
+                file: marker.file.clone(),
+                text: marker.text.clone(),
+                issue_number: number,
+            });
+            continue;
+        }
         if ctx.dry_run {
             taskit_output::taskit_dry!("gh issue create --repo {repo} --title \"{}\"", marker.text);
             continue;
@@ -160,13 +204,90 @@ fn report(new_markers: &[&TodoMarker], removed_entries: &[&SyncedTodo]) {
     }
 }
 
+/// Stable, line-independent tag embedded in every issue body this command
+/// creates. Line numbers drift as source moves, so matching keys on the file
+/// path alone.
+fn marker_tag(file: &str) -> String {
+    format!("<!-- {ISSUE_TAG_PREFIX}: {file} -->")
+}
+
+/// Identity of the issue that tracks a marker: its title plus its file.
+fn issue_key(marker: &TodoMarker) -> String {
+    format!("{}\u{1}{}", marker.text, marker.file)
+}
+
+/// True when an issue body belongs to `marker.file` — either via the stable
+/// tag, or via the `\`path:line\`` reference older issues were created with.
+fn body_tracks_file(body: &str, file: &str) -> bool {
+    body.contains(&marker_tag(file)) || body.contains(&format!("`{file}:"))
+}
+
+/// Map each marker to the issue that already tracks it.
+///
+/// Fails rather than guessing: if the issue list cannot be read, creating is
+/// the one outcome guaranteed to be wrong.
+fn adopt_existing_issues(
+    ctx: &Ctx,
+    repo: &str,
+    markers: &[&TodoMarker],
+) -> Result<HashMap<String, u64>, TaskitError> {
+    let issues = list_issues(ctx, repo)?;
+    let mut adopted = HashMap::new();
+    for marker in markers {
+        if let Some(issue) = find_existing(&issues, marker) {
+            adopted.insert(issue_key(marker), issue.number);
+        }
+    }
+    Ok(adopted)
+}
+
+/// Fetch every issue in the repo, open or closed.
+fn list_issues(ctx: &Ctx, repo: &str) -> Result<Vec<IssueSummary>, TaskitError> {
+    let sh = &ctx.sh;
+    let args = vec![
+        "issue".to_owned(),
+        "list".to_owned(),
+        "--repo".to_owned(),
+        repo.to_owned(),
+        "--state".to_owned(),
+        "all".to_owned(),
+        "--limit".to_owned(),
+        ISSUE_SCAN_LIMIT.to_string(),
+        "--json".to_owned(),
+        "number,title,body,state".to_owned(),
+    ];
+    let output = ctx.run_capture(cmd!(sh, "gh {args...}"))?;
+    if !output.success {
+        return Err(TaskitError::other(format!(
+            "failed to list existing issues in {repo}: {}",
+            output.stderr.trim()
+        )));
+    }
+    serde_json::from_str(&output.stdout).err_context("failed to parse `gh issue list` output")
+}
+
+/// The lowest-numbered issue already tracking `marker`, if any.
+fn find_existing<'a>(issues: &'a [IssueSummary], marker: &TodoMarker) -> Option<&'a IssueSummary> {
+    issues
+        .iter()
+        .filter(|issue| issue.title == marker.text && body_tracks_file(&issue.body, &marker.file))
+        .min_by_key(|issue| issue.number)
+}
+
+/// Issue body for a newly created marker.
+fn issue_body(marker: &TodoMarker) -> String {
+    format!(
+        "Auto-tracked source marker.\n\n`{}:{}`\n\n{}",
+        marker.file,
+        marker.line,
+        marker_tag(&marker.file)
+    )
+}
+
 fn create_issue(ctx: &Ctx, repo: &str, marker: &TodoMarker) -> Result<u64, TaskitError> {
     let sh = &ctx.sh;
     let title = marker.text.clone();
-    let body = format!(
-        "Auto-tracked source marker.\n\n`{}:{}`",
-        marker.file, marker.line
-    );
+    let body = issue_body(marker);
     let args = vec![
         "issue".to_owned(),
         "create".to_owned(),
@@ -286,6 +407,15 @@ mod tests {
         }
     }
 
+    fn issue(number: u64, title: &str, body: &str) -> IssueSummary {
+        IssueSummary {
+            number,
+            title: title.to_string(),
+            body: body.to_string(),
+            state: "OPEN".to_string(),
+        }
+    }
+
     // -- parse_issue_number --
 
     #[test]
@@ -299,6 +429,20 @@ mod tests {
     #[test]
     fn parse_issue_number_rejects_non_numeric() {
         assert_eq!(parse_issue_number("not a url"), None);
+    }
+
+    // -- IssueSummary --
+
+    #[test]
+    fn issue_summary_parses_state() {
+        let issue: IssueSummary =
+            serde_json::from_str(r#"{"number":7,"title":"t","body":"b","state":"CLOSED"}"#)
+                .expect("payload with state should parse");
+        assert_eq!(issue.state, "CLOSED");
+        // Older partial payloads must still decode.
+        let partial: IssueSummary = serde_json::from_str(r#"{"number":8,"title":"t","body":"b"}"#)
+            .expect("payload without state should still parse");
+        assert_eq!(partial.state, "");
     }
 
     // -- scan_markers_in_tree --
@@ -381,5 +525,68 @@ mod tests {
             .collect();
         assert!(new.is_empty());
         assert!(removed.is_empty());
+    }
+
+    // -- existing-issue adoption --
+
+    #[test]
+    fn issue_body_carries_the_stable_tag() {
+        let body = issue_body(&marker("src/a.rs", 12, "TODO: a"));
+        assert!(body.contains("`src/a.rs:12`"));
+        assert!(body.contains(&marker_tag("src/a.rs")));
+    }
+
+    #[test]
+    fn created_issue_is_adopted_by_a_later_run() {
+        let marker = marker("src/a.rs", 12, "TODO: a");
+        let created = issue(42, "TODO: a", &issue_body(&marker));
+        assert_eq!(
+            find_existing(&[created], &marker).map(|i| i.number),
+            Some(42)
+        );
+    }
+
+    #[test]
+    fn legacy_body_without_tag_is_still_adopted() {
+        let issues = [issue(
+            42,
+            "TODO: a",
+            "Auto-tracked source marker.\n\n`src/a.rs:9`",
+        )];
+        assert_eq!(
+            find_existing(&issues, &marker("src/a.rs", 12, "TODO: a")).map(|i| i.number),
+            Some(42)
+        );
+    }
+
+    #[test]
+    fn issue_in_a_different_file_is_not_adopted() {
+        let issues = [issue(
+            42,
+            "TODO: a",
+            "Auto-tracked source marker.\n\n`src/b.rs:9`",
+        )];
+        assert!(find_existing(&issues, &marker("src/a.rs", 12, "TODO: a")).is_none());
+    }
+
+    #[test]
+    fn issue_with_a_different_title_is_not_adopted() {
+        let marker = marker("src/a.rs", 12, "TODO: a");
+        let unrelated = issue(
+            29,
+            "fix(crux): resolve unused scaffolding",
+            &issue_body(&marker),
+        );
+        assert!(find_existing(&[unrelated], &marker).is_none());
+    }
+
+    #[test]
+    fn duplicate_issues_resolve_to_the_lowest_number() {
+        let marker = marker("src/a.rs", 12, "TODO: a");
+        let issues = [
+            issue(76, "TODO: a", &issue_body(&marker)),
+            issue(42, "TODO: a", &issue_body(&marker)),
+        ];
+        assert_eq!(find_existing(&issues, &marker).map(|i| i.number), Some(42));
     }
 }
