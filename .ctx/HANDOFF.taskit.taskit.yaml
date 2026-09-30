@@ -1,28 +1,66 @@
 project: taskit
 id: taskit
-updated: 2026-08-23
-items: []
+updated: 2026-09-30
+items:
+- id: uncommitted-work
+  doob_uuid: null
+  name: uncommitted-work
+  priority: P1
+  status: open
+  title: Uncommitted changes (14 files)
+  description: |-
+    Working tree has uncommitted changes:
+    .ctx/HANDOFF.taskit.taskit.yaml
+    Cargo.lock
+    crates/taskit-crux/src/lib.rs
+    crates/taskit-engine/src/command.rs
+    crates/taskit-engine/src/flow.rs
+    crates/taskit-engine/src/health.rs
+    crates/taskit-engine/src/testing/compile.rs
+    crates/taskit-init/src/scaffold.rs
+    crates/taskit-output/src/formatter.rs
+    crates/taskit-output/src/sinks/buffer.rs
+    crates/taskit-output/src/sinks/tee.rs
+    xtask/src/main.rs
+    docs/designs/2026-09-15-isolated-xtask-module-design.md
+    xtask/src/taskit/
+  files:
+  - .ctx/HANDOFF.taskit.taskit.yaml
+  - Cargo.lock
+  - crates/taskit-crux/src/lib.rs
+  - crates/taskit-engine/src/command.rs
+  - crates/taskit-engine/src/flow.rs
+  - crates/taskit-engine/src/health.rs
+  - crates/taskit-engine/src/testing/compile.rs
+  - crates/taskit-init/src/scaffold.rs
+  - crates/taskit-output/src/formatter.rs
+  - crates/taskit-output/src/sinks/buffer.rs
+  - crates/taskit-output/src/sinks/tee.rs
+  - xtask/src/main.rs
+  - docs/designs/2026-09-15-isolated-xtask-module-design.md
+  - xtask/src/taskit/
+  completed: null
+  extra: []
 log:
-- date: 2026-08-23T00:00:00Z
-  summary: Committed and pushed CLI self-subcommand refactor (Install/SelfCheck/SelfTest -> taskit self install/check/test); full workspace test suite green
-  commits: []
-  commits_since_last_handoff: 1
-  head_commits:
-  - 49b7d90 refactor(taskit): move Install/SelfCheck/SelfTest under new `self` subcommand
-  - 031cca6 chore(rust-audit): fix C-METADATA and C-LINK findings across workspace
-  - 74cde48 docs: update handoff
-  - 6ed2319 chore: gitignore generated session-report/graph artifacts
-  - e4054e8 chore(xtask): add depgraph-report.py for architecture-health audits
-  tests:
-    total: 733
-    passed: 733
-    skipped: 0
-ahead_behind:
-  ahead: 0
-  behind: 0
-branch: develop
-head_sha: 49b7d90
-notes: |-
-  - Working tree clean, develop in sync with origin/develop
-  - No open items
-upstream_tracking: origin/develop
+- date: 2026-09-30
+  summary: done=0 running=0 pending=17 blocked=0
+  commits:
+  - !Object
+    sha: 71aef4e
+    branch: develop
+  - !Object
+    sha: 80d2a35
+    branch: develop
+- date: '20260915.204047'
+  summary: done=81 running=0 pending=27 blocked=0
+  commits:
+  - !Sha ed428faa61f563fc8d84761fa1846613a9aa9500
+  - !Sha 591710f066a6536ee587d89271ecbe53087f862d
+  - !Sha cb3aaa501ffbd80bd66b82e5dc0ad323b22a7ea1
+  - !Sha 6c4e1bd27afb2d8d0d23be8bbc9d9c00b6210916
+  - !Sha 11e9742657cec224e66e6fe6734f95b11c2d4d21
+  - !Sha a25c97a53c7cba9e910fb5b6dc114def8699ac59
+  - !Sha 011f08a8e38e235c857aa1f0bd7604b2472aee20
+  - !Sha 87c98c421581aea755bedd112102bcf7e2501d37
+  - !Sha f4897d96604898193153af25f999aaa80902d04b
+  - !Sha 7bc91ba9538eaea4ccf451d52ea9155938ca5ed4
