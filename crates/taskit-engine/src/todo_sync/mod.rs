@@ -107,7 +107,7 @@ pub fn run(ctx: &Ctx, update: bool, warn_only: bool) -> Result<(), TaskitError> 
     report(&new_markers, &removed_entries);
 
     if !update {
-        taskit_output::taskit_err!("todo-sync: run `taskit todo-sync --update` to sync issues");
+        taskit_output::taskit_err!("todo-sync: {}", unsynced_hint());
         if warn_only {
             return Ok(());
         }
@@ -428,10 +428,34 @@ fn display_relative(root: &Path, path: &Path) -> String {
         .to_string()
 }
 
+/// Gate error pointing at the command that repairs it.
+///
+/// Lives here as a function so a test can assert the path: the CLI was
+/// restructured under `protocol` and the stale `taskit todo-sync` form went
+/// unnoticed because nothing executed the string.
+fn unsynced_hint() -> String {
+    "run `taskit protocol todo-sync --update` to sync issues".to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    // -- unsynced_hint --
+
+    #[test]
+    fn error_hint_names_the_real_subcommand_path() {
+        let hint = unsynced_hint();
+        assert!(
+            hint.contains("taskit protocol todo-sync"),
+            "hint must name the live path, was: {hint}"
+        );
+        assert!(
+            !hint.contains("taskit todo-sync"),
+            "hint must not name the pre-restructure path, was: {hint}"
+        );
+    }
 
     fn marker(file: &str, line: usize, text: &str) -> TodoMarker {
         TodoMarker {
