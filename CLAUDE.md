@@ -30,37 +30,38 @@ taskit --dry-run <subcommand>   # print without executing
 
 ## Common Subcommands
 
-| Command | Purpose |
-| --- | --- |
-| `fmt [--check] [--affected]` | Format (or check) all Rust code |
-| `lint [--crate-name X] [--affected] [--continue-on-error] [--fix]` | Run clippy (`--fix` auto-applies suggestions) |
-| `test [--crate-name X] [--affected] [--offline] [--continue-on-error]` | Run tests via nextest |
-| `coverage [--crate-name X] [--threshold N] [--workspace]` | Coverage with threshold (`--workspace` measures whole workspace) |
-| `compile-tests` | Compile test binaries without running |
-| `check-deps` | Check for unused dependencies |
-| `check-protocol-drift [--update] [--warn-only] [--hook] [--watch [--interval SECS]]` | Verify hashes (`--watch` continuously remediates drift) |
-| `todo-sync [--update] [--warn-only]` | Scan TODO/FIXME markers and sync them to GitHub issues |
-| `check-protocol-sites --file F --pattern P --expected N` | Count construction sites |
-| `check-freshness [--warn-only]` | Check workspace dependency freshness (cargo-outdated) |
-| `pre-commit` / `pre-push` | Git hook delegates |
-| `audit` | Run cargo-deny |
-| `clean [--older-than Nd]` | Clean target/ + prune taskit artifacts |
-| `health [--update] [--with-coverage] [--gate]` | Measure health and compare to baseline (`--with-coverage` adds workspace coverage %, `--gate` checks only unwrap/warn counts — for a lightweight CI step) |
-| `inspect [--max-warnings N] [--max-todo N]` | Check metrics thresholds |
-| `publish [--skip-docs] [--allow-dirty]` | Generate docs and publish crates |
-| `init [--force] [--interactive]` | Generate taskit.toml, Cruxfile, hooks |
-| `flow status` | Show current branch / staging state |
-| `flow sync` | Merge main -> develop |
-| `flow promote` | Advance the current flow branch one step |
-| `flow auto` | develop -> staging -> release -> main with CI gate and BAML conflicts |
-| `flow guard` | Assert branch invariants |
-| `dashboard` | ratatui TUI: Overview tab (health + protocol-drift), Flow tab (pipeline position, telemetry) |
+| Command                                                                              | Purpose                                                                                                                                                   |
+| ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fmt [--check] [--affected]`                                                         | Format (or check) all Rust code                                                                                                                           |
+| `lint [--crate-name X] [--affected] [--continue-on-error] [--fix]`                   | Run clippy (`--fix` auto-applies suggestions)                                                                                                             |
+| `test [--crate-name X] [--affected] [--offline] [--continue-on-error]`               | Run tests via nextest                                                                                                                                     |
+| `coverage [--crate-name X] [--threshold N] [--workspace]`                            | Coverage with threshold (`--workspace` measures whole workspace)                                                                                          |
+| `compile-tests`                                                                      | Compile test binaries without running                                                                                                                     |
+| `check-deps`                                                                         | Check for unused dependencies                                                                                                                             |
+| `check-protocol-drift [--update] [--warn-only] [--hook] [--watch [--interval SECS]]` | Verify hashes (`--watch` continuously remediates drift)                                                                                                   |
+| `todo-sync [--update] [--warn-only]`                                                 | Scan TODO/FIXME markers and sync them to GitHub issues                                                                                                    |
+| `todo-dedupe [--update]`                                                             | Close duplicate marker issues and repoint the sync lockfile                                                                                               |
+| `check-protocol-sites --file F --pattern P --expected N`                             | Count construction sites                                                                                                                                  |
+| `check-freshness [--warn-only]`                                                      | Check workspace dependency freshness (cargo-outdated)                                                                                                     |
+| `pre-commit` / `pre-push`                                                            | Git hook delegates                                                                                                                                        |
+| `audit`                                                                              | Run cargo-deny                                                                                                                                            |
+| `clean [--older-than Nd]`                                                            | Clean target/ + prune taskit artifacts                                                                                                                    |
+| `health [--update] [--with-coverage] [--gate]`                                       | Measure health and compare to baseline (`--with-coverage` adds workspace coverage %, `--gate` checks only unwrap/warn counts — for a lightweight CI step) |
+| `inspect [--max-warnings N] [--max-todo N]`                                          | Check metrics thresholds                                                                                                                                  |
+| `publish [--skip-docs] [--allow-dirty]`                                              | Generate docs and publish crates                                                                                                                          |
+| `init [--force] [--interactive]`                                                     | Generate taskit.toml, Cruxfile, hooks                                                                                                                     |
+| `flow status`                                                                        | Show current branch / staging state                                                                                                                       |
+| `flow sync`                                                                          | Merge main -> develop                                                                                                                                     |
+| `flow promote`                                                                       | Advance the current flow branch one step                                                                                                                  |
+| `flow auto`                                                                          | develop -> staging -> release -> main with CI gate and BAML conflicts                                                                                     |
+| `flow guard`                                                                         | Assert branch invariants                                                                                                                                  |
+| `dashboard`                                                                          | ratatui TUI: Overview tab (health + protocol-drift), Flow tab (pipeline position, telemetry)                                                              |
 
 ## Architecture
 
 ### Workspace Structure
 
-```
+```text
 taskit (root bin)
 +-- crates/taskit-types    -- shared types: Config, Error, StepResult, ConflictFile
 +-- crates/taskit-core     -- ports: PipelineRunner, ConflictResolver traits
@@ -75,18 +76,18 @@ taskit (root bin)
 
 ### Crate Responsibilities
 
-| Crate            | Role                                                        |
-| ---------------- | ----------------------------------------------------------- |
-| `taskit`         | Binary entry point; CLI parsing (clap), dispatch, adapters  |
-| `taskit-types`   | Leaf crate: Config, TaskitError, StepResult, ConflictFile   |
-| `taskit-core`    | Ports only: PipelineRunner, ConflictResolver traits         |
-| `taskit-engine`  | CI pipeline, config loading, flow commands, step engine     |
-| `taskit-init`    | InitPlan discovery, TOML/Cruxfile rendering, interactive UI |
-| `taskit-crux`    | EmbeddedCruxRunner stub                                     |
-| `taskit-macros`  | Proc-macros for derive utilities used across crates         |
-| `taskit-output`  | OutputFormatter trait and format implementations            |
+| Crate            | Role                                                                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `taskit`         | Binary entry point; CLI parsing (clap), dispatch, adapters                                                                           |
+| `taskit-types`   | Leaf crate: Config, TaskitError, StepResult, ConflictFile                                                                            |
+| `taskit-core`    | Ports only: PipelineRunner, ConflictResolver traits                                                                                  |
+| `taskit-engine`  | CI pipeline, config loading, flow commands, step engine                                                                              |
+| `taskit-init`    | InitPlan discovery, TOML/Cruxfile rendering, interactive UI                                                                          |
+| `taskit-crux`    | EmbeddedCruxRunner stub                                                                                                              |
+| `taskit-macros`  | Proc-macros for derive utilities used across crates                                                                                  |
+| `taskit-output`  | OutputFormatter trait and format implementations                                                                                     |
 | `taskit-tui`     | ratatui dashboard: Overview tab (health + protocol-drift), Flow tab (pipeline position, resumable state, resolver config, telemetry) |
-| `taskit-testing` | Shared test helpers; PipelineRunner conformance harness     |
+| `taskit-testing` | Shared test helpers; PipelineRunner conformance harness                                                                              |
 
 ### Key Modules
 
@@ -152,6 +153,6 @@ cargo nextest run -p taskit-engine -E 'test(pipeline)' # filter
 
 Tests are colocated in each module under `#[cfg(test)]`.
 
-# currentDate
+## currentDate
 
 Today's date is 2026-06-28.

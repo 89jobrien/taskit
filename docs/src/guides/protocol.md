@@ -72,6 +72,34 @@ stable `<!-- taskit-todo-sync: <path> -->` tag in the body (issues created befor
 added are still matched through their `` `path:line` `` reference). A failed lookup aborts the run
 rather than risking a duplicate. Issues created outside `todo-sync` are never adopted.
 
+A marker may also name its issue directly with a trailing `(#47)` citation. A citation that
+resolves to an issue in the repo wins over title matching, because the author named the issue they
+meant. Citations are often plan-document numbering rather than GitHub numbers, so an unresolved
+citation falls back to title-plus-file matching rather than dead-ending.
+
+### What counts as a marker
+
+Only a `TODO` or `FIXME` that _begins_ a comment is a marker. A citation inside prose — for
+example `// see TODO(unify) in chain_runner.rs:40` — reports on a marker that lives elsewhere, so
+tracking it would file a second issue for that marker. Leading `/` and `*` are stripped first, so
+doc comments (`///`) and block-comment bodies (`*`) still count.
+
+### Closing duplicates
+
+```bash
+taskit protocol todo-dedupe
+taskit protocol todo-dedupe --update
+```
+
+When the same marker has accumulated several auto-generated issues, `todo-dedupe` keeps the
+lowest-numbered one, closes the rest with a comment pointing at the survivor, and repoints the
+lockfile entry. Grouping is derived from the same `(title, file)` signal `todo-sync` uses, so an
+issue a human opened is never closed. Read-only unless `--update` is set.
+
+A closed issue is reported but never reopened automatically. The closure may predate the work — a
+bulk sweep can close generated issues without the fix ever landing — and only a human can tell, so
+`todo-dedupe` reports the file and number and leaves the decision open.
+
 ## Dependency governance
 
 ```bash

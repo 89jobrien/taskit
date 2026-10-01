@@ -142,6 +142,7 @@ Subcommands are grouped into categories: `dev`, `check`, `test`, `health`, `prot
 | `protocol drift [--update] [--warn-only] [--hook] [--watch [--interval SECS]]` | Verify tracked contract-surface hashes                |
 | `protocol sites --file F --pattern P --expected N`                             | Count construction sites for key structs              |
 | `protocol todo-sync [--update] [--warn-only]`                                  | Scan TODO/FIXME markers, sync to GitHub issues        |
+| `protocol todo-dedupe [--update]`                                              | Close duplicate marker issues, repoint the lockfile   |
 | `protocol freshness [--warn-only]`                                             | Check workspace dependency freshness (cargo-outdated) |
 | `protocol audit`                                                               | Run cargo-deny (advisories, licenses, bans)           |
 
