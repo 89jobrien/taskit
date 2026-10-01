@@ -20,7 +20,7 @@
     {
       "name": "taskit-engine-command",
       "path": "crates/taskit-engine/src/command.rs",
-      "hash": "97a8a5084360b56e22cf8ab841476d33df0f6c0d964135be29f92cd45579eb22"
+      "hash": "44029934f17e3a502b43f45fb0f3d145e800806d631e597617845d8532a73581"
     },
     {
       "name": "taskit-engine-discovery",

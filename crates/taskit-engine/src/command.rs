@@ -18,19 +18,26 @@ use crate::{
     testing, todo_sync, update, update_claude, version,
 };
 
-// Roadmap notes from the 2026-08-31 planning pass.
-// TODO(feature): add `doctor` to diagnose environment/toolchain/hook issues.
-// TODO(feature): add `plan` to preview commands, affected crates, and runtime.
-// TODO(feature): add `bisect` to isolate failure-inducing commits automatically.
-// TODO(feature): add `quarantine` to detect/tag flaky tests from telemetry.
-// TODO(feature): add `release-impact` for per-crate semver bump guidance.
-// TODO(feature): add `policy` support via `taskit-policy.toml` gate rules.
-// TODO(feature): add `verify-docs` drift checks between docs and CLI/config.
-// TODO(feature): add `fix` mode for safe auto-remediation flows.
-// TODO(feature): add `trend` reporting for local historical health metrics.
-// TODO(feature): add `plugin` API for team-specific commands and gates.
-// TODO(feature): add `multi` orchestration across related repositories.
-// TODO(feature): add `attestation` output for build/test provenance metadata.
+// Feature backlog grounded in current command, CI, telemetry, and adapter gaps.
+// TODO(feature)(#3): harden CI with an MSRV gate, blocking audits, and one publish path.
+// TODO(feature)(#4): validate generated hooks, Cruxfiles, xtasks, and docs against clap.
+// TODO(feature)(#5): generate completions for bash, fish, PowerShell, zsh, and Nushell.
+// TODO(feature)(#6): expose the clap command tree as a machine-readable JSON schema.
+// TODO(feature)(#7): add `doctor` diagnostics for tools, config, hooks, and protocol state.
+// TODO(feature)(#8): add `plan` to preview commands, affected crates, and runtime estimates.
+// TODO(feature)(#9): record per-test attempts and report reliability and duration trends.
+// TODO(feature)(#10): add environment-specific benchmark baselines and regression gates.
+// TODO(feature)(#11): add `release-impact` for per-crate semver bump guidance.
+// TODO(feature)(#12): show live GitHub Actions job status in the CLI and dashboard.
+// TODO(feature)(#13): add expiring, evidence-backed automatic flaky-test quarantine.
+// TODO(feature)(#14): replace the synthetic EmbeddedCruxRunner with real Crux execution.
+// TODO(feature)(#15): add declarative gate policy through `taskit-policy.toml`.
+// TODO(feature)(#16): add a stable plugin API for team-specific commands and gates.
+// TODO(feature)(#17): add `bisect` to isolate failure-inducing commits automatically.
+// TODO(feature)(#18): add `verify-docs` drift checks between docs and CLI/config.
+// TODO(feature)(#19): add `fix` mode for safe auto-remediation flows.
+// TODO(feature)(#20): add `multi` orchestration across related repositories.
+// TODO(feature)(#21): add `attestation` output for build/test provenance metadata.
 
 /// A runnable subcommand. Implementors carry their own parsed arguments and
 /// receive the shared execution context.
@@ -161,6 +168,17 @@ pub struct TodoSync {
 impl Command for TodoSync {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
         todo_sync::run(ctx, self.update, self.warn_only)
+    }
+}
+
+/// `protocol todo-dedupe` command options.
+pub struct Dedupe {
+    /// Close duplicate issues and repoint the lockfile.
+    pub update: bool,
+}
+impl Command for Dedupe {
+    fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
+        todo_sync::dedupe::run(ctx, self.update)
     }
 }
 
