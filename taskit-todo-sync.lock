@@ -1,0 +1,185 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "file": "crates/taskit-core/src/pipeline_runner.rs",
+      "text": "TODO(#33): replace inconsistently ignored parameters with one explicit pipeline request.",
+      "issue_number": 36
+    },
+    {
+      "file": "crates/taskit-crux/src/lib.rs",
+      "text": "TODO(audit)(#29): zero callers outside this file — SubprocessCruxRunner in",
+      "issue_number": 37
+    },
+    {
+      "file": "crates/taskit-engine/src/ci.rs",
+      "text": "TODO(#14): honor CiConfig::cruxfile by selecting an embedded or subprocess runner.",
+      "issue_number": 38
+    },
+    {
+      "file": "crates/taskit-engine/src/ci.rs",
+      "text": "TODO(#35): parse configured CI commands strictly and reject unsupported trailing arguments.",
+      "issue_number": 39
+    },
+    {
+      "file": "crates/taskit-engine/src/ci.rs",
+      "text": "TODO(#3): include the existing health safety gate in generated and repository CI.",
+      "issue_number": 40
+    },
+    {
+      "file": "crates/taskit-engine/src/command.rs",
+      "text": "TODO(feature)(#3): harden CI with an MSRV gate, blocking audits, and one publish path.",
+      "issue_number": 41
+    },
+    {
+      "file": "crates/taskit-engine/src/command.rs",
+      "text": "TODO(feature)(#4): validate generated hooks, Cruxfiles, xtasks, and docs against clap.",
+      "issue_number": 42
+    },
+    {
+      "file": "crates/taskit-engine/src/command.rs",
+      "text": "TODO(feature)(#5): generate completions for bash, fish, PowerShell, zsh, and Nushell.",
+      "issue_number": 43
+    },
+    {
+      "file": "crates/taskit-engine/src/command.rs",
+      "text": "TODO(feature)(#6): expose the clap command tree as a machine-readable JSON schema.",
+      "issue_number": 44
+    },
+    {
+      "file": "crates/taskit-engine/src/command.rs",
+      "text": "TODO(feature)(#7): add `doctor` diagnostics for tools, config, hooks, and protocol state.",
+      "issue_number": 45
+    },
+    {
+      "file": "crates/taskit-engine/src/command.rs",
+      "text": "TODO(feature)(#8): add `plan` to preview commands, affected crates, and runtime estimates.",
+      "issue_number": 46
+    },
+    {
+      "file": "crates/taskit-engine/src/command.rs",
+      "text": "TODO(feature)(#9): record per-test attempts and report reliability and duration trends.",
+      "issue_number": 47
+    },
+    {
+      "file": "crates/taskit-engine/src/command.rs",
+      "text": "TODO(feature)(#10): add environment-specific benchmark baselines and regression gates.",
+      "issue_number": 48
+    },
+    {
+      "file": "crates/taskit-engine/src/command.rs",
+      "text": "TODO(feature)(#11): add `release-impact` for per-crate semver bump guidance.",
+      "issue_number": 49
+    },
+    {
+      "file": "crates/taskit-engine/src/command.rs",
+      "text": "TODO(feature)(#12): show live GitHub Actions job status in the CLI and dashboard.",
+      "issue_number": 50
+    },
+    {
+      "file": "crates/taskit-engine/src/command.rs",
+      "text": "TODO(feature)(#13): add expiring, evidence-backed automatic flaky-test quarantine.",
+      "issue_number": 51
+    },
+    {
+      "file": "crates/taskit-engine/src/command.rs",
+      "text": "TODO(feature)(#14): replace the synthetic EmbeddedCruxRunner with real Crux execution.",
+      "issue_number": 52
+    },
+    {
+      "file": "crates/taskit-engine/src/command.rs",
+      "text": "TODO(feature)(#15): add declarative gate policy through `taskit-policy.toml`.",
+      "issue_number": 53
+    },
+    {
+      "file": "crates/taskit-engine/src/command.rs",
+      "text": "TODO(feature)(#16): add a stable plugin API for team-specific commands and gates.",
+      "issue_number": 54
+    },
+    {
+      "file": "crates/taskit-engine/src/command.rs",
+      "text": "TODO(feature)(#17): add `bisect` to isolate failure-inducing commits automatically.",
+      "issue_number": 55
+    },
+    {
+      "file": "crates/taskit-engine/src/command.rs",
+      "text": "TODO(feature)(#18): add `verify-docs` drift checks between docs and CLI/config.",
+      "issue_number": 56
+    },
+    {
+      "file": "crates/taskit-engine/src/command.rs",
+      "text": "TODO(feature)(#19): add `fix` mode for safe auto-remediation flows.",
+      "issue_number": 57
+    },
+    {
+      "file": "crates/taskit-engine/src/command.rs",
+      "text": "TODO(feature)(#20): add `multi` orchestration across related repositories.",
+      "issue_number": 58
+    },
+    {
+      "file": "crates/taskit-engine/src/command.rs",
+      "text": "TODO(feature)(#21): add `attestation` output for build/test provenance metadata.",
+      "issue_number": 59
+    },
+    {
+      "file": "crates/taskit-engine/src/flow.rs",
+      "text": "TODO(audit)(#28): 814 lines — split candidate.",
+      "issue_number": 61
+    },
+    {
+      "file": "crates/taskit-engine/src/health.rs",
+      "text": "TODO(audit)(#27): 932 lines — split candidate.",
+      "issue_number": 62
+    },
+    {
+      "file": "crates/taskit-engine/src/lib.rs",
+      "text": "TODO sync command implementation.",
+      "issue_number": 67
+    },
+    {
+      "file": "crates/taskit-engine/src/testing/compile.rs",
+      "text": "TODO(audit)(#26): 968 lines — split candidate. Also the crate-exclusion logic",
+      "issue_number": 68
+    },
+    {
+      "file": "crates/taskit-init/src/scaffold.rs",
+      "text": "TODO(audit)(#25): 831 lines — split candidate.",
+      "issue_number": 71
+    },
+    {
+      "file": "crates/taskit-output/src/formatter.rs",
+      "text": "TODO(audit)(#24): 1,251 lines — largest module in the workspace, split candidate.",
+      "issue_number": 72
+    },
+    {
+      "file": "crates/taskit-output/src/formatter.rs",
+      "text": "TODO(#34): propagate OutputConfig::verbose_on_failure instead of hard-coding compact output.",
+      "issue_number": 73
+    },
+    {
+      "file": "crates/taskit-output/src/formatter.rs",
+      "text": "TODO(#31): return contextual errors when JUnit, SARIF, or GitHub summary writes fail.",
+      "issue_number": 74
+    },
+    {
+      "file": "crates/taskit-output/src/sinks/buffer.rs",
+      "text": "TODO(audit)(#22): only constructed in this crate's own tests — not adopted in",
+      "issue_number": 75
+    },
+    {
+      "file": "crates/taskit-output/src/sinks/tee.rs",
+      "text": "TODO(audit)(#23): only constructed in this crate's own tests — not adopted in",
+      "issue_number": 76
+    },
+    {
+      "file": "crates/taskit-output/src/thread_sink.rs",
+      "text": "TODO(#32): inject reporting through Ctx so live events and final output share destinations.",
+      "issue_number": 120
+    },
+    {
+      "file": "crates/taskit-testing/src/temp_dir.rs",
+      "text": "TODO(#30): make process-wide temporary workspace CWD changes safe under parallel tests.",
+      "issue_number": 121
+    }
+  ]
+}
