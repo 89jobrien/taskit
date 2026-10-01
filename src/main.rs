@@ -15,7 +15,7 @@ use std::env;
 use taskit_engine::changelog::ChangelogMode;
 use taskit_engine::command::{
     Audit, Bench, Bootstrap, Build, Changelog, CheckDeps, CheckFreshness, CheckProtocolDrift,
-    CheckProtocolSites, Ci, Clean, Command, CompileTests, Coverage, DevSetup, Drift, Flow,
+    CheckProtocolSites, Ci, Clean, Command, CompileTests, Coverage, Dedupe, DevSetup, Drift, Flow,
     FlowAction, Fmt, Fuzz, Health, Inspect, Install, InstallHooks, Lint, Patch, PreCommit, PrePush,
     Proptest, Publish, Quick, Release, SelfCheck, SelfTest, SnapshotReview, Test, TestReport,
     TodoSync, Update, UpdateClaudeVersion, Version,
@@ -329,6 +329,12 @@ enum ProtocolCmd {
         #[arg(long)]
         warn_only: bool,
     },
+    /// Close duplicate marker issues and repoint the sync lockfile
+    TodoDedupe {
+        /// Close duplicates and rewrite the lockfile
+        #[arg(long)]
+        update: bool,
+    },
     /// Check workspace dependency freshness (Cargo.lock vs latest published versions)
     Freshness {
         /// Report outdated dependencies without failing the command
@@ -587,6 +593,7 @@ fn protocol_to_command(cmd: ProtocolCmd) -> Box<dyn Command> {
             warn_only,
         }),
         ProtocolCmd::TodoSync { update, warn_only } => Box::new(TodoSync { update, warn_only }),
+        ProtocolCmd::TodoDedupe { update } => Box::new(Dedupe { update }),
         ProtocolCmd::Freshness { warn_only } => Box::new(CheckFreshness { warn_only }),
         ProtocolCmd::Audit => Box::new(Audit),
     }
@@ -677,6 +684,13 @@ fn main() -> miette::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn protocol_todo_dedupe_parses() {
+        assert!(Cli::try_parse_from(["taskit", "protocol", "todo-dedupe"]).is_ok());
+        assert!(Cli::try_parse_from(["taskit", "protocol", "todo-dedupe", "--update"]).is_ok());
+        assert!(Cli::try_parse_from(["taskit", "protocol", "todo-dedupe", "--dry-run"]).is_ok());
+    }
 
     #[test]
     fn changelog_modes_parse() {
