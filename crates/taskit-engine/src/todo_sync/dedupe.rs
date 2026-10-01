@@ -125,24 +125,32 @@ struct DedupePlan {
     repoint_to: Option<u64>,
 }
 
-/// Every generated issue tracking `entry`, lowest number first.
+/// Every *open* generated issue tracking `entry`, lowest number first.
 ///
-/// Returns `None` when no issue matches, which is a missing-entry problem for
-/// `todo-sync --update` to repair, not a duplication problem.
+/// Closed issues are excluded because they are already resolved: re-planning
+/// them would make every run report the same phantom work and ask a human to
+/// close the same issues forever. A closed issue that the lockfile still
+/// points at is left to `report_closed_citation`, since only a human can tell
+/// whether the work is genuinely done.
+///
+/// Returns `None` when no open issue matches, which is a missing-entry problem
+/// for `todo-sync --update` to repair, not a duplication problem.
 fn plan_dedupe(issues: &[IssueSummary], entry: &SyncedTodo) -> Option<DedupePlan> {
-    let mut found: Vec<u64> = issues
+    let mut open: Vec<u64> = issues
         .iter()
         .filter(|issue| {
-            issue.title == entry.text && super::body_tracks_file(&issue.body, &entry.file)
+            issue.title == entry.text
+                && super::body_tracks_file(&issue.body, &entry.file)
+                && !super::is_closed(&issue.state)
         })
         .map(|issue| issue.number)
         .collect();
-    found.sort_unstable();
+    open.sort_unstable();
 
-    let survivor = *found.first()?;
+    let survivor = *open.first()?;
     Some(DedupePlan {
         survivor,
-        close: found.iter().copied().filter(|n| *n != survivor).collect(),
+        close: open.iter().copied().filter(|n| *n != survivor).collect(),
         repoint_to: (survivor != entry.issue_number).then_some(survivor),
     })
 }
@@ -223,5 +231,43 @@ mod tests {
         let plan = plan_dedupe(&issues, &entry).expect("three matches should plan");
         assert_eq!(plan.survivor, 12);
         assert_eq!(plan.close, vec![58, 91]);
+    }
+
+    fn closed(issue: u64, entry: &SyncedTodo) -> IssueSummary {
+        IssueSummary {
+            state: "CLOSED".to_string(),
+            ..generated(issue, entry)
+        }
+    }
+
+    #[test]
+    fn an_already_closed_duplicate_is_never_closed_again() {
+        // Regression shape: dedupe kept planning the same 41 closes on every
+        // run, so a read-only run always looked like it had work to do.
+        let mut entry = entry_for("crates/taskit-engine/src/store.rs");
+        entry.issue_number = 42;
+        let issues = vec![generated(42, &entry), closed(83, &entry)];
+        let plan = plan_dedupe(&issues, &entry).expect("the open survivor still plans");
+        assert_eq!(plan.survivor, 42);
+        assert!(plan.close.is_empty(), "83 is already closed");
+        assert_eq!(plan.repoint_to, None);
+    }
+
+    #[test]
+    fn a_closed_survivor_repoints_onto_the_open_duplicate() {
+        let mut entry = entry_for("crates/taskit-engine/src/store.rs");
+        entry.issue_number = 42;
+        let issues = vec![closed(42, &entry), generated(83, &entry)];
+        let plan = plan_dedupe(&issues, &entry).expect("the open duplicate plans");
+        assert_eq!(plan.survivor, 83);
+        assert!(plan.close.is_empty());
+        assert_eq!(plan.repoint_to, Some(83));
+    }
+
+    #[test]
+    fn an_entry_with_only_closed_issues_plans_nothing() {
+        let mut entry = entry_for("crates/taskit-engine/src/store.rs");
+        entry.issue_number = 42;
+        assert!(plan_dedupe(&[closed(42, &entry)], &entry).is_none());
     }
 }

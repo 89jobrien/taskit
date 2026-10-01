@@ -226,10 +226,32 @@ fn issue_key(marker: &TodoMarker) -> String {
     format!("{}\u{1}{}", marker.text, marker.file)
 }
 
-/// True when an issue body belongs to `marker.file` — either via the stable
-/// tag, or via the `\`path:line\`` reference older issues were created with.
+/// The single-file path a directory module was split out of: `foo/mod.rs` ⇒
+/// `foo.rs`. Returns `None` when the path is not a directory module.
+fn flattened_module_path(file: &str) -> Option<String> {
+    let stem = file.strip_suffix("/mod.rs")?;
+    Some(format!("{stem}.rs"))
+}
+
+/// True when an issue body belongs to `file` — via the stable tag, or via the
+/// `\`path:line\`` reference older issues were created with.
+///
+/// A body naming the pre-split path also counts: growing a module turns
+/// `foo.rs` into `foo/mod.rs`, and the issue generated before the split still
+/// names the file the marker used to live in. Without this, moving a file
+/// silently orphans its issue and the next `--update` opens a duplicate.
+/// Title equality is checked by the caller, so this only widens the file
+/// match and cannot pair unrelated markers.
 fn body_tracks_file(body: &str, file: &str) -> bool {
-    body.contains(&marker_tag(file)) || body.contains(&format!("`{file}:"))
+    if body.contains(&marker_tag(file)) || body.contains(&format!("`{file}:")) {
+        return true;
+    }
+    match flattened_module_path(file) {
+        Some(flattened) => {
+            body.contains(&marker_tag(&flattened)) || body.contains(&format!("`{flattened}:"))
+        }
+        None => false,
+    }
 }
 
 /// Map each marker to the issue that already tracks it.
@@ -610,6 +632,73 @@ mod tests {
         let body = issue_body(&marker("src/a.rs", 12, "TODO: a"));
         assert!(body.contains("`src/a.rs:12`"));
         assert!(body.contains(&marker_tag("src/a.rs")));
+    }
+
+    // -- module split (foo.rs becomes foo/mod.rs) --
+
+    #[test]
+    fn flattened_module_path_only_applies_to_directory_modules() {
+        assert_eq!(
+            flattened_module_path("crates/taskit-engine/src/todo_sync/mod.rs").as_deref(),
+            Some("crates/taskit-engine/src/todo_sync.rs")
+        );
+        assert_eq!(flattened_module_path("src/a.rs"), None);
+        assert_eq!(flattened_module_path("src/a/mod.rsx"), None);
+        // A file literally named `mod.rs` at the root has nothing to flatten.
+        assert_eq!(flattened_module_path("mod.rs"), None);
+    }
+
+    #[test]
+    fn body_naming_the_pre_split_path_still_tracks_the_module() {
+        let module_file = "crates/taskit-engine/src/todo_sync/mod.rs";
+        // Legacy `path:line` body written before the split.
+        assert!(body_tracks_file(
+            "Auto-tracked source marker.\n\n`crates/taskit-engine/src/todo_sync.rs:1`",
+            module_file
+        ));
+        // Stable-tag body written before the split.
+        assert!(body_tracks_file(
+            &marker_tag("crates/taskit-engine/src/todo_sync.rs"),
+            module_file
+        ));
+    }
+
+    #[test]
+    fn module_body_matches_exactly_and_rejects_other_paths() {
+        let module_file = "crates/taskit-engine/src/todo_sync/mod.rs";
+        assert!(body_tracks_file(
+            "Auto-tracked source marker.\n\n`crates/taskit-engine/src/todo_sync/mod.rs:3`",
+            module_file
+        ));
+        assert!(!body_tracks_file(
+            "Auto-tracked source marker.\n\n`crates/taskit-engine/src/todo_sync/dedupe.rs:3`",
+            module_file
+        ));
+        // An unrelated single-file path gains no flattened fallback.
+        assert!(!body_tracks_file(
+            "Auto-tracked source marker.\n\n`src/a.rs:1`",
+            "src/b.rs"
+        ));
+    }
+
+    #[test]
+    fn issue_generated_before_a_module_split_is_still_adopted() {
+        // Regression shape: the worker grew todo_sync.rs into todo_sync/,
+        // which would otherwise orphan #69/#70 and duplicate them.
+        let marker = marker(
+            "crates/taskit-engine/src/todo_sync/mod.rs",
+            1,
+            "TODO/FIXME source markers to GitHub issues.",
+        );
+        let pre_split = issue(
+            69,
+            "TODO/FIXME source markers to GitHub issues.",
+            "Auto-tracked source marker.\n\n`crates/taskit-engine/src/todo_sync.rs:1`",
+        );
+        assert_eq!(
+            find_existing(&[pre_split], &marker).map(|i| i.number),
+            Some(69)
+        );
     }
 
     #[test]
