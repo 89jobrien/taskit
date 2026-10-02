@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Taskit is a config-driven CI, workspace governance, and release orchestration CLI for Rust projects.">
+    <title>taskit &mdash; Rust workspace operations</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <nav class="site-nav" aria-label="Primary">
+      <a class="brand" href="./" aria-current="page"><span>task</span>it</a>
+      <div class="nav-links">
+        <a href="#pipeline">Pipeline</a>
+        <a href="#commands">Commands</a>
+        <a href="#configuration">Configuration</a>
+        <a href="architecture/">Architecture</a>
+      </div>
+      <a class="nav-source" href="https://github.com/89jobrien/taskit">GitHub <span aria-hidden="true">&#8599;</span></a>
+    </nav>
+
+    <main id="main">
+      <header class="hero">
+        <div class="hero-copy reveal" style="--delay: 0">
+          <p class="eyebrow">Rust workspace control plane</p>
+          <h1>Keep the whole workspace on the <em>same rail.</em></h1>
+          <p class="lede">Taskit brings local CI, affected-crate detection, protocol governance, health telemetry, and release flow under one config-driven CLI.</p>
+          <div class="actions">
+            <a class="button button-primary" href="#quickstart">Run the quickstart</a>
+            <a class="button" href="architecture/">Read the system map</a>
+          </div>
+        </div>
+
+        <div class="terminal reveal" style="--delay: 1">
+          <div class="terminal-top">
+            <span class="terminal-lights" aria-hidden="true"></span>
+            <span>workspace / taskit</span>
+          </div>
+          <pre tabindex="0"><span class="prompt">$</span> cargo install taskit
+<span class="dim">  Installing taskit...</span>
+
+<span class="prompt">$</span> taskit check quick
+<span class="pass">  PASS</span> format
+<span class="pass">  PASS</span> clippy
+<span class="pass">  PASS</span> compile
+<span class="pass">  PASS</span> affected tests
+
+<span class="prompt">$</span> taskit protocol drift
+<span class="pass">  OK</span> 8 tracked surfaces</pre>
+        </div>
+      </header>
+
+      <section class="snapshot reveal" style="--delay: 2" aria-label="Source tree snapshot">
+        <div><strong>11</strong><span>workspace packages</span></div>
+        <div><strong>8</strong><span>tracked protocol surfaces</span></div>
+        <div><strong>7</strong><span>configured CI steps</span></div>
+        <div><strong>4</strong><span>dashboard views</span></div>
+      </section>
+
+      <section class="section" id="quickstart">
+        <div class="section-heading">
+          <p class="eyebrow">A smaller operating surface</p>
+          <h2>One command vocabulary from first check to release.</h2>
+          <p>Taskit wraps the tools Rust teams already trust, then adds workspace-aware selection, durable governance, and a consistent result model.</p>
+        </div>
+        <div class="ledger">
+          <article>
+            <span class="ledger-mark" aria-hidden="true">A</span>
+            <div><h3>Affected work, not blanket work</h3><p>Compare committed changes with <code>origin/main</code>, match configured crate directories, then apply one pass of directory-keyed propagation rules.</p></div>
+          </article>
+          <article>
+            <span class="ledger-mark" aria-hidden="true">P</span>
+            <div><h3>Protocols stay deliberate</h3><p>Hash selected contract files into <code>taskit-protocol.lock</code> so reviewed boundaries cannot drift silently.</p></div>
+          </article>
+          <article>
+            <span class="ledger-mark" aria-hidden="true">H</span>
+            <div><h3>Health has evidence</h3><p>Capture a replaceable test, Clippy, safety, and coverage baseline, then inspect CI and flow telemetry trends in a read-only terminal dashboard.</p></div>
+          </article>
+          <article>
+            <span class="ledger-mark" aria-hidden="true">F</span>
+            <div><h3>Flow is an executable policy</h3><p>Promote work through configurable development, staging, release, and main branches; full automation runs CI on the release branch.</p></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section section-wide" id="pipeline">
+        <div class="section-heading">
+          <p class="eyebrow">Default CI route</p>
+          <h2>A visible sequence with a real gate.</h2>
+          <p>The built-in route covers environment readiness, source quality, test compilation, execution, dependencies, and contract integrity.</p>
+        </div>
+        <ol class="pipeline" tabindex="0" aria-label="Default Taskit CI pipeline">
+          <li class="gate"><span>Gate</span><strong>Self-check</strong><small>Required tools</small></li>
+          <li><span>Source</span><strong>Format</strong><small>rustfmt</small></li>
+          <li><span>Source</span><strong>Lint</strong><small>Clippy</small></li>
+          <li><span>Build</span><strong>Compile</strong><small>nextest binaries</small></li>
+          <li><span>Behavior</span><strong>Test</strong><small>cargo nextest</small></li>
+          <li><span>Supply</span><strong>Dependencies</strong><small>cargo machete</small></li>
+          <li><span>Contract</span><strong>Drift</strong><small>SHA-256 lock</small></li>
+        </ol>
+        <div class="callout">
+          <span class="callout-label">Fast lane</span>
+          <code>taskit check quick</code>
+          <p>Format-check, lint, and test affected crate directories, with a cached workspace test-compilation step between lint and execution.</p>
+        </div>
+      </section>
+
+      <section class="section" id="commands">
+        <div class="section-heading split-heading">
+          <div><p class="eyebrow">Command map</p><h2>Grouped by operator intent.</h2></div>
+          <p>Every family has focused help. Structured formats are available where pipeline results are emitted, and supported operations expose a global <code>--dry-run</code> flag.</p>
+        </div>
+        <dl class="command-table">
+          <div class="command-row"><dt><code>taskit dev</code></dt><dd>Build, bootstrap, install hooks, set up tools, clean, and update.</dd></div>
+          <div class="command-row"><dt><code>taskit check</code></dt><dd>Run formatting, Clippy, quick feedback, CI, dependency checks, and hooks.</dd></div>
+          <div class="command-row"><dt><code>taskit test</code></dt><dd>Drive nextest, coverage, properties, fuzz targets, benchmarks, reports, and snapshots.</dd></div>
+          <div class="command-row"><dt><code>taskit health</code></dt><dd>Capture baselines, inspect thresholds, and compare telemetry with recent history.</dd></div>
+          <div class="command-row"><dt><code>taskit protocol</code></dt><dd>Guard contract hashes, construction sites, TODOs, freshness, and dependency policy.</dd></div>
+          <div class="command-row"><dt><code>taskit release</code></dt><dd>Bump versions, publish packages in order, and create a GitHub release.</dd></div>
+          <div class="command-row"><dt><code>taskit flow</code></dt><dd>Inspect, synchronize, promote, guard, or automate the configured branch route.</dd></div>
+          <div class="command-row"><dt><code>taskit self</code></dt><dd>Install Taskit, run its cached self-test, and verify its required tooling.</dd></div>
+        </dl>
+        <p class="top-level"><strong>Top-level surfaces:</strong> <code>taskit init</code>, <code>taskit dashboard</code>, and <code>taskit changelog</code>.</p>
+      </section>
+
+      <section class="section config-section" id="configuration">
+        <div class="section-heading">
+          <p class="eyebrow">Configuration is optional</p>
+          <h2>Start with Cargo metadata. Add policy when you need it.</h2>
+          <p>Without a config file, Taskit discovers the workspace. A small <code>taskit.toml</code> makes dependency propagation and tracked contracts explicit.</p>
+        </div>
+        <div class="config-grid">
+          <div class="code-sheet">
+            <div class="code-sheet-title"><span>taskit.toml</span><span>workspace policy</span></div>
+            <pre tabindex="0"><span class="toml-key">[workspace]</span>
+crates = [
+  { dir = <span class="toml-string">"crates/core"</span>, pkg = <span class="toml-string">"acme-core"</span> },
+  { dir = <span class="toml-string">"crates/cli"</span>, pkg = <span class="toml-string">"acme-cli"</span> },
+]
+
+<span class="toml-key">[[workspace.propagation]]</span>
+source = <span class="toml-string">"crates/core"</span>
+dependents = [<span class="toml-string">"crates/cli"</span>]
+
+<span class="toml-key">[[protocol.surfaces]]</span>
+name = <span class="toml-string">"public-api"</span>
+path = <span class="toml-string">"crates/core/src/lib.rs"</span></pre>
+          </div>
+          <div class="config-notes">
+            <article><span>Discover</span><h3>Useful without setup</h3><p>Walk upward to the workspace root and derive package information from Cargo.</p></article>
+            <article><span>Declare</span><h3>Propagation is reviewable</h3><p>Name the downstream crate directory entries that must run when a shared source directory changes.</p></article>
+            <article><span>Lock</span><h3>Contracts become evidence</h3><p>Update the protocol lock intentionally, then review the source and hash together.</p></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section flow-section">
+        <div class="section-heading">
+          <p class="eyebrow">Branch orchestration</p>
+          <h2>Promotion follows a named route.</h2>
+        </div>
+        <div class="branch-route" tabindex="0">
+          <span>develop</span><i aria-hidden="true">&rarr;</i><span>staging</span><i aria-hidden="true">&rarr;</i><span class="branch-gate">release <small>auto: CI</small></span><i aria-hidden="true">&rarr;</i><span>main</span><i aria-hidden="true">&rarr;</i><span>develop</span>
+        </div>
+        <p class="route-note"><code>taskit flow promote</code> advances one merge stage without running CI. <code>taskit flow auto</code> runs the complete route from a clean development branch and gates the release stage with the default pipeline.</p>
+      </section>
+    </main>
+
+    <footer>
+      <span><strong>taskit</strong> &middot; Rust workspace operations</span>
+      <span>Built by <a href="https://github.com/89jobrien">Joseph O'Brien</a> &middot; <a href="https://github.com/89jobrien/taskit">Source</a> &middot; MIT OR Apache-2.0</span>
+    </footer>
+  </body>
+</html>
