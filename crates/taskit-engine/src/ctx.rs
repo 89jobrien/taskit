@@ -114,6 +114,15 @@ impl Ctx {
         self.config.flow.clone().unwrap_or_default()
     }
 
+    /// Package names of the workspace members, sorted.
+    ///
+    /// Returns an empty vector when `cargo metadata` cannot run (for example in
+    /// a directory that is not a Cargo workspace). Callers that rewrite manifests
+    /// use this to restrict edits to first-party crates.
+    pub fn workspace_member_names(&self) -> Vec<String> {
+        workspace_member_names(&self.root)
+    }
+
     // ── execution ─────────────────────────────────────────────────────────
 
     /// Run a shell command, or in dry-run mode print it instead.
