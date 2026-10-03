@@ -11,6 +11,7 @@ taskit-engine.workspace = true
 taskit-types.workspace = true
 ratatui.workspace = true
 crossterm.workspace = true
+rx-runner.workspace = true
 
 [dev-dependencies]
 tempfile = "3"
