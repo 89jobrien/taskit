@@ -33,6 +33,7 @@ tool calls that a single structured snapshot command could replace.
 
 Add `taskit info context` (or fold into `taskit inspect --format json` output
 shape) that emits:
+
 - Crate graph (from `cargo_metadata`, already a dependency per
   `check-protocol-drift`/`check-deps` usage).
 - `[[workspace.propagation]]` affected-crate relationships (already computed

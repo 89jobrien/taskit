@@ -168,16 +168,11 @@ codebase doesn't already handle via existing seams (`ConflictResolver`, `Pipelin
       compile unchanged.
 - [ ] New external dependency: no.
 - [ ] Feature flag required: no.
-- [ ] Test coverage gaps to close in the plan (found, not fixed, during this design pass):
-      - No test yet for `status_report`'s hop data (only the printing `status()` has an
-        integration test, `flow_status_shows_all_branches`).
-      - No test yet for `merge_with_resolution`'s returned conflict count (fast path = 0,
-        conflict path = N).
-      - No test yet asserting `flow_auto_*` telemetry is actually written by `auto_with_ci`
-        (existing `flow_integration.rs` tests already spin up a temp git repo + `ctx.root`,
-        so this is a `NdjsonStore::new(ctx.root()).load_window(..)` assertion after an
-        `auto`/`auto_with_ci` call).
-      - No test yet for `protocol::drift::check` (in-sync, drifted, and unconfigured cases).
-      - `Snapshot::collect`'s existing inline tests (`from_parts`-based) will need extending
-        for the new fields, and `app.rs`/`ui.rs` will need a `Tab::ALL` length update
-        (currently hardcoded as `[Tab; 3]` — becomes `[Tab; 4]`).
+- [ ] Test coverage gaps to close in the plan (found, not fixed, during this design pass): - No test yet for `status_report`'s hop data (only the printing `status()` has an
+      integration test, `flow_status_shows_all_branches`). - No test yet for `merge_with_resolution`'s returned conflict count (fast path = 0,
+      conflict path = N). - No test yet asserting `flow_auto_*` telemetry is actually written by `auto_with_ci`
+      (existing `flow_integration.rs` tests already spin up a temp git repo + `ctx.root`,
+      so this is a `NdjsonStore::new(ctx.root()).load_window(..)` assertion after an
+      `auto`/`auto_with_ci` call). - No test yet for `protocol::drift::check` (in-sync, drifted, and unconfigured cases). - `Snapshot::collect`'s existing inline tests (`from_parts`-based) will need extending
+      for the new fields, and `app.rs`/`ui.rs` will need a `Tab::ALL` length update
+      (currently hardcoded as `[Tab; 3]` — becomes `[Tab; 4]`).

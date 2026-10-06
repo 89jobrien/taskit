@@ -37,7 +37,7 @@ derived at runtime.
 
 2. Verify:
 
-   ```
+   ```text
    cargo check    -> compiles
    ```
 
@@ -127,7 +127,7 @@ derived at runtime.
 
 4. Verify:
 
-   ```
+   ```text
    cargo test -p taskit -- discovery       -> 1 test passes
    cargo clippy -p taskit -- -D warnings   -> zero warnings
    ```
@@ -245,7 +245,7 @@ derived at runtime.
 
 3. Verify:
 
-   ```
+   ```text
    cargo test -p taskit -- cargo_metadata_source  -> passes
    cargo clippy -p taskit -- -D warnings          -> zero warnings
    ```
@@ -346,7 +346,7 @@ derived at runtime.
 
 3. Verify:
 
-   ```
+   ```text
    cargo test -p taskit -- derive_propagation  -> all pass
    cargo clippy -p taskit -- -D warnings       -> zero warnings
    ```
@@ -520,7 +520,7 @@ derived at runtime.
 
 3. Verify:
 
-   ```
+   ```text
    cargo test -p taskit -- scan_surfaces   -> all pass
    cargo clippy -p taskit -- -D warnings   -> zero warnings
    ```
@@ -700,7 +700,7 @@ derived at runtime.
 
 4. Verify:
 
-   ```
+   ```text
    cargo test -p taskit -- config::tests::discover  -> all pass
    cargo clippy -p taskit -- -D warnings             -> zero warnings
    ```
@@ -828,7 +828,7 @@ derived at runtime.
 
 4. Verify:
 
-   ```
+   ```text
    cargo test -p taskit -- config::tests   -> all pass
    cargo clippy -p taskit -- -D warnings   -> zero warnings
    ```
@@ -874,7 +874,7 @@ derived at runtime.
 
 3. Verify:
 
-   ```
+   ```text
    cargo test -p taskit                    -> all pass
    cargo clippy -p taskit -- -D warnings   -> zero warnings
    ```
@@ -915,7 +915,7 @@ derived at runtime.
 
 2. Verify:
 
-   ```
+   ```text
    cargo test -p taskit -- integration_discover  -> passes
    ```
 
@@ -936,7 +936,7 @@ derived at runtime.
 
 2. Verify:
 
-   ```
+   ```text
    cargo check                             -> compiles
    cargo test -p taskit                     -> all pass
    cargo clippy -p taskit -- -D warnings    -> zero warnings

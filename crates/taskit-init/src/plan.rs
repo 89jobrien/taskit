@@ -1,3 +1,5 @@
+//! Initialization plans and workspace discovery for generated taskit configuration.
+
 use taskit_types::config::PropagationEntry;
 use taskit_types::error::{TaskitError, TaskitResultExt};
 

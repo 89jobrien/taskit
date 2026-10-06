@@ -1,0 +1,31 @@
+project: taskit
+branch: develop
+build: ok
+tests: 760 passed (local, cargo nextest run --workspace)
+updated: '20260818::220008'
+touched_files:
+- .githooks/pre-commit
+- .githooks/pre-push
+- .github/workflows/ci.yml
+- .gitignore
+- .health-baseline.json
+- AGENTS.md
+- CLAUDE.md
+- Cargo.lock
+- DESIGN.md
+- README.md
+- crates/taskit-engine/src/bootstrap.rs
+- crates/taskit-engine/src/build.rs
+- crates/taskit-engine/src/command.rs
+- crates/taskit-engine/src/flow.rs
+- crates/taskit-engine/src/install.rs
+- crates/taskit-engine/src/lib.rs
+- crates/taskit-types/src/config.rs
+- crates/taskit-types/src/error.rs
+- docs/src/README.md
+- docs/src/architecture/overview.md
+- docs/src/reference/ci-pipeline.md
+- docs/src/reference/configuration.md
+- src/main.rs
+- taskit-protocol.lock
+- xtask/scripts/depgraph-report.py

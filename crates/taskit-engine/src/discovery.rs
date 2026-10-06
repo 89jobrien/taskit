@@ -1,3 +1,5 @@
+//! Discovers workspace crates, dependency propagation, and protocol surfaces.
+
 use cargo_metadata::MetadataCommand;
 use std::path::{Path, PathBuf};
 use taskit_types::error::{TaskitError, TaskitResultExt};

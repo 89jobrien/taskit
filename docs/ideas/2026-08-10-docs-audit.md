@@ -26,7 +26,7 @@ changes — nothing would have caught it if those docs had been left stale.
 - `taskit`'s `CLAUDE.md` Config Reference table and Common Subcommands table
   are hand-maintained prose with no fact-marker mechanism; nothing verifies
   the subcommand table stays in sync with `src/main.rs`'s actual `Cmd` enum.
-- taskit's `doc-sync`/`doc-review` *skills* (godmode plugin, not part of
+- taskit's `doc-sync`/`doc-review` _skills_ (godmode plugin, not part of
   taskit itself) cover a similar need at the workspace-tooling layer, but
   operate externally via an LLM pass rather than as a deterministic, code-run
   `taskit` gate.
@@ -36,6 +36,7 @@ changes — nothing would have caught it if those docs had been left stale.
 Start narrow: a `taskit doc-drift` (or `docs audit`, matching minibox's
 naming) check that verifies specifically things that are objectively
 derivable from code:
+
 - `CLAUDE.md`'s Common Subcommands table lists every `Cmd` variant that
   exists in `src/main.rs` (and no extra/removed ones) — this is directly
   checkable by parsing the clap `Command` tree (see the machine-readable CLI

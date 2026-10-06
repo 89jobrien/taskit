@@ -1,40 +1,42 @@
 # taskit
 
-`taskit` is a config-driven CI pipeline runner for Rust workspaces. It provides a single binary
-that orchestrates formatting, linting, testing, coverage, dependency auditing, and git branching
-workflows — all driven by a `taskit.toml` at the workspace root.
-
-## Quick start
+`taskit` is a config-driven development and CI runner for Rust workspaces. One grouped CLI covers
+formatting, linting, tests, coverage, dependency governance, health baselines, release operations,
+Git flow, and a live terminal dashboard.
 
 ```bash
-taskit init          # scaffold taskit.toml, Cruxfile, hooks, CI, docs
-taskit check quick   # fast local feedback (fmt + lint + compile-tests + test)
-taskit check ci      # full CI pipeline
-taskit flow auto     # promote develop → staging → release → main with CI gate
+taskit check quick
+taskit check ci
+taskit dashboard
 ```
 
-## Design principles
+Configuration is optional. Without `taskit.toml`, taskit discovers workspace packages with Cargo
+metadata and uses its built-in CI pipeline. Adding configuration enables propagation rules,
+custom pipeline steps, protocol surfaces, coverage thresholds, flow branches, release settings,
+and output defaults.
 
-- **Config-driven** — all pipeline behaviour lives in `taskit.toml`; no magic
-- **Hexagonal** — port traits in `taskit-core`, adapters in `taskit-engine`; easy to test
-- **Fail-fast** — gates abort the pipeline immediately; non-gates report and continue
-- **Rich diagnostics** — `miette`-powered errors with source spans, help text, and codes
-- **Resumable** — `flow auto` persists state to `target/taskit/state.json` and resumes on re-run
+## Where to start
 
-## Workspace layout
+- [Install taskit](./getting-started/installation.md).
+- [Initialize and check a workspace](./getting-started/first-workspace.md).
+- Use the [CLI reference](./reference/cli.md) for every current command and option.
+- Use the [configuration reference](./reference/configuration.md) for `taskit.toml`.
+- Open the [dashboard guide](./guides/dashboard.md) for tabs, keys, and health actions.
 
-```
-taskit (root bin)
-├── crates/taskit-types    shared types: Config, Error, StepResult, ConflictFile
-├── crates/taskit-core     port traits: PipelineRunner, ConflictResolver
-├── crates/taskit-engine   pipeline engine, config loading, flow commands
-├── crates/taskit-init     `taskit init`: discovery + file generation
-├── crates/taskit-crux     EmbeddedCruxRunner (optional, `crux` feature)
-├── crates/taskit-macros   proc-macros for derive utilities
-├── crates/taskit-output   OutputFormatter trait + implementations
-├── crates/taskit-tui      ratatui dashboard (Overview/Flow tabs, snapshot polling)
-└── crates/taskit-testing  shared test helpers and conformance harness
-```
+## Core workflows
 
-See [Architecture Overview](./architecture/overview.md) for the dependency graph and design
-rationale.
+| Goal                         | Command                        |
+| ---------------------------- | ------------------------------ |
+| Fast affected-crate feedback | `taskit check quick`           |
+| Full local CI                | `taskit check ci`              |
+| Workspace tests              | `taskit test run`              |
+| Update the health baseline   | `taskit health check --update` |
+| Check protocol surfaces      | `taskit protocol drift`        |
+| Inspect the branch pipeline  | `taskit flow status`           |
+| Open the terminal dashboard  | `taskit dashboard`             |
+
+## Design
+
+Taskit uses a multi-crate hexagonal layout. Shared values live in `taskit-types`, ports in
+`taskit-core`, orchestration in `taskit-engine`, and outer adapters in the binary, initializer,
+output, dashboard, and Crux crates. See the [architecture overview](./architecture/overview.md).

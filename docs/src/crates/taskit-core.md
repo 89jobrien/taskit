@@ -1,49 +1,28 @@
 # taskit-core
 
-Ports-only crate. Defines the boundary interfaces (traits) that adapters implement. Depends
-only on `taskit-types`. Contains no I/O and no pipeline logic.
+`taskit-core` is the ports layer. It depends only on `taskit-types`.
 
-## Traits
+## Public modules
 
-### `PipelineRunner`
+| Module              | Public surface                                 |
+| ------------------- | ---------------------------------------------- |
+| `conflict_resolver` | `ConflictResolver`                             |
+| `pipeline_runner`   | `PipelineRunner`                               |
+| `step_builder`      | `StepBuilder`                                  |
+| `conformance`       | Reusable `PipelineRunner` invariant assertions |
 
-```rust
-pub trait PipelineRunner {
-    fn run_pipeline(
-        &self,
-        config_path: &Path,
-        fail_fast: bool,
-    ) -> Result<PipelineOutcome, TaskitError>;
-}
-```
+`ConflictResolver` is re-exported from the crate root. `PipelineRunner` remains available through
+`taskit_core::pipeline_runner`. The conformance module is exported unconditionally; no
+`test-support` feature exists.
 
-Implemented by:
+## Pipeline adapters
 
-| Adapter | Crate | Description |
-|---------|-------|-------------|
-| `BuiltinRunner` | `taskit-engine` | Runs steps in-process via the step engine |
-| `SubprocessCruxRunner` | `taskit-engine` | Spawns `crux` as a subprocess |
-| `EmbeddedCruxRunner` | `taskit-crux` | Links crux directly (feature-gated) |
+| Adapter                | Location        | Current status                                           |
+| ---------------------- | --------------- | -------------------------------------------------------- |
+| `BuiltinRunner`        | `taskit-engine` | Implemented; not used by current production CI dispatch. |
+| `SubprocessCruxRunner` | `taskit-engine` | Publicly constructible; current callers are tests.       |
+| `EmbeddedCruxRunner`   | `taskit-crux`   | Synthetic stub; not wired into the binary.               |
 
-### `ConflictResolver`
+## Conflict adapters
 
-```rust
-pub trait ConflictResolver {
-    fn resolve(
-        &self,
-        conflicts: &[ConflictFile],
-    ) -> Result<Vec<ResolvedFile>, TaskitError>;
-}
-```
-
-Implemented by:
-
-| Adapter | Crate | Description |
-|---------|-------|-------------|
-| `BamlConflictResolver` | `taskit` (bin) | LLM resolution via BAML structured output |
-| No-op impl | inline | Returns `NeedsHuman` for every conflict |
-
-## Design note
-
-Keeping traits in `taskit-core` (separate from `taskit-engine`) allows `taskit-testing` to
-import only the port interface for conformance harnesses without pulling in the full engine.
+The root binary selects either `BamlConflictResolver` or its no-op resolver for `flow auto`.

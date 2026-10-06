@@ -1,3 +1,5 @@
+//! Normalizes and hashes Rust contract sources for stable drift detection.
+
 use sha2::{Digest, Sha256};
 
 /// Normalize a Rust contract source file for stable hashing.

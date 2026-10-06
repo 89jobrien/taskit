@@ -519,12 +519,16 @@ pub(crate) fn extract_todo_fixme_comment(
 /// `// see TODO(x) in other.rs` is prose reporting on a marker that lives
 /// elsewhere, so tracking it would file a second issue for that marker.
 ///
-/// Leading `/` and `*` are stripped first so doc comments (`///`) and
-/// block-comment bodies (` * `) keep working.
+/// Leading `/`, `*`, and `!` are stripped first so line comments (`//`), outer
+/// doc comments (`///`), inner doc comments (`//!`), and block-comment bodies
+/// (` * `) all keep working. The `!` matters: an inner doc comment is how a
+/// crate states a module-level obligation (`//! TODO(feature-idea-15): ...`),
+/// and without stripping it that marker is invisible to the scanner and its
+/// tracking issue gets closed as if the work had been removed.
 fn extract_todo_fixme_marker(text: &str) -> Option<String> {
     let trimmed = text
         .trim_start()
-        .trim_start_matches(['/', '*'])
+        .trim_start_matches(['/', '*', '!'])
         .trim_start();
     if !(trimmed.starts_with("TODO") || trimmed.starts_with("FIXME")) {
         return None;
@@ -727,31 +731,50 @@ fn today() -> String {
 
 // -- Parsers (pure, testable) -------------------------------------------------
 
+/// Strip ANSI SGR/CSI escape sequences from captured command output.
+///
+/// nextest colourises its summary and per-test lines even when writing to a
+/// pipe, so a raw capture interleaves `\x1b[1m`-style bytes with the words.
+/// Leaving them in place breaks both the summary-line parse and the
+/// per-test-line fallback, which both match on literal text.
+fn strip_ansi(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c != '\u{1b}' {
+            out.push(c);
+            continue;
+        }
+        // CSI sequence: `ESC '['` then parameter/intermediate bytes then a
+        // final byte in 0x40..=0x7E. nextest only emits SGR (`m`), but consume
+        // the general form rather than special-casing it.
+        if chars.peek() == Some(&'[') {
+            chars.next();
+            for c in chars.by_ref() {
+                if ('\u{40}'..='\u{7e}').contains(&c) {
+                    break;
+                }
+            }
+        }
+    }
+    out
+}
+
 /// Parse nextest's summary line like:
 /// `341 tests run: 341 passed, 0 skipped`
 /// or on failure: `341 tests run: 338 passed, 3 failed, 0 skipped`
 fn parse_nextest_summary(output: &str) -> Result<TestCounts, TaskitError> {
-    // Look for the summary line from nextest
-    for line in output.lines().rev() {
-        let line = line.trim();
-        // nextest prints: "N tests run: N passed, N failed, N skipped"
-        // or:             "N tests run: N passed, N skipped"
-        if let Some(rest) = line.strip_suffix(" run.") {
-            // Alternative format
-            if let Some(counts) = try_parse_summary_line(rest) {
-                return Ok(counts);
-            }
-        }
-        if line.contains("tests run:")
-            && let Some(counts) = try_parse_summary_line(line)
-        {
+    let clean = strip_ansi(output);
+    // Look for the summary line from nextest, which it prints last.
+    for line in clean.lines().rev() {
+        if let Some(counts) = try_parse_summary_line(line.trim()) {
             return Ok(counts);
         }
     }
     // Fallback: count individual test lines
-    let passed = output.matches("PASS [").count();
-    let failed = output.matches("FAIL [").count();
-    let skipped = output.matches("SKIP [").count();
+    let passed = clean.matches("PASS [").count();
+    let failed = clean.matches("FAIL [").count();
+    let skipped = clean.matches("SKIP [").count();
     let total = passed + failed + skipped;
     Ok(TestCounts {
         total,
@@ -762,30 +785,41 @@ fn parse_nextest_summary(output: &str) -> Result<TestCounts, TaskitError> {
 }
 
 fn try_parse_summary_line(line: &str) -> Option<TestCounts> {
-    // Extract numbers from patterns like "341 tests run: 341 passed, 3 failed, 0 skipped"
-    let nums: Vec<usize> = line
-        .split(|c: char| !c.is_ascii_digit())
-        .filter(|s| !s.is_empty())
-        .filter_map(|s| s.parse().ok())
-        .collect();
+    // Only the text after `tests run:` carries counts. Everything before it is
+    // decoration: nextest prints `Summary [ 16.527s] 2690 tests run: ...`, and
+    // the duration would otherwise be read as two extra test counts.
+    let (prefix, counts) = line.split_once("tests run:")?;
 
-    match nums.len() {
-        // total, passed, skipped (no failures)
-        3 => Some(TestCounts {
-            total: nums[0],
-            passed: nums[1],
-            failed: 0,
-            skipped: nums[2],
-        }),
-        // total, passed, failed, skipped
-        4 => Some(TestCounts {
-            total: nums[0],
-            passed: nums[1],
-            failed: nums[2],
-            skipped: nums[3],
-        }),
-        _ => None,
+    // The total is the last token before the marker.
+    let total = prefix.split_whitespace().last()?.parse::<usize>().ok()?;
+
+    // Map each count by its label rather than by position, so an omitted
+    // `failed` segment cannot shift `skipped` into the `failed` slot.
+    let mut passed = None;
+    let mut failed = None;
+    let mut skipped = None;
+    for part in counts.split(',') {
+        let part = part.trim();
+        let Some((value, label)) = part.split_once(char::is_whitespace) else {
+            continue;
+        };
+        let Ok(value) = value.trim().parse::<usize>() else {
+            continue;
+        };
+        match label.trim() {
+            "passed" => passed = Some(value),
+            "failed" => failed = Some(value),
+            "skipped" => skipped = Some(value),
+            _ => {}
+        }
     }
+
+    Some(TestCounts {
+        total,
+        passed: passed?,
+        failed: failed.unwrap_or(0),
+        skipped: skipped.unwrap_or(0),
+    })
 }
 
 fn parse_clippy_json(output: &str) -> ClippyCounts {
@@ -1027,6 +1061,65 @@ mod tests {
         assert_eq!(counts.failed, 1);
     }
 
+    #[test]
+    fn parse_nextest_ignores_duration_before_counts() {
+        // Real nextest output prefixes the counts with an elapsed-time field.
+        // Reading numbers positionally turns `16.527s` into two phantom counts
+        // and rejects the line, reporting zero tests.
+        let output = "     Summary [ 16.527s] 2690 tests run: 2690 passed, 6 skipped";
+        let counts = parse_nextest_summary(output).unwrap();
+        assert_eq!(counts.total, 2690);
+        assert_eq!(counts.passed, 2690);
+        assert_eq!(counts.failed, 0);
+        assert_eq!(counts.skipped, 6);
+    }
+
+    #[test]
+    fn parse_nextest_ignores_duration_with_failures() {
+        let output = "     Summary [ 20.910s] 2690 tests run: 2685 passed, 5 failed, 6 skipped";
+        let counts = parse_nextest_summary(output).unwrap();
+        assert_eq!(counts.total, 2690);
+        assert_eq!(counts.passed, 2685);
+        assert_eq!(counts.failed, 5);
+        assert_eq!(counts.skipped, 6);
+    }
+
+    #[test]
+    fn parse_nextest_strips_ansi_from_summary_line() {
+        let output = "\u{1b}[32;1m     Summary\u{1b}[0m [ 16.527s] \u{1b}[1m2690\u{1b}[0m \
+                      tests run: \u{1b}[1m2690\u{1b}[0m \u{1b}[32;1mpassed\u{1b}[0m, \
+                      \u{1b}[1m6\u{1b}[0m \u{1b}[33;1mskipped\u{1b}[0m";
+        let counts = parse_nextest_summary(output).unwrap();
+        assert_eq!(counts.total, 2690);
+        assert_eq!(counts.passed, 2690);
+        assert_eq!(counts.skipped, 6);
+    }
+
+    #[test]
+    fn parse_nextest_fallback_strips_ansi_from_test_lines() {
+        // ANSI codes split `PASS` from `[`, so a literal match on the raw
+        // output finds nothing and reports zero tests.
+        let output = "\u{1b}[32;1m        PASS\u{1b}[0m [   0.014s] crate::test_a\n\
+                      \u{1b}[32;1m        PASS\u{1b}[0m [   0.014s] crate::test_b\n\
+                      \u{1b}[31;1m        FAIL\u{1b}[0m [   0.300s] crate::test_c\n";
+        let counts = parse_nextest_summary(output).unwrap();
+        assert_eq!(counts.total, 3);
+        assert_eq!(counts.passed, 2);
+        assert_eq!(counts.failed, 1);
+    }
+
+    #[test]
+    fn parse_nextest_maps_counts_by_label_not_position() {
+        // A `failed` segment that is present but empty-of-failures must not
+        // shift `skipped` into the failed slot.
+        let output = "     Summary [ 1.000s] 100 tests run: 99 passed, 0 failed, 1 skipped";
+        let counts = parse_nextest_summary(output).unwrap();
+        assert_eq!(counts.total, 100);
+        assert_eq!(counts.passed, 99);
+        assert_eq!(counts.failed, 0);
+        assert_eq!(counts.skipped, 1);
+    }
+
     // -- parse_clippy_json --
 
     #[test]
@@ -1125,6 +1218,23 @@ mod tests {
         assert_eq!(
             extract_todo_fixme_comment(&format!(" * {fixme}: block body"), &mut in_block),
             Some(format!("{fixme}: block body"))
+        );
+    }
+
+    #[test]
+    fn inner_doc_comment_todo_is_still_a_marker() {
+        let todo = todo_marker();
+        // `//!` is how a crate states a module-level obligation. Leaving the
+        // `!` unstripped makes the marker invisible, and the tracking issue is
+        // then closed as if the work had been deleted.
+        assert_eq!(
+            extract_todo_fixme_comment(
+                &format!("//! {todo}(feature-idea-15): complete the Windows daemon"),
+                &mut false
+            ),
+            Some(format!(
+                "{todo}(feature-idea-15): complete the Windows daemon"
+            ))
         );
     }
 

@@ -1,7 +1,9 @@
+//! Fan-out sink that forwards messages to multiple child sinks.
+
 use crate::message::Message;
 use crate::sink::MessageSink;
 
-// TODO(audit): only constructed in this crate's own tests — not adopted in
+// TODO(audit)(#23): only constructed in this crate's own tests — not adopted in
 // any production output path yet.
 /// Fan-out sink: sends to multiple sinks simultaneously.
 pub struct TeeSink {

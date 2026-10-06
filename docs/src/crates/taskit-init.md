@@ -1,41 +1,30 @@
 # taskit-init
 
-Handles `taskit init` — workspace discovery and scaffold file generation. Deliberately
-separate from `taskit-engine` to keep the engine free of generation concerns.
+`taskit-init` owns workspace discovery, configuration rendering, and project scaffolding. It is
+separate from `taskit-engine` so generation does not become an engine responsibility.
 
-## Modules
+## Public modules
 
-### `plan.rs`
+| Module            | Responsibility                                                             |
+| ----------------- | -------------------------------------------------------------------------- |
+| `plan`            | `InitPlan`, Cargo metadata discovery, prompts, and inferred relationships. |
+| `render_toml`     | New `taskit.toml` text generation from `InitPlan`.                         |
+| `render_cruxfile` | Cruxfile YAML generation.                                                  |
+| `scaffold`        | Hooks, CI, deny config, context, mdBook, and optional xtask files.         |
 
-- `InitPlan` — all decisions made before writing any file (crate list, propagation graph,
-  protocol surfaces, flow defaults)
-- `plan_from_discovery()` — builds an `InitPlan` by running `cargo metadata` and inspecting
-  the workspace
-- `plan_interactive()` — prompts the user to confirm or override each plan decision
+The crate root also exposes the `run(force, interactive, dry_run)` orchestration function.
 
-### `render_toml.rs`
+## Discovery
 
-Hand-built TOML renderer for `taskit.toml`. Uses hand-crafted string formatting (not a TOML
-serializer) so comments and section ordering are preserved exactly.
+Initialization discovers workspace packages, package-directory remapping, local dependency
+propagation, top-level `pub trait` protocol surfaces, release order, and a GitHub origin when
+available.
 
-### `render_cruxfile.rs`
+## Generated files
 
-Generates the `Cruxfile` YAML that drives `crux`-based step execution.
+Default initialization writes `taskit.toml`, `Cruxfile`, a `cargo taskit` alias, hooks, GitHub CI,
+`deny.toml`, `.ctx/`, and an mdBook scaffold. Isolated `xtask/` generation is optional and disabled
+by default.
 
-## What `taskit init` generates
-
-| File | Purpose |
-|------|---------|
-| `taskit.toml` | Full config with unused sections commented out |
-| `Cruxfile` | Step definitions for crux runner |
-| `xtask/` | Cargo xtask shim |
-| `.cargo/config.toml` | `cargo xtask` alias |
-| `.githooks/pre-commit` | Pre-commit hook delegate |
-| `.githooks/pre-push` | Pre-push hook delegate |
-| `.github/workflows/ci.yml` | GitHub Actions CI (nextest, rust-cache) |
-| `deny.toml` | cargo-deny: licenses, advisories, bans, sources |
-| `docs/` | mdBook skeleton with per-crate pages |
-| `.ctx/` | Context directory with sessions, tasks, memory-bank, xcache |
-
-Smart discovery: propagation rules are auto-inferred from the Cargo dep graph; protocol
-surfaces are auto-detected from `pub trait` declarations.
+See [First Workspace](../getting-started/first-workspace.md) for commands and the current generated
+CI spelling caveat.

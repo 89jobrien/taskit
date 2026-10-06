@@ -1,3 +1,5 @@
+//! Persists resumable flow state under the workspace target directory.
+
 use std::path::Path;
 
 use taskit_types::error::TaskitError;

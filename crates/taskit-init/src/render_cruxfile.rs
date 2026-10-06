@@ -1,3 +1,5 @@
+//! Renders initialization plans as Crux CI pipelines.
+
 use crate::plan::InitPlan;
 
 /// Render an InitPlan into a Cruxfile (a crux-script YAML pipeline).

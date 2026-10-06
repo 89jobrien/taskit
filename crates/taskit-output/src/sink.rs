@@ -1,3 +1,5 @@
+//! Message sink abstraction for pipeline execution output.
+
 use crate::message::Message;
 
 /// Port: receives structured messages during pipeline execution.

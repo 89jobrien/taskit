@@ -1,3 +1,5 @@
+//! Expands `ConfigDefaults` derives into accessors backed by `default_value` attributes.
+
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, Lit, Meta, parse2};

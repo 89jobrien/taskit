@@ -1,3 +1,5 @@
+//! Test macros for temporary working directories and concise `StepResult` construction.
+
 /// Run a block inside a temporary directory with automatic cleanup.
 ///
 /// Two forms:

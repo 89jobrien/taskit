@@ -22,6 +22,7 @@ shell out to see workspace coverage % or the latest audit status.
 
 Rather than two more top-level tabs, fold both into the proposed Health tab
 (`docs/ideas/2026-08-09-tui-health-tab.md`) as additional panels/rows:
+
 - Coverage %: last workspace coverage run result + threshold pass/fail.
 - Audit: last `cargo-deny` status (advisories/bans/licenses/sources), pulled
   from whatever `audit.rs` currently returns or logs.

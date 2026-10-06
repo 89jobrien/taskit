@@ -1,3 +1,5 @@
+//! Runs Clippy checks or fixes and parses JSON diagnostics.
+
 use taskit_types::error::TaskitError;
 use taskit_types::step::{DiagnosticLevel, DiagnosticRecord};
 use xshell::cmd;

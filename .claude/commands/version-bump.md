@@ -32,7 +32,7 @@ Bump workspace versions consistently across all crates without releasing.
 
 7. If confirmed, commit:
 
-```
+```text
 chore(release): bump workspace to v<new_version>
 ```
 

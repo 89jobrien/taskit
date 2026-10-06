@@ -1,3 +1,5 @@
+//! Runs a cargo-fuzz target for a fixed duration.
+
 use taskit_types::error::TaskitError;
 use xshell::cmd;
 

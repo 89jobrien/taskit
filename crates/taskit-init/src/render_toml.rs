@@ -1,3 +1,5 @@
+//! Renders initialization plans as taskit TOML configuration.
+
 use crate::plan::InitPlan;
 
 /// Render an InitPlan into taskit.toml content.

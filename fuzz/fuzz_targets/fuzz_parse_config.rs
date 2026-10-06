@@ -1,3 +1,5 @@
+//! Fuzzes UTF-8 byte slices as TOML config input and requires deserialization to return without panicking.
+
 #![no_main]
 use libfuzzer_sys::fuzz_target;
 

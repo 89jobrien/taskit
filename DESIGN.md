@@ -31,7 +31,7 @@ Cargo alias: `cargo taskit check ci` via `.cargo/config.toml`
 
 Multi-crate workspace with hexagonal architecture (ports/adapters):
 
-```
+```text
 taskit/
   Cargo.toml              # workspace manifest
   src/main.rs             # binary entry point (clap CLI + dispatch)
@@ -48,18 +48,18 @@ taskit/
 
 ### Crate responsibilities
 
-| Crate | Role |
-|-------|------|
-| `taskit` | Binary entry point; CLI parsing (clap) and dispatch |
-| `taskit-types` | Leaf crate: Config, TaskitError (miette), StepResult, OutputFormat |
-| `taskit-core` | Ports only: PipelineRunner trait |
-| `taskit-engine` | CI pipeline, config loading, output formatters, step engine |
-| `taskit-init` | InitPlan discovery, TOML/Cruxfile rendering, scaffold generation |
-| `taskit-crux` | EmbeddedCruxRunner stub (feature-gated) |
+| Crate           | Role                                                               |
+| --------------- | ------------------------------------------------------------------ |
+| `taskit`        | Binary entry point; CLI parsing (clap) and dispatch                |
+| `taskit-types`  | Leaf crate: Config, TaskitError (miette), StepResult, OutputFormat |
+| `taskit-core`   | Ports only: PipelineRunner trait                                   |
+| `taskit-engine` | CI pipeline, config loading, output formatters, step engine        |
+| `taskit-init`   | InitPlan discovery, TOML/Cruxfile rendering, scaffold generation   |
+| `taskit-crux`   | EmbeddedCruxRunner stub (feature-gated)                            |
 
 ### Dependency direction
 
-```
+```text
 taskit-types  (leaf, no internal deps)
     ^
 taskit-core   (depends on taskit-types)
@@ -144,7 +144,7 @@ All subcommands accept `--dry-run` (global). Affected-crate filtering via
 
 ## Data Flow
 
-```
+```text
 taskit ci
   -> load Config from taskit.toml (or zero-config fallback)
   -> build Pipeline from [[ci.steps]]
@@ -187,16 +187,16 @@ and detects protocol surfaces from `pub trait` files.
 
 ## Tech Decisions
 
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Config format | TOML | Consistent with Cargo ecosystem |
-| Config discovery | Walk up from `$PWD` | Same as `.cargo/config.toml` |
-| Zero-config | `cargo metadata` | Low friction for new users |
-| Error handling | `TaskitError` (miette) | Rich diagnostics at boundaries |
-| Internal errors | `anyhow` in adapters | Ergonomic, converted at API surface |
-| CLI | `clap` (derive) | Standard Rust CLI framework |
-| Shell execution | `xshell` | Portable, quoted-arg safe |
-| Testing | `cargo-nextest` | Fast, filterable test runner |
+| Decision         | Choice                 | Rationale                           |
+| ---------------- | ---------------------- | ----------------------------------- |
+| Config format    | TOML                   | Consistent with Cargo ecosystem     |
+| Config discovery | Walk up from `$PWD`    | Same as `.cargo/config.toml`        |
+| Zero-config      | `cargo metadata`       | Low friction for new users          |
+| Error handling   | `TaskitError` (miette) | Rich diagnostics at boundaries      |
+| Internal errors  | `anyhow` in adapters   | Ergonomic, converted at API surface |
+| CLI              | `clap` (derive)        | Standard Rust CLI framework         |
+| Shell execution  | `xshell`               | Portable, quoted-arg safe           |
+| Testing          | `cargo-nextest`        | Fast, filterable test runner        |
 
 ---
 

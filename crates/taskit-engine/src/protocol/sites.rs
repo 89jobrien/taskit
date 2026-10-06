@@ -1,3 +1,5 @@
+//! Verifies expected substring construction-site counts within a file.
+
 use std::{fs, path::Path};
 use taskit_types::error::{TaskitError, TaskitResultExt};
 
