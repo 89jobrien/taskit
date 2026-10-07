@@ -77,6 +77,7 @@ mod tests {
             ctx_scaffold: false,
             mdbook: false,
             xtask: false,
+            crux: false,
         }
     }
 
