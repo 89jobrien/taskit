@@ -1,3 +1,5 @@
+//! Unit tests for constructing representative single-step pipeline outcomes.
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;

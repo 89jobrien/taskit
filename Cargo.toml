@@ -27,6 +27,7 @@ cargo_metadata = "0.19"
 toml_edit = "0.25"
 ratatui = "0.29"
 crossterm = "0.28"
+rx-runner = "0.1.1"
 
 [package]
 name = "taskit"

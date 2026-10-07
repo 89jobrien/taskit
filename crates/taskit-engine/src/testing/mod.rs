@@ -1,3 +1,5 @@
+//! Provides benchmark, compile, coverage, fuzz, property, nextest, self-test, and snapshot workflows.
+
 /// Benchmark execution helpers.
 pub mod bench;
 /// Build/compile checks for test targets.

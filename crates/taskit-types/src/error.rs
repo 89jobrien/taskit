@@ -1,3 +1,5 @@
+//! Shared taskit error types, diagnostics, and result-context helpers.
+
 use miette::{Diagnostic, NamedSource, SourceSpan};
 use thiserror::Error;
 

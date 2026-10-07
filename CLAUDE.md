@@ -22,7 +22,7 @@ taskit ci --include-network     # include network tests
 taskit flow auto                # full pipeline: promote + CI gate + finish to main,
                                 #   with LLM conflict resolution; resumes from
                                 #   target/taskit/state.json if interrupted
-taskit init                     # generate taskit.toml + Cruxfile
+taskit init                     # generate taskit.toml (+ ci.crux if crux pipelines enabled)
 taskit init --force             # overwrite existing
 taskit init --interactive       # interactive prompts
 taskit --dry-run <subcommand>   # print without executing
@@ -49,7 +49,7 @@ taskit --dry-run <subcommand>   # print without executing
 | `health [--update] [--with-coverage] [--gate]`                                       | Measure health and compare to baseline (`--with-coverage` adds workspace coverage %, `--gate` checks only unwrap/warn counts — for a lightweight CI step) |
 | `inspect [--max-warnings N] [--max-todo N]`                                          | Check metrics thresholds                                                                                                                                  |
 | `publish [--skip-docs] [--allow-dirty]`                                              | Generate docs and publish crates                                                                                                                          |
-| `init [--force] [--interactive]`                                                     | Generate taskit.toml, Cruxfile, hooks                                                                                                                     |
+| `init [--force] [--interactive]`                                                     | Generate taskit.toml, hooks, and `ci.crux` (only when crux pipelines are enabled)                                                                         |
 | `flow status`                                                                        | Show current branch / staging state                                                                                                                       |
 | `flow sync`                                                                          | Merge main -> develop                                                                                                                                     |
 | `flow promote`                                                                       | Advance the current flow branch one step                                                                                                                  |
@@ -82,7 +82,7 @@ taskit (root bin)
 | `taskit-types`   | Leaf crate: Config, TaskitError, StepResult, ConflictFile                                                                            |
 | `taskit-core`    | Ports only: PipelineRunner, ConflictResolver traits                                                                                  |
 | `taskit-engine`  | CI pipeline, config loading, flow commands, step engine                                                                              |
-| `taskit-init`    | InitPlan discovery, TOML/Cruxfile rendering, interactive UI                                                                          |
+| `taskit-init`    | InitPlan discovery, TOML/`ci.crux` rendering, interactive UI                                                                         |
 | `taskit-crux`    | EmbeddedCruxRunner stub                                                                                                              |
 | `taskit-macros`  | Proc-macros for derive utilities used across crates                                                                                  |
 | `taskit-output`  | OutputFormatter trait and format implementations                                                                                     |
@@ -107,7 +107,7 @@ taskit (root bin)
   (auto = promote + CI + finish with resumption)
 - **`taskit-init/plan.rs`** -- InitPlan, plan_from_discovery, plan_interactive
 - **`taskit-init/render_toml.rs`** -- Hand-built TOML renderer
-- **`taskit-init/render_cruxfile.rs`** -- Cruxfile YAML generator
+- **`taskit-init/render_cruxfile.rs`** -- `ci.crux` YAML generator (opt-in via `InitPlan.crux`)
 - **`src/flow_resolver.rs`** -- BamlConflictResolver adapter (BAML LLM integration)
 - **`taskit-tui/lib.rs`** -- `run(ctx)` entry point; exports `App`, `Tab`, `Snapshot`
 - **`taskit-tui/app.rs`** -- `App` state machine, `Tab` enum (Overview, Flow)

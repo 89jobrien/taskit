@@ -1,3 +1,5 @@
+//! Runs cargo formatting across the workspace or affected crates.
+
 use taskit_types::error::TaskitError;
 use xshell::cmd;
 

@@ -1,3 +1,5 @@
+//! Initialization plans and workspace discovery for generated taskit configuration.
+
 use taskit_types::config::PropagationEntry;
 use taskit_types::error::{TaskitError, TaskitResultExt};
 
@@ -32,6 +34,8 @@ pub struct InitPlan {
     pub mdbook: bool,
     /// Whether to scaffold `xtask` helpers.
     pub xtask: bool,
+    /// Whether to generate the Crux pipeline file (`ci.crux`).
+    pub crux: bool,
 }
 
 /// Crate entry included in generated workspace config.
@@ -189,6 +193,7 @@ pub fn plan_from_discovery() -> Result<InitPlan, TaskitError> {
         ctx_scaffold: true,
         mdbook: true,
         xtask: false,
+        crux: false,
     })
 }
 
@@ -328,6 +333,12 @@ pub fn plan_interactive() -> Result<InitPlan, TaskitError> {
 
     plan.xtask = Confirm::new()
         .with_prompt("Generate / augment xtask/ crate with taskit task dispatchers?")
+        .default(false)
+        .interact()
+        .map_err(TaskitError::other)?;
+
+    plan.crux = Confirm::new()
+        .with_prompt("Generate Cruxfile for Crux pipelines?")
         .default(false)
         .interact()
         .map_err(TaskitError::other)?;

@@ -1,3 +1,5 @@
+//! Runs the fast formatting, linting, compilation, and test feedback pipeline.
+
 use taskit_types::error::TaskitError;
 use taskit_types::output_format::OutputFormat;
 

@@ -1,3 +1,5 @@
+//! Updates the pinned Claude Code version through the maintenance script.
+
 use taskit_types::error::TaskitError;
 use xshell::cmd;
 

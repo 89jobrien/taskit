@@ -1,4 +1,6 @@
-// TODO(audit): 1,251 lines — largest module in the workspace, split candidate.
+//! Formats pipeline outcomes for terminals, CI systems, and machine-readable reports.
+
+// TODO(audit)(#24): 1,251 lines — largest module in the workspace, split candidate.
 use miette::NamedSource;
 use serde::Serialize;
 
@@ -16,6 +18,7 @@ pub trait OutputFormatter {
 }
 
 /// Build a formatter instance for the requested output format.
+// TODO(#34): propagate OutputConfig::verbose_on_failure instead of hard-coding compact output.
 pub fn formatter_for(format: OutputFormat) -> Box<dyn OutputFormatter> {
     match format {
         OutputFormat::Human => Box::new(HumanFormatter),
@@ -663,6 +666,7 @@ fn render_summary_text(outcome: &PipelineOutcome) -> String {
 
 /// Write formatted output to the appropriate destination and return
 /// a miette error if the pipeline failed.
+// TODO(#31): return contextual errors when JUnit, SARIF, or GitHub summary writes fail.
 pub fn write_output(format: OutputFormat, outcome: &PipelineOutcome) -> Result<(), PipelineError> {
     let formatter = formatter_for(format);
     let rendered = formatter.render(outcome);
@@ -910,7 +914,6 @@ mod tests {
     }
 
     // -- Conformance tests ---------------------------------------------------
-    //
     // Each formatter must satisfy five invariants regardless of which concrete
     // type is under test.  `assert_formatter_contract` encodes those invariants
     // and is called once per implementation.

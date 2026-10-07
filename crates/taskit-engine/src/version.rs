@@ -1,3 +1,5 @@
+//! Reports workspace package versions and the active Rust compiler version.
+
 use taskit_types::error::TaskitError;
 use xshell::cmd;
 

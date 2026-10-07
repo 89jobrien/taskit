@@ -1,3 +1,5 @@
+//! Cleans Cargo and taskit-generated artifacts, optionally by age.
+
 use taskit_types::error::TaskitError;
 use xshell::cmd;
 

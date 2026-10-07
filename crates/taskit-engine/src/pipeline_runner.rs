@@ -1,3 +1,5 @@
+//! Adapts built-in and subprocess Crux pipelines to the pipeline runner port.
+
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 

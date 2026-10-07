@@ -1,3 +1,5 @@
+//! Builds and runs configured or default CI step pipelines.
+
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -58,6 +60,7 @@ pub fn run(ctx: &Ctx, fail_fast: bool, include_network: bool) -> Result<(), Task
     let capture = matches!(output_format, OutputFormat::Sarif);
     // CLI flag wins; fall back to [ci] fail_fast config; default false.
     let effective_fail_fast = fail_fast || ctx.ci().and_then(|c| c.fail_fast).unwrap_or(false);
+    // TODO(#14): honor CiConfig::cruxfile by selecting an embedded or subprocess runner.
     let outcome = match ctx.ci() {
         Some(cfg) if !cfg.steps.is_empty() => {
             run_from_config_internal(ctx, cfg, effective_fail_fast, offline)
@@ -122,6 +125,7 @@ pub(crate) fn run_from_config_internal(
 /// The `cmd` syntax mirrors taskit's CLI subcommands:
 /// `"fmt --check"`, `"lint"`, `"test"`, `"coverage"`, `"compile-tests"`,
 /// `"check-deps"`, `"check-protocol-drift"`, `"self-check"`.
+// TODO(#35): parse configured CI commands strictly and reject unsupported trailing arguments.
 fn dispatch_cmd<'a>(
     cmd: &str,
     ctx: &'a Ctx,
@@ -148,6 +152,7 @@ fn dispatch_cmd<'a>(
         "check-protocol-drift" => Box::new(move || protocol::drift::run(ctx, false, false, false)),
         "self-check" => Box::new(dev_setup::self_check),
         "health" => Box::new(move || crate::health::run(ctx, false, false, false)),
+        // TODO(#3): include the existing health safety gate in generated and repository CI.
         "health-gate" => Box::new(move || crate::health::run(ctx, false, false, true)),
         other => {
             return Err(TaskitError::other(format!(

@@ -10,6 +10,7 @@ description = "Config and Cruxfile generator for taskit"
 taskit-types.workspace = true
 cargo_metadata.workspace = true
 dialoguer = "0.11"
+syn = { version = "2", features = ["full", "parsing", "printing"] }
 
 [dev-dependencies]
 taskit-macros.workspace = true

@@ -1,19 +1,13 @@
 # taskit-crux
 
-Crate providing `EmbeddedCruxRunner` — a `PipelineRunner` implementation intended for an embedded
-Cruxfile runtime.
+`taskit-crux` contains `EmbeddedCruxRunner`, an implementation of the `PipelineRunner` port.
 
-The current implementation is a stub: it checks that the configured Cruxfile path exists and then
-returns a synthetic passing `crux-embedded` step. Full embedded execution is blocked on an
-available `crux-script` runtime.
+## Current status
 
-## When to use
+The adapter is a stub. It verifies that the configured Cruxfile path exists, then returns a
+synthetic passing `crux-embedded` step. It does not parse or execute the file.
 
-Use `BuiltinRunner` for normal CI execution today. Use `SubprocessCruxRunner` when you want to
-run an external `crux run <path>` process.
+The root taskit package does not depend on this crate, no feature enables it, and current CI does
+not construct it. Use taskit's built-in CI path for production behavior.
 
-```toml
-# Cargo.toml
-[dependencies]
-taskit-crux = { version = "0.8.0", path = "crates/taskit-crux" }
-```
+The crate remains forward scaffolding for a future embedded Crux runtime.

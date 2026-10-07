@@ -14,7 +14,8 @@ target/
 .ctx/*
 !.ctx/HANDOFF.*.yaml
 .ctx/HANDOFF.*.state.yaml
-.ctx/HANDOFF.*.state.json
+!.ctx/handoff.*.config.toml.example
+.ctx/.initialized
 # handoff-end
 docs/dist/
 session-report-*.html

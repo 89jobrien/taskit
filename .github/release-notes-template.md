@@ -19,4 +19,4 @@ cargo install taskit@${version}
 
 ${changelog}
 
-**Full Changelog**: https://github.com/89jobrien/taskit/compare/${previous_tag}...${tag}
+**Full Changelog**: <https://github.com/89jobrien/taskit/compare/${previous_tag}...${tag}>

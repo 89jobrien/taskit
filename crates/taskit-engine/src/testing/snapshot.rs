@@ -1,3 +1,5 @@
+//! Launches interactive review of pending insta snapshots.
+
 use taskit_types::error::TaskitError;
 use xshell::cmd;
 

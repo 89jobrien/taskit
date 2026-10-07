@@ -1,3 +1,5 @@
+//! Renders initialization plans as taskit TOML configuration.
+
 use crate::plan::InitPlan;
 
 /// Render an InitPlan into taskit.toml content.
@@ -123,7 +125,7 @@ fn render_ci(out: &mut String, plan: &InitPlan) {
     out.push('\n');
     if !plan.ci_steps.is_empty() {
         out.push_str("[ci]\n");
-        out.push_str("# cruxfile  = \"Cruxfile\"  # path to Cruxfile for crux-based pipelines\n");
+        out.push_str("# cruxfile  = \"ci.crux\"    # path to Cruxfile for Crux pipelines\n");
         out.push_str("# fail_fast = false        # stop on first failing step\n");
         for step in &plan.ci_steps {
             out.push_str(&format!(
@@ -137,7 +139,7 @@ fn render_ci(out: &mut String, plan: &InitPlan) {
 # CI pipeline steps. Run `taskit ci` to execute all steps.\n\
 #\n\
 # [ci]\n\
-# cruxfile  = \"Cruxfile\"  # path to Cruxfile for crux-based pipelines\n\
+# cruxfile  = \"ci.crux\"    # path to Cruxfile for Crux pipelines\n\
 # fail_fast = false        # stop on first failing step\n\
 #\n\
 # [[ci.steps]]\n\
@@ -276,6 +278,7 @@ mod tests {
             ctx_scaffold: false,
             mdbook: false,
             xtask: false,
+            crux: false,
         }
     }
 

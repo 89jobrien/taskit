@@ -1,3 +1,5 @@
+//! Structured pipeline messages and step lifecycle events.
+
 use std::time::Duration;
 use taskit_types::step::DiagnosticRecord;
 

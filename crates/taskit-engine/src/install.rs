@@ -1,3 +1,5 @@
+//! Installs the taskit binary from the current workspace.
+
 use taskit_types::error::TaskitError;
 use xshell::cmd;
 

@@ -15,7 +15,7 @@ mode. Five-crate workspace (Split D) with thin binary.
 
 ## Workspace Structure
 
-```
+```text
 taskit/
   Cargo.toml              (workspace root)
   crates/
@@ -39,7 +39,7 @@ taskit/
 
 ### Dependency graph
 
-```
+```text
 taskit (bin) ──► taskit-engine ──► taskit-core
     │                                  ▲
     ├──► taskit-init ──────────────────┘

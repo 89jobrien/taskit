@@ -1,3 +1,5 @@
+//! Fuzzes arbitrary bytes as TOML config input and sanitized `InitPlan` data, requiring parsing not to panic and rendered output to remain valid TOML.
+
 #![no_main]
 use libfuzzer_sys::fuzz_target;
 use taskit_init::plan::{CiStepPlan, CratePlan, InitPlan, SurfacePlan};

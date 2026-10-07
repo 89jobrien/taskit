@@ -1,3 +1,5 @@
+//! Formats elapsed durations for progress output.
+
 use std::time::Duration;
 
 /// Format an elapsed duration as a human-readable string.

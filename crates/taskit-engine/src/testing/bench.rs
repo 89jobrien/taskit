@@ -1,3 +1,5 @@
+//! Runs Cargo benchmarks for a package or workspace with optional baseline saving.
+
 use taskit_types::error::TaskitError;
 use xshell::cmd;
 

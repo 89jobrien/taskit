@@ -1,3 +1,5 @@
+//! Installs workspace Git hooks and required development tools.
+
 use taskit_types::error::TaskitError;
 
 use crate::ctx::Ctx;
