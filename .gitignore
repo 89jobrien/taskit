@@ -13,11 +13,8 @@ target/
 # handoff-begin
 .ctx/*
 !.ctx/HANDOFF.*.yaml
-.ctx/HANDOFF.godmode.*.yaml
-.ctx/HANDOFF.*.state.json
+.ctx/HANDOFF.*.state.yaml
 !.ctx/handoff.*.config.toml.example
-.ctx/HANDOFF.*.*.state.json
-.ctx/HANDOFF.hj.hj.state.json
 .ctx/.initialized
 # handoff-end
 docs/dist/

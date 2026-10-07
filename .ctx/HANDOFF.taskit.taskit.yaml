@@ -1,66 +1,71 @@
 project: taskit
 id: taskit
-updated: 2026-09-30
+updated: 20261007.031009
 items:
-- id: uncommitted-work
+- id: taskit-1
   doob_uuid: null
-  name: uncommitted-work
-  priority: P1
+  name: crux-feature-gating
+  priority: P2
   status: open
-  title: Uncommitted changes (14 files)
+  title: Gate crux behind a Cargo feature + runtime --flag, matching Cicero's per-capability model
   description: |-
-    Working tree has uncommitted changes:
-    .ctx/HANDOFF.taskit.taskit.yaml
-    Cargo.lock
-    crates/taskit-crux/src/lib.rs
-    crates/taskit-engine/src/command.rs
-    crates/taskit-engine/src/flow.rs
-    crates/taskit-engine/src/health.rs
-    crates/taskit-engine/src/testing/compile.rs
-    crates/taskit-init/src/scaffold.rs
-    crates/taskit-output/src/formatter.rs
-    crates/taskit-output/src/sinks/buffer.rs
-    crates/taskit-output/src/sinks/tee.rs
-    xtask/src/main.rs
-    docs/designs/2026-09-15-isolated-xtask-module-design.md
-    xtask/src/taskit/
+    taskit-init no longer generates a Cruxfile unconditionally: added InitPlan.crux (bool,
+    default false, interactive-prompt-only, mirrors the existing xtask gate) and renamed the
+    output file Cruxfile -> ci.crux to match the convention already used by CiConfig.cruxfile,
+    test fixtures, and the init-pipeline-runner design doc. This part is done but uncommitted.
+
+    Remaining, not yet implemented: add a `crux` Cargo feature to taskit-engine (gating
+    SubprocessCruxRunner, optional taskit-crux dependency) and taskit (propagating the feature
+    up for `cargo install taskit --features crux`), default-off, plus a runtime --crux CLI flag
+    on the CI-dispatch subcommand that errors clearly if the flag is passed without the feature
+    compiled in. Modeled on Cicero (codeberg.org/trem/cicero): `cicero init` ships with every
+    optional feature (cache, distribution, workspace, commands, etc.) off by default and opts in
+    per-capability -- taskit-crux should follow the same pattern given it currently has zero
+    callers outside its own crate (see taskit-crux/src/lib.rs TODO(#29)) and isn't even a
+    dependency of the root taskit binary today.
   files:
-  - .ctx/HANDOFF.taskit.taskit.yaml
-  - Cargo.lock
-  - crates/taskit-crux/src/lib.rs
-  - crates/taskit-engine/src/command.rs
-  - crates/taskit-engine/src/flow.rs
-  - crates/taskit-engine/src/health.rs
-  - crates/taskit-engine/src/testing/compile.rs
+  - crates/taskit-init/src/plan.rs
+  - crates/taskit-init/src/lib.rs
+  - crates/taskit-init/src/render_toml.rs
+  - crates/taskit-init/src/render_cruxfile.rs
   - crates/taskit-init/src/scaffold.rs
-  - crates/taskit-output/src/formatter.rs
-  - crates/taskit-output/src/sinks/buffer.rs
-  - crates/taskit-output/src/sinks/tee.rs
-  - xtask/src/main.rs
-  - docs/designs/2026-09-15-isolated-xtask-module-design.md
-  - xtask/src/taskit/
   completed: null
   extra: []
 log:
+- date: '20261007.031009'
+  session: 3
+  summary: >-
+    Gated Cruxfile generation in taskit init behind InitPlan.crux (xtask-style opt-in);
+    renamed output Cruxfile -> ci.crux to match existing convention. 70/70 taskit-init tests
+    pass, clippy clean. Broader crux Cargo-feature + --flag gating designed but not yet
+    implemented (see open item).
 - date: 2026-09-30
   summary: done=0 running=0 pending=17 blocked=0
   commits:
-  - !Object
-    sha: 71aef4e
+  - sha: 71aef4e
     branch: develop
-  - !Object
-    sha: 80d2a35
+  - sha: 80d2a35
     branch: develop
 - date: '20260915.204047'
   summary: done=81 running=0 pending=27 blocked=0
   commits:
-  - !Sha ed428faa61f563fc8d84761fa1846613a9aa9500
-  - !Sha 591710f066a6536ee587d89271ecbe53087f862d
-  - !Sha cb3aaa501ffbd80bd66b82e5dc0ad323b22a7ea1
-  - !Sha 6c4e1bd27afb2d8d0d23be8bbc9d9c00b6210916
-  - !Sha 11e9742657cec224e66e6fe6734f95b11c2d4d21
-  - !Sha a25c97a53c7cba9e910fb5b6dc114def8699ac59
-  - !Sha 011f08a8e38e235c857aa1f0bd7604b2472aee20
-  - !Sha 87c98c421581aea755bedd112102bcf7e2501d37
-  - !Sha f4897d96604898193153af25f999aaa80902d04b
-  - !Sha 7bc91ba9538eaea4ccf451d52ea9155938ca5ed4
+  - sha: ed428fa
+    branch: develop
+  - sha: 591710f
+    branch: develop
+  - sha: cb3aaa5
+    branch: develop
+  - sha: 6c4e1bd
+    branch: develop
+  - sha: 11e9742
+    branch: develop
+  - sha: a25c97a
+    branch: develop
+  - sha: 011f08a
+    branch: develop
+  - sha: 87c98c4
+    branch: develop
+  - sha: f4897d9
+    branch: develop
+  - sha: 7bc91ba
+    branch: develop
