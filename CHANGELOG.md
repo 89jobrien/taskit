@@ -1,6 +1,57 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [unreleased]
+
+### Features
+
+- *(taskit)* Add --version flag to taskit CLI
+- *(engine)* Read issue state when reconciling todo markers
+- *(flow)* Fall back to local Ollama when no remote credential is set
+- *(engine)* Add todo issue dedupe planning and run
+- *(engine)* Add Dedupe command for todo issue dedupe
+- *(taskit)* Add protocol todo-dedupe subcommand
+- *(tui)* Add rx-runner process abstraction for dashboard actions
+- *(init)* Isolate taskit xtask dispatch; docs, crate READMEs, audit TODOs
+- *(init)* Make Crux pipeline file generation opt-in, rename to ci.crux
+
+### Bug Fixes
+
+- *(ci)* Make tagged releases resumable
+- *(ci)* Use modern protoc for cross builds
+- *(ci)* Drop unsupported ARM Linux release target
+- *(engine)* Only treat leading TODO/FIXME as source markers
+- *(engine)* Adopt the cited issue when reconciling todo markers
+- *(engine)* Correct stale subcommand names in gate hints
+- *(engine)* Keep todo issue tracking stable across moves and reruns
+- *(protocol)* Track the todo-sync lockfile so the gate survives a clean clone
+- *(engine)* Scope version bumps to first-party crates
+- *(engine)* Scope version bumps to first-party crates
+- *(hooks)* Use the real check subcommand names in generated git hooks
+- *(macros)* Remove trailing semicolon for expression-position use
+
+### Refactor
+
+- *(engine)* Split todo_sync into a module directory
+- *(site)* Landing page plus subpages, and honest code blocks
+
+### Documentation
+
+- Refresh README command reference
+- Document protocol todo-dedupe and marker rules
+- Update handoff
+
+### Testing
+
+- *(engine)* Require TODO markers to lead the comment
+- *(engine)* Cover doc and block comment markers
+
+### Miscellaneous
+
+- *(roadmap)* Define reliability and CI initiatives
+- *(handoff)* Record todo-sync and conflict-resolution session state
+- Align develop version to last released 0.9.0
+- *(deny)* Ignore rustls advisories in build-time deps
 
 ## Unreleased
 
