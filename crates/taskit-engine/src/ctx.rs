@@ -1,8 +1,8 @@
 //! Execution context threaded through every command.
 //!
 //! `Ctx` replaces the former process-global `runner::DRY_RUN` / `SILENT`
-//! statics with an injected dependency: it owns the [`Shell`], the parsed
-//! [`Config`], and the run-time flags (`dry_run`, `output`, transient
+//! statics with an injected dependency: it owns the [`xshell::Shell`], the parsed
+//! [`taskit_types::config::Config`], and the run-time flags (`dry_run`, `output`, transient
 //! `silent`). Command implementations receive `&Ctx` and route all shell
 //! execution through its methods, so dry-run and output behaviour are visible
 //! in signatures rather than read from ambient state.
@@ -21,8 +21,11 @@ use xshell::{Cmd, Shell};
 
 /// Captured output from a command execution.
 pub struct CapturedOutput {
+    /// Captured standard output.
     pub stdout: String,
+    /// Captured standard error.
     pub stderr: String,
+    /// True when process exit status is successful.
     pub success: bool,
 }
 
@@ -109,6 +112,15 @@ impl Ctx {
     /// The `[flow]` section, or defaults when unset.
     pub fn flow(&self) -> FlowConfig {
         self.config.flow.clone().unwrap_or_default()
+    }
+
+    /// Package names of the workspace members, sorted.
+    ///
+    /// Returns an empty vector when `cargo metadata` cannot run (for example in
+    /// a directory that is not a Cargo workspace). Callers that rewrite manifests
+    /// use this to restrict edits to first-party crates.
+    pub fn workspace_member_names(&self) -> Vec<String> {
+        workspace_member_names(&self.root)
     }
 
     // ── execution ─────────────────────────────────────────────────────────

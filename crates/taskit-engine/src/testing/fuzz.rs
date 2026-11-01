@@ -1,8 +1,11 @@
+//! Runs a cargo-fuzz target for a fixed duration.
+
 use taskit_types::error::TaskitError;
 use xshell::cmd;
 
 use crate::ctx::Ctx;
 
+/// Run a libFuzzer target for a fixed duration in seconds.
 pub fn run(ctx: &Ctx, target: &str, duration: u64) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     let dur = duration.to_string();

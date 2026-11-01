@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Taskit workspace architecture, crate ownership, CI route, affected-crate calculation, and protocol boundaries.">
+    <title>Architecture &mdash; taskit</title>
+    <link rel="stylesheet" href="../style.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <nav class="site-nav" aria-label="Primary">
+      <a class="brand" href="../"><span>task</span>it</a>
+      <div class="nav-links">
+        <a href="../#pipeline">Pipeline</a>
+        <a href="../#commands">Commands</a>
+        <a href="../#configuration">Configuration</a>
+        <a href="../architecture/" aria-current="page">Architecture</a>
+      </div>
+      <a class="nav-source" href="https://github.com/89jobrien/taskit">GitHub <span aria-hidden="true">&#8599;</span></a>
+    </nav>
+
+    <main id="main" class="page">
+      <header class="page-header reveal" style="--delay: 0">
+        <p class="eyebrow">System reference / current source tree</p>
+        <h1>Boundaries for a workspace-wide tool.</h1>
+        <p class="lede">Taskit separates shared contracts, ports, orchestration, output, scaffolding, and presentation across an 11-package workspace.</p>
+        <div class="meta-row"><span>Source version 0.8.0</span><span>Rust 2024; xtask uses 2021</span><span>Updated 2026-09-15</span></div>
+      </header>
+
+      <section class="doc-section reveal" style="--delay: 1">
+        <div class="doc-heading"><span>System 01</span><h2>Dependency layers</h2></div>
+        <p>The dependency direction keeps canonical data inward and concrete orchestration outward. The root binary is the composition point.</p>
+        <div class="layer-map">
+          <div class="layer layer-compose"><span>Composition</span><strong>taskit</strong><small>Clap CLI + adapter wiring</small></div>
+          <div class="layer layer-present"><span>Presentation</span><strong>taskit-tui</strong><small>read-only dashboard</small></div>
+          <div class="layer layer-app">
+            <span>Application + adapters</span>
+            <div><strong>taskit-engine</strong><strong>taskit-init</strong><strong>taskit-crux</strong></div>
+          </div>
+          <div class="layer layer-boundary">
+            <span>Ports + output boundary</span>
+            <div><strong>taskit-core</strong><strong>taskit-output</strong></div>
+          </div>
+          <div class="layer layer-domain"><span>Shared domain</span><strong>taskit-types</strong><small>config + errors + results</small></div>
+          <div class="support-lane"><span>Support lane</span><strong>taskit-testing</strong><strong>taskit-macros</strong><strong>xtask</strong></div>
+        </div>
+        <p class="note">The <code>taskit-crux</code> package is currently a synthetic runner stub and is not wired into the root CLI dependency graph.</p>
+      </section>
+
+      <section class="doc-section">
+        <div class="doc-heading"><span>System 02</span><h2>Package inventory</h2></div>
+        <section class="table-wrap" tabindex="0" aria-label="Taskit package inventory">
+          <table>
+            <caption>Workspace packages and their current ownership boundaries</caption>
+            <thead><tr><th scope="col">Package</th><th scope="col">Type</th><th scope="col">Responsibility</th></tr></thead>
+            <tbody>
+              <tr><th scope="row"><code>taskit-types</code></th><td>library</td><td>Canonical configuration, errors, results, diagnostics, flow state, conflicts, and output formats.</td></tr>
+              <tr><th scope="row"><code>taskit-core</code></th><td>library</td><td>Pipeline and conflict-resolution ports, step builder, and conformance assertions.</td></tr>
+              <tr><th scope="row"><code>taskit-output</code></th><td>library</td><td>Pipeline formatters, messages, and stderr, buffer, and tee sink boundaries.</td></tr>
+              <tr><th scope="row"><code>taskit-engine</code></th><td>library</td><td>CI, checks, testing, health, protocol, flow, release, and telemetry orchestration.</td></tr>
+              <tr><th scope="row"><code>taskit-init</code></th><td>library</td><td>Workspace discovery, init planning, renderers, and project scaffolding.</td></tr>
+              <tr><th scope="row"><code>taskit-crux</code></th><td>library</td><td>Synthetic embedded-runner stub; currently not connected to the root binary.</td></tr>
+              <tr><th scope="row"><code>taskit-tui</code></th><td>library</td><td>Ratatui views for workspace overview, crates, history, and branch flow.</td></tr>
+              <tr><th scope="row"><code>taskit-testing</code></th><td>library</td><td>Temporary-directory guards and shared test macros.</td></tr>
+              <tr><th scope="row"><code>taskit-macros</code></th><td>proc macro</td><td><code>#[taskit_test]</code> and <code>#[derive(ConfigDefaults)]</code>.</td></tr>
+              <tr><th scope="row"><code>taskit</code></th><td>binary</td><td>CLI parsing, config loading, command dispatch, dashboard launch, and resolver composition.</td></tr>
+              <tr><th scope="row"><code>xtask</code></th><td>binary</td><td>Internal development-task shim.</td></tr>
+            </tbody>
+          </table>
+        </section>
+      </section>
+
+      <section class="doc-section">
+        <div class="doc-heading"><span>System 03</span><h2>CI execution route</h2></div>
+        <p>Configured steps execute in order. A step marked as a gate stops the route when it fails; fail-fast can make every failure terminal.</p>
+        <ol class="vertical-route">
+          <li class="route-gate"><span>self-check</span><strong>Verify required tools</strong><small>Configured gate</small></li>
+          <li><span>fmt --check</span><strong>Verify Rust formatting</strong><small>Continue by default</small></li>
+          <li><span>lint</span><strong>Run Clippy</strong><small>Workspace or selected crates</small></li>
+          <li><span>compile-tests</span><strong>Build test binaries</strong><small>Catch compile failures early</small></li>
+          <li><span>test</span><strong>Run nextest</strong><small>Behavioral evidence</small></li>
+          <li><span>check-deps</span><strong>Find unused dependencies</strong><small>cargo machete</small></li>
+          <li><span>check-protocol-drift</span><strong>Compare contract hashes</strong><small>Lockfile evidence</small></li>
+        </ol>
+      </section>
+
+      <section class="doc-section">
+        <div class="doc-heading"><span>System 04</span><h2>Affected-crate calculation</h2></div>
+        <div class="calculation">
+          <div><span>Input</span><strong>origin/main...HEAD</strong><small>Committed changed paths</small></div>
+          <i aria-hidden="true">+</i>
+          <div><span>Match</span><strong>Configured crate dirs</strong><small>Path ownership</small></div>
+          <i aria-hidden="true">+</i>
+          <div><span>Expand</span><strong>Propagation rules</strong><small>One directory-keyed pass</small></div>
+          <i aria-hidden="true">=</i>
+          <div class="calculation-result"><span>Result</span><strong>Selected packages</strong><small>Targeted lint and test</small></div>
+        </div>
+        <p class="note">Selection uses committed differences from <code>origin/main</code>. Propagation keys must match configured directory values, expansion is single-pass, and the current empty-directory root package entry is not selected by path matching.</p>
+      </section>
+
+      <section class="doc-section">
+        <div class="doc-heading"><span>System 05</span><h2>Protocol boundary</h2></div>
+        <p>The repository tracks eight contract surfaces. Taskit normalizes and hashes each file, compares the result with <code>taskit-protocol.lock</code>, and reports additions, removals, or changes.</p>
+        <div class="surface-grid">
+          <article><span>Ports</span><code>taskit-core/conflict_resolver</code><code>taskit-core/pipeline_runner</code></article>
+          <article><span>Domain</span><code>taskit-types/error</code></article>
+          <article><span>Engine</span><code>taskit-engine/command</code><code>taskit-engine/discovery</code></article>
+          <article><span>Output</span><code>taskit-output/sink</code><code>taskit-output/formatter</code></article>
+          <article><span>Scaffold</span><code>taskit-init/plan</code></article>
+        </div>
+        <div class="command-pair"><code>taskit protocol drift</code><span>compare</span><code>taskit protocol drift --update</code><span>accept intentionally</span></div>
+      </section>
+
+      <section class="doc-section">
+        <div class="doc-heading"><span>System 06</span><h2>Release and branch routes</h2></div>
+        <div class="route-panels">
+          <article>
+            <p class="eyebrow">Publish order</p>
+            <div class="publish-order"><span>types</span><span>core</span><span>testing</span><span>crux</span><span>macros</span><span>output</span><span>init</span><span>engine</span><span>tui</span><span>taskit</span></div>
+            <p>Shared packages publish before the packages that consume them.</p>
+          </article>
+          <article>
+            <p class="eyebrow">Default branch route</p>
+            <div class="branch-stack"><span>develop</span><span>staging</span><span class="branch-gate">release <small>auto: CI</small></span><span>main</span><span>develop</span></div>
+            <p><code>flow auto</code> runs CI on release; manual <code>flow promote</code> performs the merge stages without a CI gate.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span><strong>taskit</strong> &middot; Architecture reference</span>
+      <span><a href="../">Overview</a> &middot; <a href="https://github.com/89jobrien/taskit">Source on GitHub</a></span>
+    </footer>
+  </body>
+</html>

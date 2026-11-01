@@ -13,21 +13,46 @@ use taskit_types::step::PipelineOutcome;
 
 use crate::ctx::Ctx;
 use crate::{
-    audit, check_deps, check_freshness, ci, clean, dev_setup, flow, fmt, health, hooks, inspect,
-    install, lint, patch, protocol, publish, quick, release, testing, update, update_claude,
-    version,
+    audit, bootstrap, build, changelog, check_deps, check_freshness, ci, clean, dev_setup, drift,
+    flow, fmt, health, hooks, inspect, install, lint, patch, protocol, publish, quick, release,
+    testing, todo_sync, update, update_claude, version,
 };
+
+// Feature backlog grounded in current command, CI, telemetry, and adapter gaps.
+// TODO(feature)(#3): harden CI with an MSRV gate, blocking audits, and one publish path.
+// TODO(feature)(#4): validate generated hooks, Cruxfiles, xtasks, and docs against clap.
+// TODO(feature)(#5): generate completions for bash, fish, PowerShell, zsh, and Nushell.
+// TODO(feature)(#6): expose the clap command tree as a machine-readable JSON schema.
+// TODO(feature)(#7): add `doctor` diagnostics for tools, config, hooks, and protocol state.
+// TODO(feature)(#8): add `plan` to preview commands, affected crates, and runtime estimates.
+// TODO(feature)(#9): record per-test attempts and report reliability and duration trends.
+// TODO(feature)(#10): add environment-specific benchmark baselines and regression gates.
+// TODO(feature)(#11): add `release-impact` for per-crate semver bump guidance.
+// TODO(feature)(#12): show live GitHub Actions job status in the CLI and dashboard.
+// TODO(feature)(#13): add expiring, evidence-backed automatic flaky-test quarantine.
+// TODO(feature)(#14): replace the synthetic EmbeddedCruxRunner with real Crux execution.
+// TODO(feature)(#15): add declarative gate policy through `taskit-policy.toml`.
+// TODO(feature)(#16): add a stable plugin API for team-specific commands and gates.
+// TODO(feature)(#17): add `bisect` to isolate failure-inducing commits automatically.
+// TODO(feature)(#18): add `verify-docs` drift checks between docs and CLI/config.
+// TODO(feature)(#19): add `fix` mode for safe auto-remediation flows.
+// TODO(feature)(#20): add `multi` orchestration across related repositories.
+// TODO(feature)(#21): add `attestation` output for build/test provenance metadata.
 
 /// A runnable subcommand. Implementors carry their own parsed arguments and
 /// receive the shared execution context.
 pub trait Command {
+    /// Execute this command against the shared engine context.
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError>;
 }
 
 // ── formatting / linting / testing ────────────────────────────────────────
 
+/// `check fmt` command options.
 pub struct Fmt {
+    /// Validate formatting without writing files.
     pub check: bool,
+    /// Restrict formatting to affected crates.
     pub affected: bool,
 }
 impl Command for Fmt {
@@ -36,10 +61,16 @@ impl Command for Fmt {
     }
 }
 
+/// `check lint` command options.
 pub struct Lint {
+    /// Optional crate to lint.
     pub crate_name: Option<String>,
+    /// Restrict linting to affected crates.
     pub affected: bool,
+    /// Continue linting remaining crates after a failure.
     pub continue_on_error: bool,
+    /// Enable clippy auto-fix mode.
+    pub fix: bool,
 }
 impl Command for Lint {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
@@ -48,14 +79,20 @@ impl Command for Lint {
             self.crate_name.as_deref(),
             self.affected,
             self.continue_on_error,
+            self.fix,
         )
     }
 }
 
+/// `test run` command options.
 pub struct Test {
+    /// Optional crate to test.
     pub crate_name: Option<String>,
+    /// Restrict testing to affected crates.
     pub affected: bool,
+    /// Continue testing remaining crates after a failure.
     pub continue_on_error: bool,
+    /// Skip tests that require network access.
     pub offline: bool,
 }
 impl Command for Test {
@@ -70,12 +107,20 @@ impl Command for Test {
     }
 }
 
+/// `test coverage` command options.
 pub struct Coverage {
+    /// Optional crate to measure.
     pub crate_name: Option<String>,
+    /// Minimum required coverage percentage.
     pub threshold: f64,
+    /// Measure the whole workspace instead of one crate.
+    pub workspace: bool,
 }
 impl Command for Coverage {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
+        if self.workspace {
+            return testing::coverage::run_workspace(ctx, self.threshold);
+        }
         let pkg = self
             .crate_name
             .as_deref()
@@ -83,7 +128,7 @@ impl Command for Coverage {
         match pkg {
             Some(name) => testing::coverage::run(ctx, name, self.threshold),
             None => Err(TaskitError::other(
-                "no crate specified: use --crate-name or set [coverage].crate_name in taskit.toml",
+                "no crate specified: use --crate-name, --workspace, or set [coverage].crate_name in taskit.toml",
             )),
         }
     }
@@ -91,21 +136,61 @@ impl Command for Coverage {
 
 // ── protocol ───────────────────────────────────────────────────────────────
 
+/// `protocol drift` command options.
 pub struct CheckProtocolDrift {
+    /// Update lockfile with current hashes.
     pub update: bool,
+    /// Report drift without failing.
     pub warn_only: bool,
+    /// Hook mode (silent skip behavior for non-target files).
     pub hook: bool,
+    /// Re-run check in watch mode.
+    pub watch: bool,
+    /// Watch polling interval in seconds.
+    pub interval: u64,
 }
 impl Command for CheckProtocolDrift {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
+        if self.watch {
+            return protocol::drift::watch(ctx, self.interval);
+        }
         protocol::drift::run(ctx, self.update, self.warn_only, self.hook)
     }
 }
 
+/// `protocol todo-sync` command options.
+pub struct TodoSync {
+    /// Persist sync lock updates.
+    pub update: bool,
+    /// Report unsynced markers without failing.
+    pub warn_only: bool,
+}
+impl Command for TodoSync {
+    fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
+        todo_sync::run(ctx, self.update, self.warn_only)
+    }
+}
+
+/// `protocol todo-dedupe` command options.
+pub struct Dedupe {
+    /// Close duplicate issues and repoint the lockfile.
+    pub update: bool,
+}
+impl Command for Dedupe {
+    fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
+        todo_sync::dedupe::run(ctx, self.update)
+    }
+}
+
+/// `protocol sites` command options.
 pub struct CheckProtocolSites {
+    /// File path to scan.
     pub file: String,
+    /// Substring pattern to count.
     pub pattern: String,
+    /// Expected number of matches.
     pub expected: usize,
+    /// Report mismatch without failing.
     pub warn_only: bool,
 }
 impl Command for CheckProtocolSites {
@@ -121,6 +206,7 @@ impl Command for CheckProtocolSites {
 
 // ── pipelines ────────────────────────────────────────────────────────────
 
+/// `check quick` command.
 pub struct Quick;
 impl Command for Quick {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
@@ -128,8 +214,11 @@ impl Command for Quick {
     }
 }
 
+/// `check ci` command options.
 pub struct Ci {
+    /// Stop on first failing step.
     pub fail_fast: bool,
+    /// Include tests marked as network-dependent.
     pub include_network: bool,
 }
 impl Command for Ci {
@@ -140,6 +229,7 @@ impl Command for Ci {
 
 // ── checks / hooks / maintenance ───────────────────────────────────────────
 
+/// `check compile` command.
 pub struct CompileTests;
 impl Command for CompileTests {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
@@ -147,6 +237,7 @@ impl Command for CompileTests {
     }
 }
 
+/// `check deps` command.
 pub struct CheckDeps;
 impl Command for CheckDeps {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
@@ -154,13 +245,29 @@ impl Command for CheckDeps {
     }
 }
 
-pub struct CheckFreshness;
-impl Command for CheckFreshness {
+/// `changelog` command options.
+pub struct Changelog {
+    /// Changelog workflow to run.
+    pub mode: changelog::ChangelogMode,
+}
+impl Command for Changelog {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
-        check_freshness::run(ctx)
+        changelog::run(ctx, self.mode)
     }
 }
 
+/// `protocol freshness` command options.
+pub struct CheckFreshness {
+    /// Report stale dependencies without failing.
+    pub warn_only: bool,
+}
+impl Command for CheckFreshness {
+    fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
+        check_freshness::run(ctx, self.warn_only)
+    }
+}
+
+/// `check pre-commit` command.
 pub struct PreCommit;
 impl Command for PreCommit {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
@@ -168,6 +275,7 @@ impl Command for PreCommit {
     }
 }
 
+/// `check pre-push` command.
 pub struct PrePush;
 impl Command for PrePush {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
@@ -175,6 +283,7 @@ impl Command for PrePush {
     }
 }
 
+/// `dev install-hooks` command.
 pub struct InstallHooks;
 impl Command for InstallHooks {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
@@ -182,6 +291,26 @@ impl Command for InstallHooks {
     }
 }
 
+/// `dev bootstrap` command.
+pub struct Bootstrap;
+impl Command for Bootstrap {
+    fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
+        bootstrap::run(ctx)
+    }
+}
+
+/// `dev build` command options.
+pub struct Build {
+    /// Build in release mode.
+    pub release: bool,
+}
+impl Command for Build {
+    fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
+        build::run(ctx, self.release)
+    }
+}
+
+/// `dev install` command.
 pub struct Install;
 impl Command for Install {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
@@ -189,7 +318,9 @@ impl Command for Install {
     }
 }
 
+/// `dev update` command options.
 pub struct Update {
+    /// Allow aggressive dependency updates.
     pub aggressive: bool,
 }
 impl Command for Update {
@@ -198,7 +329,9 @@ impl Command for Update {
     }
 }
 
+/// `release patch|minor|major` command.
 pub struct Patch {
+    /// Semantic bump kind to apply.
     pub kind: patch::BumpKind,
 }
 impl Command for Patch {
@@ -207,6 +340,7 @@ impl Command for Patch {
     }
 }
 
+/// `protocol audit` command.
 pub struct Audit;
 impl Command for Audit {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
@@ -214,7 +348,9 @@ impl Command for Audit {
     }
 }
 
+/// `dev clean` command options.
 pub struct Clean {
+    /// Optional age selector for `cargo sweep` style cleanup.
     pub older_than: Option<String>,
 }
 impl Command for Clean {
@@ -223,6 +359,7 @@ impl Command for Clean {
     }
 }
 
+/// `health version` command.
 pub struct Version;
 impl Command for Version {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
@@ -230,6 +367,7 @@ impl Command for Version {
     }
 }
 
+/// `dev setup` command.
 pub struct DevSetup;
 impl Command for DevSetup {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
@@ -237,6 +375,7 @@ impl Command for DevSetup {
     }
 }
 
+/// `self check` command.
 pub struct SelfCheck;
 impl Command for SelfCheck {
     fn run(&self, _ctx: &Ctx) -> Result<(), TaskitError> {
@@ -244,6 +383,7 @@ impl Command for SelfCheck {
     }
 }
 
+/// `self test` command.
 pub struct SelfTest;
 impl Command for SelfTest {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
@@ -251,7 +391,9 @@ impl Command for SelfTest {
     }
 }
 
+/// `dev update-claude-version` command options.
 pub struct UpdateClaudeVersion {
+    /// Target Claude Code version string.
     pub version: String,
 }
 impl Command for UpdateClaudeVersion {
@@ -262,7 +404,9 @@ impl Command for UpdateClaudeVersion {
 
 // ── extended testing ───────────────────────────────────────────────────────
 
+/// `test proptest` command options.
 pub struct Proptest {
+    /// Crate/package to run proptests for.
     pub crate_name: String,
 }
 impl Command for Proptest {
@@ -271,8 +415,11 @@ impl Command for Proptest {
     }
 }
 
+/// `test fuzz` command options.
 pub struct Fuzz {
+    /// Fuzz target name.
     pub target: String,
+    /// Run duration in seconds.
     pub duration: u64,
 }
 impl Command for Fuzz {
@@ -281,8 +428,11 @@ impl Command for Fuzz {
     }
 }
 
+/// `test bench` command options.
 pub struct Bench {
+    /// Optional crate/package to benchmark.
     pub crate_name: Option<String>,
+    /// Save criterion baseline after run.
     pub save_baseline: bool,
 }
 impl Command for Bench {
@@ -291,6 +441,7 @@ impl Command for Bench {
     }
 }
 
+/// `test report` command.
 pub struct TestReport;
 impl Command for TestReport {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
@@ -298,6 +449,7 @@ impl Command for TestReport {
     }
 }
 
+/// `test snapshots` command.
 pub struct SnapshotReview;
 impl Command for SnapshotReview {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
@@ -307,17 +459,39 @@ impl Command for SnapshotReview {
 
 // ── metrics / release ──────────────────────────────────────────────────────
 
+/// `health check` command options.
 pub struct Health {
+    /// Write a new health baseline.
     pub update: bool,
+    /// Collect workspace coverage during baseline collection.
+    pub with_coverage: bool,
+    /// Run only the safety gate.
+    pub gate: bool,
 }
 impl Command for Health {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
-        health::run(ctx, self.update)
+        health::run(ctx, self.update, self.with_coverage, self.gate)
     }
 }
 
+/// `health drift` command options.
+pub struct Drift {
+    /// Metric name to analyze.
+    pub metric: String,
+    /// Lookback window in days.
+    pub window_days: u64,
+}
+impl Command for Drift {
+    fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
+        drift::run(ctx, &self.metric, self.window_days)
+    }
+}
+
+/// `health inspect` command options.
 pub struct Inspect {
+    /// Optional override for max clippy warnings.
     pub max_warnings: Option<usize>,
+    /// Optional override for max TODO/FIXME markers.
     pub max_todo: Option<usize>,
 }
 impl Command for Inspect {
@@ -326,8 +500,11 @@ impl Command for Inspect {
     }
 }
 
+/// `release publish` command options.
 pub struct Publish {
+    /// Skip `cargo doc` before publishing.
     pub skip_docs: bool,
+    /// Allow publishing from a dirty worktree.
     pub allow_dirty: bool,
 }
 impl Command for Publish {
@@ -336,8 +513,11 @@ impl Command for Publish {
     }
 }
 
+/// `release create` command options.
 pub struct Release {
+    /// Release tag to publish.
     pub tag: String,
+    /// Optional release notes file.
     pub notes_file: Option<String>,
 }
 impl Command for Release {
@@ -350,18 +530,28 @@ impl Command for Release {
 // ── flow ───────────────────────────────────────────────────────────────────
 
 #[non_exhaustive]
+/// Flow sub-actions for the `flow` command.
 pub enum FlowAction {
+    /// Print flow branch status.
     Status,
+    /// Sync main into develop.
     Sync,
+    /// Promote one stage forward.
     Promote,
+    /// Enforce protected-branch guardrails.
     Guard,
+    /// Run full automated promote/CI/finish flow.
     Auto {
+        /// Conflict resolver implementation.
         resolver: Box<dyn taskit_core::ConflictResolver>,
+        /// CI runner closure used in flow auto.
         ci_runner: Box<dyn Fn(&Ctx) -> PipelineOutcome + Send + Sync>,
     },
 }
 
+/// `flow` command options.
 pub struct Flow {
+    /// Selected flow action.
     pub action: FlowAction,
 }
 impl Command for Flow {
@@ -400,6 +590,7 @@ mod tests {
         let cmd = Coverage {
             crate_name: None,
             threshold: 80.0,
+            workspace: false,
         };
         assert!(
             cmd.run(&ctx).is_err(),

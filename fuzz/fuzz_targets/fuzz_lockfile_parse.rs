@@ -1,3 +1,5 @@
+//! Fuzzes UTF-8 byte slices as JSON lockfile input and requires parsing to return without panicking.
+
 #![no_main]
 use libfuzzer_sys::fuzz_target;
 

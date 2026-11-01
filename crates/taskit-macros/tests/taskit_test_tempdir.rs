@@ -1,3 +1,5 @@
+//! Integration tests for `#[taskit_test(tempdir)]` behavior.
+
 use std::path::Path;
 use taskit_macros::taskit_test;
 

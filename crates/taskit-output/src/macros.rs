@@ -1,3 +1,5 @@
+//! Macros for emitting structured messages through the active output sink.
+
 /// Emit a progress message through the active sink.
 #[macro_export]
 macro_rules! taskit_progress {

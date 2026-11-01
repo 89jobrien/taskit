@@ -1,3 +1,5 @@
+//! Adapts built-in and subprocess Crux pipelines to the pipeline runner port.
+
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -17,6 +19,7 @@ pub struct BuiltinRunner<'a> {
 }
 
 impl<'a> BuiltinRunner<'a> {
+    /// Create a built-in pipeline runner over an existing execution context.
     pub fn new(ctx: &'a Ctx, offline: bool) -> Self {
         Self { ctx, offline }
     }
@@ -48,6 +51,7 @@ pub struct SubprocessCruxRunner {
 }
 
 impl SubprocessCruxRunner {
+    /// Create a subprocess-backed runner for a specific Cruxfile path.
     pub fn new(cruxfile_path: PathBuf) -> Self {
         Self { cruxfile_path }
     }

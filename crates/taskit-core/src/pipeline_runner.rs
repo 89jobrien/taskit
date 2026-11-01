@@ -1,3 +1,5 @@
+//! Pipeline execution port for running configured CI pipelines.
+
 use std::path::Path;
 
 use taskit_types::error::TaskitError;
@@ -7,7 +9,9 @@ use taskit_types::step::PipelineOutcome;
 ///
 /// Adapters: `BuiltinRunner` (taskit-engine), `SubprocessCruxRunner`
 /// (taskit-engine), `EmbeddedCruxRunner` (taskit-crux).
+// TODO(#33): replace inconsistently ignored parameters with one explicit pipeline request.
 pub trait PipelineRunner {
+    /// Execute the configured pipeline and return its aggregate outcome.
     fn run_pipeline(
         &self,
         config_path: &Path,

@@ -1,3 +1,5 @@
+//! Detects affected workspace crates from Git changes and configured propagation rules.
+
 use std::collections::BTreeSet;
 use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};
@@ -79,6 +81,7 @@ mod tests {
                 .map(|(dir, pkg)| CrateEntry {
                     dir: dir.to_string(),
                     pkg: pkg.map(|s| s.to_string()),
+                    exclude_from_version_check: false,
                 })
                 .collect(),
             propagation: propagation

@@ -1,8 +1,11 @@
+//! Updates the pinned Claude Code version through the maintenance script.
+
 use taskit_types::error::TaskitError;
 use xshell::cmd;
 
 use crate::ctx::Ctx;
 
+/// Update the pinned Claude Code version via project maintenance script.
 pub fn run(ctx: &Ctx, version: &str) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     taskit_output::taskit_progress!("Updating Claude Code version to {version}...");

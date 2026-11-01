@@ -1,8 +1,11 @@
+//! Updates workspace dependencies recorded in Cargo.lock.
+
 use taskit_types::error::TaskitError;
 use xshell::cmd;
 
 use crate::ctx::Ctx;
 
+/// Update Cargo.lock dependencies, optionally using aggressive resolution.
 pub fn run(ctx: &Ctx, aggressive: bool) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     if ctx.dry_run {

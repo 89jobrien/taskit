@@ -1,3 +1,5 @@
+//! Integration tests for `#[derive(ConfigDefaults)]` generated accessors.
+
 use taskit_macros::ConfigDefaults;
 
 #[derive(ConfigDefaults)]

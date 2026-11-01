@@ -6,6 +6,85 @@ All notable changes to this project will be documented in this file.
 
 ### Features
 
+- **protocol todo-dedupe**: new subcommand closing duplicate auto-generated marker issues,
+  keeping the lowest-numbered one and repointing `taskit-todo-sync.lock`; grouping is
+  derived from the `(title, file)` signal `todo-sync` writes, so an issue a human opened is
+  never closed (94cc269, 0fe491a)
+- **todo-sync**: only a `TODO`/`FIXME` that _begins_ a comment is a marker. A citation
+  inside prose (e.g. `// see TODO(x) in other.rs`) used to register as a marker and file a
+  second issue for work tracked elsewhere (f456232)
+- **todo-sync**: a marker may name its issue with a trailing `(#47)` citation, which now
+  wins over title matching. An unresolved citation falls back to title-plus-file rather
+  than dead-ending, and a citation naming a closed issue is reported but never reopened
+  automatically (71aef4e)
+- **todo-sync**: new subcommand scanning TODO/FIXME source markers and syncing them to
+  GitHub issues via `gh`; `--update`/`--warn-only` mirror `check-protocol-drift`'s shape
+  (0583e14)
+- **lint --fix**: auto-apply clippy's suggested fixes (`--fix --allow-dirty --allow-staged`);
+  wired into pre-commit's protocol-drift-style self-healing (0583e14)
+- **coverage --workspace**: measure line coverage across the whole workspace instead of a
+  single crate (0583e14)
+- **check-protocol-drift --watch**: continuously poll and auto-remediate lockfile drift
+  instead of failing (0583e14)
+- **check-freshness --warn-only**: report outdated workspace dependencies via
+  `cargo-outdated` without failing the command (0583e14)
+- **health --with-coverage**: opt into a workspace-wide coverage measurement as part of the
+  health baseline; also adds `SafetyCounts` (unwrap/expect and `warn!()` site counts) and
+  CI-duration telemetry to the baseline (0583e14)
+- **TUI Flow tab**: new `Tab::Flow` rendering git-flow pipeline position, resumable
+  `flow auto` state, configured conflict resolver, and `flow auto` run telemetry; adds a
+  protocol-drift status line to the Overview tab's health panel (e6f4580, 6bbb510, 3914e56)
+- **flow*auto*\* telemetry**: `flow::auto_with_ci` now emits duration/outcome telemetry
+  readings (caf9d80)
+- **merge_with_resolution**: now returns the count of conflicts it resolved (d0c25d0)
+- **protocol::drift::check**: new read-only variant that recomputes and compares surface
+  hashes without writing the lockfile, for callers (like the TUI) that poll on a timer
+  (c27256e)
+- **taskit-tui dashboard**: initial tabs, scrolling, and per-crate/history views
+  (d8fb41c, 4a01447)
+- **CI telemetry + drift detection**: new telemetry recording and drift-comparison
+  machinery backing the live TUI dashboard (4a01447)
+- Nushell completion generation (70699b2)
+
+### Refactoring
+
+- Extract `flow::status_report` from `flow::status` (fb7252d)
+- Consolidate ephemeral taskit artifacts (compile cache, telemetry, TUI snapshots) under
+  `target/taskit/` (d5ebf09)
+- Tighten public surface across `cache`, `discovery`, `testing`, `output`, and `core`
+  modules (ea3c5fe)
+- Remove dead `Ctx::run_ok` and unused `NoOpResolver` (0348baa)
+
+### Fixes
+
+- Don't force `--lib` on test-only crates in pre-push nextest run (bcfad63)
+- Remove dead crux feature flag and unused re-export (75b5dd1)
+- `compile-tests`: filter ignored dirs from `cargo metadata` workspace members; skip
+  `fuzz/` directory when scanning crate roots (af1fa56, bb15aec)
+- Wire `config.output.default_format` as fallback for `--output` flag (58c00ba)
+- CI: always install taskit from local path, not crates.io; install protobuf-compiler for
+  baml build dependency; commit generated `baml_client` so `cargo fmt` succeeds without the
+  baml CLI in CI; install cargo-llvm-cov/cargo-deny/cargo-machete
+  (e922905, 9ce3b10, 3a9e087, 45836ef)
+- Use `'true'` instead of `'sh --version'` in `tool_exists_cmd` test (1a7ce77)
+
+### Docs
+
+- Add design and plan docs for the TUI Flow tab (b9dd927)
+- Bump workspace to 0.8.0, sync docs with current code, fix stale version pin (73170cc)
+- Expand project docs and analysis config; update handoff, fix `.ctx` gitignore to track
+  `HANDOFF.yaml` (c866eec, 73170bc)
+- Fix flow auto description, add flow config section to CLAUDE.md (9a1ccb2)
+
+### Chores
+
+- Add taskit-tui to publish order, ignore paste advisory (f160dac)
+- Tune rustqual workspace signal (32fe988)
+- Add CDLA-Permissive-2.0, remove unused license allowlist entries (d6832f8)
+- Untrack `.taskit-cache` (gitignored) (5ab72e0)
+
+### Features
+
 - **flow promote**: position-aware one-stage advance — develop→staging, staging→release,
   release→main+sync; removes the need to know which branch you're on
 - **flow auto**: now runs the full pipeline (all stages) end-to-end; `promote` handles
@@ -77,7 +156,7 @@ All notable changes to this project will be documented in this file.
 - **taskit-testing**: new crate with TempDirGuard, `in_temp_dir!`,
   `step_result!`, `single_step_outcome`, and TaskitResultExt (6d672c0)
 - **taskit-macros**: new proc-macro crate with `#[taskit_test(tempdir,
-  offline)]` and `#[derive(ConfigDefaults)]` (6d672c0)
+offline)]` and `#[derive(ConfigDefaults)]` (6d672c0)
 - **taskit-output**: new crate with MessageSink trait, StderrSink,
   BufferSink, TeeSink, structured output macros, and moved formatters
   from taskit-engine (6d672c0)

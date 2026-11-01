@@ -26,6 +26,7 @@ struct PipelineStep<'a> {
     context: Option<StepContextSink>,
 }
 
+/// Builder/executor for ordered taskit step pipelines.
 pub struct Pipeline<'a> {
     steps: Vec<PipelineStep<'a>>,
     fail_fast: bool,
@@ -33,6 +34,9 @@ pub struct Pipeline<'a> {
 }
 
 impl<'a> Pipeline<'a> {
+    /// Create an empty pipeline.
+    ///
+    /// When `fail_fast` is true, non-gate failures skip remaining steps.
     pub fn new(fail_fast: bool) -> Self {
         Self {
             steps: Vec::new(),
@@ -41,6 +45,7 @@ impl<'a> Pipeline<'a> {
         }
     }
 
+    /// Attach top-level run context metadata to the final outcome.
     pub fn with_context(mut self, context: PipelineRunContext) -> Self {
         self.context = Some(context);
         self
@@ -58,6 +63,7 @@ impl<'a> Pipeline<'a> {
         self
     }
 
+    /// Normal step with a sink for enriched diagnostic context.
     pub fn step_with_context_sink(
         mut self,
         name: &str,
@@ -74,6 +80,7 @@ impl<'a> Pipeline<'a> {
         self
     }
 
+    /// Gate step with a sink for enriched diagnostic context.
     pub fn gate_with_context_sink(
         mut self,
         name: &str,

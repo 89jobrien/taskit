@@ -3,6 +3,7 @@ use xshell::cmd;
 
 use crate::ctx::Ctx;
 
+/// Run `cargo deny check` for advisories/licenses/bans.
 pub fn run(ctx: &Ctx) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     taskit_output::taskit_progress!("Running cargo-deny...");

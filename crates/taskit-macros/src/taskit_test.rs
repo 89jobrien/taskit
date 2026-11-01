@@ -1,3 +1,5 @@
+//! Expands `taskit_test` attributes with temporary-directory and offline-test support.
+
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Ident, ItemFn, Token, parse2, punctuated::Punctuated};

@@ -1,4 +1,5 @@
 #!/bin/sh
 # Delegate to taskit pre-push checks.
 # Install: git config core.hooksPath .githooks
-exec taskit pre-push
+unset $(git rev-parse --local-env-vars)
+exec taskit check pre-push

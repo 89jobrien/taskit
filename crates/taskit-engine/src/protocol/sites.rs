@@ -1,3 +1,5 @@
+//! Verifies expected substring construction-site counts within a file.
+
 use std::{fs, path::Path};
 use taskit_types::error::{TaskitError, TaskitResultExt};
 
@@ -10,6 +12,10 @@ fn match_lines<'a>(content: &'a str, pattern: &str) -> Vec<(usize, &'a str)> {
         .collect()
 }
 
+/// Check that `pattern` appears exactly `expected` times in `file`.
+///
+/// Prints matching lines and fails when the count differs, unless
+/// `warn_only` is set.
 pub fn run(
     file: &Path,
     pattern: &str,

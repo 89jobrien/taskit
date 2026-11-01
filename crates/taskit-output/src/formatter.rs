@@ -1,3 +1,6 @@
+//! Formats pipeline outcomes for terminals, CI systems, and machine-readable reports.
+
+// TODO(audit)(#24): 1,251 lines — largest module in the workspace, split candidate.
 use miette::NamedSource;
 use serde::Serialize;
 
@@ -10,9 +13,12 @@ use taskit_types::step::{
 
 /// Port: formats pipeline results for different output targets.
 pub trait OutputFormatter {
+    /// Render a full pipeline outcome into this formatter's target representation.
     fn render(&self, outcome: &PipelineOutcome) -> String;
 }
 
+/// Build a formatter instance for the requested output format.
+// TODO(#34): propagate OutputConfig::verbose_on_failure instead of hard-coding compact output.
 pub fn formatter_for(format: OutputFormat) -> Box<dyn OutputFormatter> {
     match format {
         OutputFormat::Human => Box::new(HumanFormatter),
@@ -33,6 +39,7 @@ const COL_NAME: usize = 30;
 const COL_STATUS: usize = 10;
 const SEPARATOR_WIDTH: usize = 55;
 
+/// Human-readable table formatter.
 pub struct HumanFormatter;
 
 impl OutputFormatter for HumanFormatter {
@@ -91,7 +98,9 @@ impl OutputFormatter for HumanFormatter {
 
 // -- Compact -----------------------------------------------------------------
 
+/// Compact single-line-per-step formatter.
 pub struct CompactFormatter {
+    /// Whether to include failure details inline.
     pub verbose_on_failure: bool,
 }
 
@@ -199,6 +208,7 @@ fn json_step_context(ctx: &StepDiagnosticContext) -> Option<JsonStepContext> {
     })
 }
 
+/// Pretty JSON formatter.
 pub struct JsonFormatter;
 
 impl OutputFormatter for JsonFormatter {
@@ -239,6 +249,7 @@ impl OutputFormatter for JsonFormatter {
 
 // -- GitHub Actions ----------------------------------------------------------
 
+/// GitHub Actions annotation and summary formatter.
 pub struct GithubFormatter;
 
 impl OutputFormatter for GithubFormatter {
@@ -335,6 +346,7 @@ impl OutputFormatter for GithubFormatter {
 
 // -- JUnit XML ---------------------------------------------------------------
 
+/// JUnit XML formatter.
 pub struct JunitFormatter;
 
 impl OutputFormatter for JunitFormatter {
@@ -403,6 +415,7 @@ fn xml_escape(s: &str) -> String {
 
 // -- Diagnostic (miette) -----------------------------------------------------
 
+/// Miette-based diagnostic formatter.
 pub struct DiagnosticFormatter;
 
 impl OutputFormatter for DiagnosticFormatter {
@@ -459,6 +472,7 @@ impl OutputFormatter for DiagnosticFormatter {
 
 // -- SARIF 2.1.0 -------------------------------------------------------------
 
+/// SARIF 2.1.0 formatter.
 pub struct SarifFormatter;
 
 impl OutputFormatter for SarifFormatter {
@@ -652,6 +666,7 @@ fn render_summary_text(outcome: &PipelineOutcome) -> String {
 
 /// Write formatted output to the appropriate destination and return
 /// a miette error if the pipeline failed.
+// TODO(#31): return contextual errors when JUnit, SARIF, or GitHub summary writes fail.
 pub fn write_output(format: OutputFormat, outcome: &PipelineOutcome) -> Result<(), PipelineError> {
     let formatter = formatter_for(format);
     let rendered = formatter.render(outcome);
@@ -659,12 +674,14 @@ pub fn write_output(format: OutputFormat, outcome: &PipelineOutcome) -> Result<(
         OutputFormat::Json => print!("{rendered}"),
         OutputFormat::Compact => eprint!("{rendered}"),
         OutputFormat::Junit => {
-            let path = "target/taskit-results.xml";
+            let path = "target/taskit/taskit-results.xml";
+            std::fs::create_dir_all("target/taskit").ok();
             std::fs::write(path, &rendered).ok();
             eprintln!("JUnit results written to {path}");
         }
         OutputFormat::Sarif => {
-            let path = "target/taskit-results.sarif";
+            let path = "target/taskit/taskit-results.sarif";
+            std::fs::create_dir_all("target/taskit").ok();
             std::fs::write(path, &rendered).ok();
             eprintln!("SARIF results written to {path}");
         }
@@ -897,7 +914,6 @@ mod tests {
     }
 
     // -- Conformance tests ---------------------------------------------------
-    //
     // Each formatter must satisfy five invariants regardless of which concrete
     // type is under test.  `assert_formatter_contract` encodes those invariants
     // and is called once per implementation.

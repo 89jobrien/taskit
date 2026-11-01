@@ -1,0 +1,31 @@
+project: xtask
+id: xtask
+updated: 2026-05-14
+items:
+- id: uncommitted-work
+  name: uncommitted-work
+  priority: P1
+  status: open
+  title: Uncommitted changes (7 files)
+  description: |-
+    Working tree has uncommitted changes:
+    .ctx/
+    .gitignore
+    CLAUDE.md
+    Cargo.toml
+    DESIGN.md
+    protocol-drift.lock
+    src/
+  files:
+  - .ctx/
+  - .gitignore
+  - CLAUDE.md
+  - Cargo.toml
+  - DESIGN.md
+  - protocol-drift.lock
+  - src/
+log:
+- date: '20260514.023311'
+  summary: done=0 running=0 pending=0 blocked=0
+- date: '20260514.023205'
+  summary: done=0 running=0 pending=0 blocked=0
