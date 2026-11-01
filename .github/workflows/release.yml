@@ -152,6 +152,7 @@ jobs:
           taskit check ci --fail-fast
           taskit protocol audit
           taskit changelog preview
+          git checkout -- Cargo.lock
 
       - name: Apply Taskit release
         if: steps.plan.outputs.resume != 'true'
