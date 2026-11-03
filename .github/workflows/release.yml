@@ -1,6 +1,8 @@
 name: Release
 
 on:
+  push:
+    branches: [release]
   workflow_dispatch:
     inputs:
       version:
@@ -35,12 +37,12 @@ jobs:
     permissions:
       contents: write
     outputs:
-      tag: ${{ steps.plan.outputs.tag }}
+      tag: ${{ steps.plan.outputs.tag || steps.autoplan.outputs.tag }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
-          ref: ${{ inputs.release_ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_ref || 'release' }}
 
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
@@ -65,7 +67,27 @@ jobs:
       - name: Install Taskit from this revision
         run: cargo install --path . --locked
 
+      - name: Plan automatic release (push to release)
+        if: github.event_name == 'push'
+        id: autoplan
+        run: |
+          set -euo pipefail
+          VERSION="$(cargo metadata --no-deps --format-version 1 |
+            jq -er '.packages[] | select(.name == "taskit") | .version')"
+          TAG="v$VERSION"
+          if git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null ||
+             git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "tag already exists: $TAG — version was not bumped since last release, nothing to do" >&2
+            exit 1
+          fi
+          {
+            echo "bump="
+            echo "resume=false"
+            echo "tag=$TAG"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Validate release request
+        if: github.event_name == 'workflow_dispatch'
         id: plan
         env:
           CONFIRMATION: ${{ inputs.confirmation }}
@@ -154,7 +176,7 @@ jobs:
           taskit changelog preview
 
       - name: Apply Taskit release
-        if: steps.plan.outputs.resume != 'true'
+        if: github.event_name == 'workflow_dispatch' && steps.plan.outputs.resume != 'true'
         id: release
         env:
           BUMP: ${{ steps.plan.outputs.bump }}
@@ -184,6 +206,17 @@ jobs:
           git tag -a "$TAG" -m "taskit $TAG"
           git push --atomic origin "HEAD:refs/heads/$RELEASE_REF" "refs/tags/$TAG"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Tag automatic release (push to release)
+        if: github.event_name == 'push'
+        env:
+          TAG: ${{ steps.autoplan.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git tag -a "$TAG" -m "taskit $TAG"
+          git push origin "refs/tags/$TAG"
 
   build:
     name: Build ${{ matrix.target }}
