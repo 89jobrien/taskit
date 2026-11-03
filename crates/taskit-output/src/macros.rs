@@ -1,8 +1,10 @@
+//! Macros for emitting structured messages through the active output sink.
+
 /// Emit a progress message through the active sink.
 #[macro_export]
 macro_rules! taskit_progress {
     ($($arg:tt)*) => {
-        $crate::sink().emit(&$crate::Message::Progress(format!($($arg)*)));
+        $crate::sink().emit(&$crate::Message::Progress(format!($($arg)*)))
     };
 }
 
@@ -10,7 +12,7 @@ macro_rules! taskit_progress {
 #[macro_export]
 macro_rules! taskit_skip {
     ($($arg:tt)*) => {
-        $crate::sink().emit(&$crate::Message::Skip(format!($($arg)*)));
+        $crate::sink().emit(&$crate::Message::Skip(format!($($arg)*)))
     };
 }
 
@@ -18,7 +20,7 @@ macro_rules! taskit_skip {
 #[macro_export]
 macro_rules! taskit_dry {
     ($($arg:tt)*) => {
-        $crate::sink().emit(&$crate::Message::DryRun(format!($($arg)*)));
+        $crate::sink().emit(&$crate::Message::DryRun(format!($($arg)*)))
     };
 }
 
@@ -26,7 +28,7 @@ macro_rules! taskit_dry {
 #[macro_export]
 macro_rules! taskit_ok {
     ($($arg:tt)*) => {
-        $crate::sink().emit(&$crate::Message::Success(format!($($arg)*)));
+        $crate::sink().emit(&$crate::Message::Success(format!($($arg)*)))
     };
 }
 
@@ -34,7 +36,7 @@ macro_rules! taskit_ok {
 #[macro_export]
 macro_rules! taskit_err {
     ($($arg:tt)*) => {
-        $crate::sink().emit(&$crate::Message::Error(format!($($arg)*)));
+        $crate::sink().emit(&$crate::Message::Error(format!($($arg)*)))
     };
 }
 
@@ -42,6 +44,6 @@ macro_rules! taskit_err {
 #[macro_export]
 macro_rules! taskit_warn {
     ($($arg:tt)*) => {
-        $crate::sink().emit(&$crate::Message::Progress(format!("warning: {}", format!($($arg)*))));
+        $crate::sink().emit(&$crate::Message::Progress(format!("warning: {}", format!($($arg)*))))
     };
 }

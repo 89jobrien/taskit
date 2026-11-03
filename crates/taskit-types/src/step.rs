@@ -1,3 +1,5 @@
+//! Pipeline step statuses, results, diagnostics, and run-level context.
+
 use std::fmt;
 use std::time::Duration;
 

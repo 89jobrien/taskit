@@ -1,4 +1,6 @@
-// TODO(audit): 814 lines — split candidate.
+//! Orchestrates Git flow status, synchronization, promotion, and gated automation.
+
+// TODO(audit)(#28): 814 lines — split candidate.
 use taskit_core::conflict_resolver::ConflictResolver;
 use taskit_types::config::FlowConfig;
 use taskit_types::conflict::ConflictFile;

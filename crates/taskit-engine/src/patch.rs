@@ -1,6 +1,9 @@
+//! Applies semantic version bumps across workspace Cargo manifests.
+
 use std::path::{Path, PathBuf};
 
 use taskit_types::error::TaskitError;
+use toml_edit::{DocumentMut, Item, Value};
 
 use crate::ctx::Ctx;
 
@@ -61,15 +64,46 @@ fn cargo_toml_paths(root: &Path) -> Vec<PathBuf> {
     paths
 }
 
-/// Replace all occurrences of `version = "old"` with `version = "new"` in `content`.
+/// Rewrite version fields in a Cargo manifest, touching only first-party crates.
 ///
-/// This handles both `[package] version = "..."` lines and inline workspace dependency
-/// `{ version = "...", path = "..." }` lines.
-pub(crate) fn replace_version(content: &str, old: &str, new: &str) -> String {
-    content.replace(
-        &format!("version = \"{old}\""),
-        &format!("version = \"{new}\""),
-    )
+/// Edits are surgical:
+/// - `[package].version` is always set to `next`;
+/// - `[workspace.dependencies]` pins are rewritten only for names in `own_crates`;
+/// - every third-party pin, comment, key order, and formatting choice is preserved.
+///
+/// Matching by name rather than by version string is the point: a manifest can
+/// contain `syn = { version = "0.8.0" }` alongside our own `0.8.0` crates, and a
+/// blanket `version = "0.8.0"` replace would silently repin the dependency to a
+/// release that does not exist.
+pub(crate) fn bump_manifest(
+    content: &str,
+    next: &str,
+    own_crates: &[String],
+) -> Result<String, TaskitError> {
+    let mut doc = content
+        .parse::<DocumentMut>()
+        .map_err(|e| TaskitError::other(format!("parse Cargo.toml: {e}")))?;
+
+    if doc.get("package").is_some() {
+        doc["package"]["version"] = Item::Value(next.into());
+    }
+
+    if let Some(deps) = doc
+        .get_mut("workspace")
+        .and_then(|w| w.get_mut("dependencies"))
+        .and_then(|d| d.as_table_like_mut())
+    {
+        for name in own_crates {
+            let Some(item) = deps.get_mut(name.as_str()) else {
+                continue;
+            };
+            if let Item::Value(Value::InlineTable(table)) = item {
+                table.insert("version", Value::from(next));
+            }
+        }
+    }
+
+    Ok(doc.to_string())
 }
 
 /// Run workspace version bump for the selected kind.
@@ -100,11 +134,12 @@ pub fn run(ctx: &Ctx, kind: BumpKind) -> Result<(), TaskitError> {
 
     taskit_output::taskit_progress!("Bumping {kind} version: {current} → {next}");
 
+    let own_crates = ctx.workspace_member_names();
     let paths = cargo_toml_paths(root);
     for path in &paths {
         let content = std::fs::read_to_string(path)
             .map_err(|e| TaskitError::other(format!("read {}: {e}", path.display())))?;
-        let updated = replace_version(&content, &current, &next);
+        let updated = bump_manifest(&content, &next, &own_crates)?;
         if updated == content {
             continue;
         }
@@ -167,37 +202,66 @@ mod tests {
         assert_eq!(bump(0, 7, 3, BumpKind::Major), (1, 0, 0));
     }
 
-    // --- replace_version ---
+    // --- bump_manifest ---
 
-    #[test]
-    fn replace_version_replaces_exact_match() {
-        let content = "version = \"0.7.0\"\nother = \"stuff\"\n";
-        let result = replace_version(content, "0.7.0", "0.7.1");
-        assert_eq!(result, "version = \"0.7.1\"\nother = \"stuff\"\n");
+    fn names(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| s.to_string()).collect()
     }
 
     #[test]
-    fn replace_version_replaces_all_occurrences() {
-        let content = "version = \"0.7.0\"\n# comment\nversion = \"0.7.0\"\n";
-        let result = replace_version(content, "0.7.0", "0.7.1");
-        assert_eq!(
-            result,
-            "version = \"0.7.1\"\n# comment\nversion = \"0.7.1\"\n"
+    fn bump_manifest_updates_package_version() {
+        let content = "[package]\nname = \"x\"\nversion = \"0.7.0\"\n";
+        let out = bump_manifest(content, "0.7.1", &[]).expect("bump");
+        assert!(out.contains("version = \"0.7.1\""), "{out}");
+    }
+
+    #[test]
+    fn bump_manifest_leaves_third_party_pin_at_same_version_untouched() {
+        // Regression: a blanket string replace would repin `syn` to 0.7.1.
+        let content = "[dependencies]\nsyn = { version = \"0.7.0\", features = [\"full\"] }\n";
+        let out = bump_manifest(content, "0.7.1", &[]).expect("bump");
+        assert!(out.contains("syn = { version = \"0.7.0\""), "{out}");
+        assert!(!out.contains("0.7.1"), "{out}");
+    }
+
+    #[test]
+    fn bump_manifest_rewrites_own_workspace_pin() {
+        let content = concat!(
+            "[workspace.dependencies]\n",
+            "taskit-core = { version = \"0.7.0\", path = \"crates/taskit-core\" }\n",
+            "syn = { version = \"0.7.0\" }\n",
         );
+        let out = bump_manifest(content, "0.7.1", &names(&["taskit-core"])).expect("bump");
+        assert!(out.contains("taskit-core = { version = \"0.7.1\""), "{out}");
+        assert!(out.contains("syn = { version = \"0.7.0\" }"), "{out}");
     }
 
     #[test]
-    fn replace_version_leaves_unrelated_versions_untouched() {
-        let content = "version = \"1.0.0\"\nversion = \"0.7.0\"\n";
-        let result = replace_version(content, "0.7.0", "0.7.1");
-        assert_eq!(result, "version = \"1.0.0\"\nversion = \"0.7.1\"\n");
+    fn bump_manifest_preserves_comments_and_ordering() {
+        let content = concat!(
+            "# leading comment\n",
+            "[package]\n",
+            "name = \"x\"\n",
+            "# version comment\n",
+            "version = \"0.7.0\"\n",
+        );
+        let out = bump_manifest(content, "0.7.1", &[]).expect("bump");
+        assert!(out.contains("# leading comment"), "{out}");
+        assert!(out.contains("# version comment"), "{out}");
+        assert!(out.contains("name = \"x\""), "{out}");
+        assert!(out.contains("version = \"0.7.1\""), "{out}");
     }
 
     #[test]
-    fn replace_version_no_change_when_version_absent() {
-        let content = "name = \"my-crate\"\n";
-        let result = replace_version(content, "0.7.0", "0.7.1");
-        assert_eq!(result, content);
+    fn bump_manifest_no_op_without_package_section() {
+        let content = "[workspace]\nmembers = [\"crates/*\"]\n";
+        let out = bump_manifest(content, "0.7.1", &[]).expect("bump");
+        assert!(!out.contains("0.7.1"), "{out}");
+    }
+
+    #[test]
+    fn bump_manifest_errors_on_malformed_toml() {
+        assert!(bump_manifest("this is not = = toml", "0.7.1", &[]).is_err());
     }
 
     // --- run (isolated temp workspace) ---

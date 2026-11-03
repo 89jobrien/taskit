@@ -1,3 +1,5 @@
+//! Generates the workspace HTML coverage report with cargo-llvm-cov.
+
 use taskit_types::error::TaskitError;
 use xshell::cmd;
 

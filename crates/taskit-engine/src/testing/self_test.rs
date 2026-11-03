@@ -1,3 +1,5 @@
+//! Caches taskit source hashes to skip unchanged self-test runs.
+
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, fs, path::Path};
@@ -110,8 +112,17 @@ mod tests {
 
     fn tmpdir() -> std::path::PathBuf {
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let dir =
-            std::env::temp_dir().join(format!("taskit-selftest-{}-{}", std::process::id(), n));
+        // PID plus counter alone repeats across runs once the OS recycles a
+        // PID, so a leftover directory from an earlier run makes these tests
+        // see each other's files. Stamp the call instead.
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock is after the unix epoch")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!(
+            "taskit-selftest-{}-{n}-{stamp}",
+            std::process::id()
+        ));
         fs::create_dir_all(&dir).expect("create tmpdir");
         dir
     }

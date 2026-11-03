@@ -38,7 +38,7 @@ consumers programmatic access to pipeline outcomes.
 
 2. Verify:
 
-   ```
+   ```text
    cargo check    -> compiles
    ```
 
@@ -92,7 +92,7 @@ consumers programmatic access to pipeline outcomes.
 
 4. Verify:
 
-   ```
+   ```text
    cargo test -p taskit -- step   -> all pass
    cargo clippy -p taskit -- -D warnings -> zero warnings
    ```
@@ -218,7 +218,7 @@ consumers programmatic access to pipeline outcomes.
 
 5. Verify:
 
-   ```
+   ```text
    cargo test -p taskit -- step   -> all pass
    ```
 
@@ -255,7 +255,7 @@ consumers programmatic access to pipeline outcomes.
 
 2. Verify:
 
-   ```
+   ```text
    cargo test -p taskit -- ci     -> all pass
    cargo clippy -p taskit -- -D warnings -> zero warnings
    ```
@@ -295,7 +295,7 @@ consumers programmatic access to pipeline outcomes.
 
 2. Verify:
 
-   ```
+   ```text
    cargo test -p taskit -- quick  -> passes
    ```
 
@@ -439,7 +439,7 @@ consumers programmatic access to pipeline outcomes.
 
 5. Verify:
 
-   ```
+   ```text
    cargo test -p taskit -- output  -> passes
    ```
 
@@ -532,7 +532,7 @@ consumers programmatic access to pipeline outcomes.
 
 3. Verify:
 
-   ```
+   ```text
    cargo test -p taskit -- output::tests::json  -> passes
    ```
 
@@ -616,7 +616,7 @@ consumers programmatic access to pipeline outcomes.
 
 3. Verify:
 
-   ```
+   ```text
    cargo test -p taskit -- output::tests::github  -> passes
    ```
 
@@ -741,7 +741,7 @@ consumers programmatic access to pipeline outcomes.
 
 3. Verify:
 
-   ```
+   ```text
    cargo test -p taskit -- output::tests::junit  -> passes
    ```
 
@@ -846,7 +846,7 @@ consumers programmatic access to pipeline outcomes.
 
 4. Verify:
 
-   ```
+   ```text
    cargo test -p taskit              -> all pass
    cargo clippy -p taskit -- -D warnings -> zero warnings
    ```
@@ -882,7 +882,7 @@ consumers programmatic access to pipeline outcomes.
 
 2. Verify:
 
-   ```
+   ```text
    cargo test -p taskit  -> all pass
    ```
 
@@ -903,7 +903,7 @@ consumers programmatic access to pipeline outcomes.
 
 2. Verify:
 
-   ```
+   ```text
    cargo check                             -> compiles
    cargo test -p taskit                     -> all pass
    cargo clippy -p taskit -- -D warnings    -> zero warnings

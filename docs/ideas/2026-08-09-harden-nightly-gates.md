@@ -18,6 +18,7 @@ loudly notify anyone; the job just shows a soft yellow warning in the Actions UI
 ## Proposed Direction
 
 Split nightly jobs into two tiers:
+
 - **Blocking**: `audit` (cargo-audit, CVEs) and `deny` (cargo-deny — licenses,
   bans, sources) should fail the workflow run on violation.
 - **Informational**: `geiger` (unsafe-code counts), `coverage` (trend, not a hard

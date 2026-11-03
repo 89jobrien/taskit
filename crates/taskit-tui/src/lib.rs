@@ -8,6 +8,7 @@
 //! fetched once at startup (it shells out to `cargo metadata`), not on every
 //! tick.
 
+mod action;
 mod app;
 mod snapshot;
 mod ui;
@@ -73,6 +74,7 @@ fn event_loop(
     let mut app = App::new(ctx);
 
     loop {
+        app.actions.poll();
         let snapshot = Snapshot::collect(ctx);
         app.clamp_scroll(&snapshot);
         terminal
@@ -91,9 +93,30 @@ fn event_loop(
 /// Handle one key event, mutating `app`. Returns `true` if the app should
 /// quit.
 fn handle_key(app: &mut App, code: KeyCode, modifiers: KeyModifiers) -> bool {
+    if matches!(code, KeyCode::Char('q'))
+        || matches!(code, KeyCode::Char('c')) && modifiers.contains(KeyModifiers::CONTROL)
+    {
+        return true;
+    }
+    if !app.actions.is_open() && matches!(code, KeyCode::Esc) {
+        return true;
+    }
+
+    if app.actions.is_open() {
+        match code {
+            KeyCode::Esc => app.actions.close(),
+            KeyCode::Char('a') => app.actions.toggle(),
+            KeyCode::Down | KeyCode::Char('j') => app.actions.select_next(),
+            KeyCode::Up | KeyCode::Char('k') => app.actions.select_previous(),
+            KeyCode::Enter => app.actions.start_selected(),
+            KeyCode::Char('x') => app.actions.cancel(),
+            _ => {}
+        }
+        return false;
+    }
+
     match code {
-        KeyCode::Char('q') | KeyCode::Esc => return true,
-        KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => return true,
+        KeyCode::Char('a') => app.actions.open(),
         KeyCode::Tab | KeyCode::Right | KeyCode::Char('l') => app.next_tab(),
         KeyCode::BackTab | KeyCode::Left | KeyCode::Char('h') => app.prev_tab(),
         KeyCode::Down | KeyCode::Char('j') => app.scroll_down(),

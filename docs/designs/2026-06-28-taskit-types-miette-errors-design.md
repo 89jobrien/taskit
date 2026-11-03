@@ -252,7 +252,7 @@ fn main() -> miette::Result<()> {
 
 ## Dependency Graph
 
-```
+```text
 taskit-types  (leaf: miette, thiserror, serde, clap)
      ^
      |

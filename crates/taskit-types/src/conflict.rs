@@ -1,3 +1,5 @@
+//! Merge-conflict inputs and resolved-file payloads shared by conflict resolvers.
+
 /// A file with merge conflicts, with both sides captured for resolution.
 #[derive(Debug)]
 #[non_exhaustive]

@@ -1,160 +1,74 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+
 ## [unreleased]
 
 ### Features
 
-- *(core)* Add StepBuilder, conformance module, and property tests
-- V0.7.0 accumulated changes
-- *(fuzz)* Add fuzz_render_toml target with round-trip invariant
-- *(engine)* Add pipeline diagnostics — command log, step context, run context
-- Merge test/address-todo-cleanup — todo cleanup, CI fixes, pipeline diagnostics
-- *(engine)* Wire ci.rs for pipeline diagnostics
-- *(output)* Render pipeline diagnostic context in all formatters
-- *(types)* Add ConflictUnresolved, NeedsHuman, CiFailed to FlowError
-- *(engine)* Add ConflictResolver trait, ConflictFile, ResolvedFile types
-- *(engine)* Add merge_with_resolution helper with conflict detection and resolver hook
-- *(engine)* Implement flow::auto — promote, CI gate, finish with conflict resolution
-- *(taskit)* Add FlowCmd::Auto, BamlConflictResolver stub, wire FlowAction::Auto
-- *(taskit)* Implement BamlConflictResolver via BAML ResolveConflict function (fa7)
-- *(init,types)* Xtask scaffold, config sections for inspect/clean/ci/release
-- *(flow)* Add develop branch and sync/stage subcommands
-- *(flow,output,config)* Resumable flow auto, CompactFormatter, config validation
-- *(flow)* Collapse stage/finish/auto into flow promote
-- *(flow)* Restore auto as alias for promote
-- *(flow)* Promote advances one stage based on current branch
-- *(flow)* Conflict_resolver is now config-driven
-- *(engine,tui)* Add CI telemetry, drift detection, and a live TUI dashboard
-- Add Nushell completion generation
-- *(tui)* Add tabs, scrolling, and per-crate/history views to dashboard
-- *(taskit-engine)* Add read-only protocol::drift::check
-- *(taskit-engine)* Merge_with_resolution returns resolved conflict count
-- *(taskit-engine)* Emit flow_auto_* telemetry from auto_with_ci
-- *(taskit-tui)* Add flow and protocol-drift fields to Snapshot
-- *(taskit-tui)* Add Tab::Flow and render the Flow tab
-- *(taskit-tui)* Add protocol-drift line to Overview health panel
-- *(taskit)* Add todo-sync, coverage --workspace, drift --watch, lint --fix
-- *(engine)* Add health --gate for CI-friendly safety regression checks
-- *(config)* Add exclude_from_version_check to CrateEntry
-- *(flow)* Opt-in push of main and flow branches after successful flow auto
-- *(taskit)* Add dev build/install cargo workflows, rename install to bootstrap
-- Add changelog command and release automation
+- _(taskit)_ Add --version flag to taskit CLI
+- _(engine)_ Read issue state when reconciling todo markers
+- _(flow)_ Fall back to local Ollama when no remote credential is set
+- _(engine)_ Add todo issue dedupe planning and run
+- _(engine)_ Add Dedupe command for todo issue dedupe
+- _(taskit)_ Add protocol todo-dedupe subcommand
+- _(tui)_ Add rx-runner process abstraction for dashboard actions
+- _(init)_ Isolate taskit xtask dispatch; docs, crate READMEs, audit TODOs
+- _(init)_ Make Crux pipeline file generation opt-in, rename to ci.crux
 
 ### Bug Fixes
 
-- *(engine)* Test-report always generates report even when tests fail
-- *(engine)* Make protocol-drift blocking in pre-push with self-healing
-- *(engine)* Proptest command uses filter instead of feature flag
-- *(engine)* Ignore excluded crates in compile-tests
-- *(health)* Skip string/char literals when detecting TODO/FIXME comment markers
-- *(engine)* Allow dead_code on step_with_diagnostics_and_context_sink (unused API surface)
-- *(examples)* Silence progress spinner in pipeline_builder example
-- *(flow)* Promote leaves user on release; finish auto-switches branch
-- *(types)* Remove dead ConflictUnresolved variant from FlowError [moa-review]
-- *(engine,taskit)* AU/UA tests, #[non_exhaustive] on structs, doc fixes, step numbering [moa-review]
-- *(types,engine)* Add #[non_exhaustive] to FlowError and FlowAction [moa-review]
-- *(hooks)* Auto-heal protocol-drift in pre-commit, not just pre-push
-- *(engine)* Move ResolvedFile import into test module to fix unused-import lint
-- *(ci)* Install protobuf-compiler for baml build dependency
-- *(engine)* Inspect max_warnings Option<usize>, ctx accessors, clean config tests [moa-review]
-- *(init,types)* Address MED review findings
-- *(init,types,docs)* Address LOW review findings
-- *(engine)* Use helper fns in flag-resolution tests to satisfy clippy
-- *(patch)* Isolate version-bump tests in temp workspaces
-- *(config)* Collapse nested if blocks to satisfy clippy
-- Wire config.output.default_format as fallback for --output flag
-- *(ci)* Commit generated baml_client so cargo fmt succeeds without baml CLI in CI
-- *(ci)* Install protobuf-compiler for baml build dependency
-- *(compile-tests)* Skip fuzz/ directory when scanning crate roots
-- *(compile-tests)* Filter ignored dirs from cargo metadata workspace members
-- *(ci)* Always install taskit from local path, not crates.io
-- *(test)* Use 'true' instead of 'sh --version' in tool_exists_cmd test
-- *(engine,output,docs)* Remove dead crux feature flag and unused re-export
-- Don't force --lib on test-only crates in pre-push nextest run
-- *(types,engine)* Add #[non_exhaustive] to FlowError and FlowAction [moa-review]
-- *(types,engine)* Merge #[non_exhaustive] for FlowError and FlowAction [moa-review]
-- *(taskit-init)* Disable xtask generation by default
-- *(taskit-init)* Generate formatted xtask source
-- *(hooks)* Clear git-local environment before pre-push
+- _(ci)_ Make tagged releases resumable
+- _(ci)_ Use modern protoc for cross builds
+- _(ci)_ Drop unsupported ARM Linux release target
+- _(engine)_ Only treat leading TODO/FIXME as source markers
+- _(engine)_ Adopt the cited issue when reconciling todo markers
+- _(engine)_ Correct stale subcommand names in gate hints
+- _(engine)_ Keep todo issue tracking stable across moves and reruns
+- _(protocol)_ Track the todo-sync lockfile so the gate survives a clean clone
+- _(engine)_ Scope version bumps to first-party crates
+- _(engine)_ Scope version bumps to first-party crates
+- _(hooks)_ Use the real check subcommand names in generated git hooks
+- _(macros)_ Remove trailing semicolon for expression-position use
 
 ### Refactor
 
-- *(engine)* Simplify release to GitHub-only
-- *(engine)* Drop indicatif spinner, emit step results via MessageSink
-- *(types)* Derive Default for PipelineOutcome; simplify auto_with_ci test construction
-- *(types,core)* Move ConflictFile/ResolvedFile to taskit-types, ConflictResolver to taskit-core (mr5)
-- *(engine)* Move ConflictResolver from FlowAction::Auto onto Flow struct (mr6)
-- *(engine)* Extract CiRunner closure onto Flow struct, decouple flow::auto from ci (mr7)
-- Remove dead Ctx::run_ok and unused NoOpResolver
-- Tighten public surface across cache, discovery, testing, output, and core
-- *(engine,output)* Consolidate ephemeral artifacts under target/taskit/
-- *(taskit-engine)* Extract flow::status_report from status
-- *(taskit)* Restructure CLI into categorized subcommands
-- *(taskit)* Move Install/SelfCheck/SelfTest under new `self` subcommand
+- _(engine)_ Split todo_sync into a module directory
+- _(site)_ Landing page plus subpages, and honest code blocks
 
 ### Documentation
 
-- *(examples)* Add runnable examples for all five library crates
-- Update README, CLAUDE.md, DESIGN.md for flow auto + architecture refactor (rx6)
-- *(changelog)* Regenerate changelogs for flow auto + type refactor work (rx7)
-- *(changelog)* Update unreleased section for flow promote refactor
-- *(claude)* Fix flow auto description and add flow config section
-- Update handoff and fix .ctx gitignore to track HANDOFF.yaml
-- Expand project docs and analysis config
-- Bump workspace to 0.8.0, sync docs with current code, fix stale version pin
-- *(taskit)* Add design and plan docs for TUI Flow tab
-- *(taskit)* Add grounded feature-idea docs from ideation passes
-- *(taskit)* Backfill changelog and add unreleased release notes
-- *(taskit)* Document taskit-tui crate in CLAUDE.md
-- Update handoff
+- Refresh README command reference
+- Document protocol todo-dedupe and marker rules
 - Update handoff
 
 ### Testing
 
-- *(types)* Add proptest property tests for StepStatus, StepResult, PipelineOutcome
-- *(init)* Add integration tests for plan_from_discovery -> render pipeline
-- *(init)* Add proptest property tests for topo_sort_members
-- *(output)* Add conformance tests for all 6 OutputFormatter impls
-- *(engine)* Add dry-run unit tests for untested wrapper modules
-- *(workspace)* Address remaining todo markers
-- *(engine)* Integration tests for flow::auto — wrong branch, dirty worktree, dry-run happy path
-- *(engine)* Integration tests for merge_with_resolution — all 4 branches; fix ignore_status and abs path [moa-review]
-- *(engine)* Add CI failure and pass paths for flow::auto via auto_with_ci seam [moa-review]
-- *(engine)* Ci effective_fail_fast config fallback coverage [moa-review]
-- *(engine)* Add AU/UA coverage for parse_conflict_paths [moa-review]
-- *(engine)* Merge AU/UA coverage for parse_conflict_paths [moa-review]
-- *(engine)* Integration tests for merge_with_resolution — all 4 branches [moa-review]
-- *(engine)* Merge integration tests for merge_with_resolution — all 4 branches [moa-review]
-- *(taskit-init)* Require rustfmt-clean xtask scaffolds
+- _(engine)_ Require TODO markers to lead the comment
+- _(engine)_ Cover doc and block comment markers
 
 ### Miscellaneous
 
-- *(ctx)* Add rustqual baseline
-- Install taskit required tools
-- Install taskit from checkout
-- Update protocol-drift lockfile after mr5 type moves
-- Update taskit cache hashes
-- Untrack .taskit-cache (gitignored)
-- *(deny)* Add CDLA-Permissive-2.0, remove unused license allowlist entries
-- Install cargo-llvm-cov, cargo-deny, cargo-machete in CI
-- *(quality)* Tune rustqual workspace signal
-- Set output style to GmCtx in local settings
-- Update handoff state and lockfile
-- *(types)* Remove duplicate non_exhaustive attribute on FlowError
-- Update handoff state
-- Update handoff state and health baseline
-- *(xtask)* Add depgraph-report.py for architecture-health audits
-- Gitignore generated session-report/graph artifacts
-- *(rust-audit)* Fix C-METADATA and C-LINK findings across workspace
-- *(handoff)* Session-end update
-- Add run-taskit skill for building/driving CLI + TUI dashboard
-- Integrate daily orchestration remediation
+- _(roadmap)_ Define reliability and CI initiatives
+- _(handoff)_ Record todo-sync and conflict-resolution session state
+- Align develop version to last released 0.9.0
+- _(deny)_ Ignore rustls advisories in build-time deps
 
 ## Unreleased
 
 ### Features
 
+- **protocol todo-dedupe**: new subcommand closing duplicate auto-generated marker issues,
+  keeping the lowest-numbered one and repointing `taskit-todo-sync.lock`; grouping is
+  derived from the `(title, file)` signal `todo-sync` writes, so an issue a human opened is
+  never closed (94cc269, 0fe491a)
+- **todo-sync**: only a `TODO`/`FIXME` that _begins_ a comment is a marker. A citation
+  inside prose (e.g. `// see TODO(x) in other.rs`) used to register as a marker and file a
+  second issue for work tracked elsewhere (f456232)
+- **todo-sync**: a marker may name its issue with a trailing `(#47)` citation, which now
+  wins over title matching. An unresolved citation falls back to title-plus-file rather
+  than dead-ending, and a citation naming a closed issue is reported but never reopened
+  automatically (71aef4e)
 - **todo-sync**: new subcommand scanning TODO/FIXME source markers and syncing them to
   GitHub issues via `gh`; `--update`/`--warn-only` mirror `check-protocol-drift`'s shape
   (0583e14)
@@ -172,7 +86,7 @@ All notable changes to this project will be documented in this file.
 - **TUI Flow tab**: new `Tab::Flow` rendering git-flow pipeline position, resumable
   `flow auto` state, configured conflict resolver, and `flow auto` run telemetry; adds a
   protocol-drift status line to the Overview tab's health panel (e6f4580, 6bbb510, 3914e56)
-- **flow_auto_\* telemetry**: `flow::auto_with_ci` now emits duration/outcome telemetry
+- **flow*auto*\* telemetry**: `flow::auto_with_ci` now emits duration/outcome telemetry
   readings (caf9d80)
 - **merge_with_resolution**: now returns the count of conflicts it resolved (d0c25d0)
 - **protocol::drift::check**: new read-only variant that recomputes and compares surface
@@ -294,7 +208,7 @@ All notable changes to this project will be documented in this file.
 - **taskit-testing**: new crate with TempDirGuard, `in_temp_dir!`,
   `step_result!`, `single_step_outcome`, and TaskitResultExt (6d672c0)
 - **taskit-macros**: new proc-macro crate with `#[taskit_test(tempdir,
-  offline)]` and `#[derive(ConfigDefaults)]` (6d672c0)
+offline)]` and `#[derive(ConfigDefaults)]` (6d672c0)
 - **taskit-output**: new crate with MessageSink trait, StderrSink,
   BufferSink, TeeSink, structured output macros, and moved formatters
   from taskit-engine (6d672c0)

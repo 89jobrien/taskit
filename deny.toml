@@ -6,6 +6,14 @@ ignore = [
   # paste: unmaintained, no safe upgrade available. Pulled in transitively by
   # ratatui (taskit-tui's dep). Revisit when ratatui drops it or a fork lands.
   "RUSTSEC-2024-0436",
+  # rustls advisories in build-time deps (ureq/baml-sys). Transitive via baml's
+  # build script; not used at runtime. Revisit when baml upgrades rustls.
+  "RUSTSEC-2026-0346",
+  "RUSTSEC-2026-0347",
+  "RUSTSEC-2026-0348",
+  "RUSTSEC-2026-0349",
+  "RUSTSEC-2026-0381",
+  "RUSTSEC-2026-0382",
 ]
 
 [licenses]

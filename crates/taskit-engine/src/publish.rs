@@ -1,3 +1,5 @@
+//! Runs documentation checks and publishes workspace crates in dependency order.
+
 use taskit_types::error::TaskitError;
 use xshell::cmd;
 

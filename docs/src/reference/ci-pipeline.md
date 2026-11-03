@@ -1,71 +1,68 @@
 # CI Pipeline
 
-## Running
-
-```sh
-taskit check ci                    # full pipeline
-taskit check ci --fail-fast        # stop on first failure
-taskit check ci --include-network  # include network-dependent steps
-taskit check quick                 # fast feedback: fmt-check + lint + compile-tests + test
+```bash
+taskit check ci
+taskit check ci --fail-fast
+taskit check ci --include-network
 ```
 
-## Default steps
+## Built-in pipeline
 
-| Step | Command | Gate |
-|------|---------|------|
-| Self-check | `taskit dev self-check` | Yes |
-| Format | `taskit check fmt --check` | No |
-| Lint | `taskit check lint` | No |
-| Compile tests | `taskit check compile` | No |
-| Test | `taskit test run` | No |
-| Deps | `taskit check deps` | No |
-| Protocol drift | `taskit protocol drift` | No |
+When `[ci]` is absent, taskit runs:
 
-**Gate** steps abort the pipeline immediately on failure. Non-gate steps report failure and
-continue. `--fail-fast` promotes all steps to gate behaviour.
+| Order | Step           | Equivalent public command                   | Gate |
+| ----- | -------------- | ------------------------------------------- | ---- |
+| 1     | Self-check     | `taskit self check`                         | yes  |
+| 2     | Format         | `taskit check fmt --check`                  | no   |
+| 3     | Lint           | `taskit check lint`                         | no   |
+| 4     | Compile tests  | `taskit check compile`                      | no   |
+| 5     | Test           | `taskit test run`                           | no   |
+| 6     | Dependencies   | `taskit check deps`                         | no   |
+| 7     | Protocol drift | `taskit protocol drift`                     | no   |
+| 8     | Coverage       | `taskit test coverage --crate-name <CRATE>` | no   |
 
-## Customising steps
+Coverage is added only when `[coverage]` exists.
 
-Override the default step list in `taskit.toml`:
+## Configured pipeline
 
-```toml
-[ci]
-fail_fast = false
+An explicit `[ci]` section replaces the built-in sequence. Supported `cmd` values are:
 
-[[ci.steps]]
-name = "fmt --check"
-cmd = "fmt --check"
-gate = false
-
-[[ci.steps]]
-name = "lint"
-cmd = "lint"
-gate = false
-
-[[ci.steps]]
-name = "test"
-cmd = "test"
-gate = false
-```
-Supported config step commands are `fmt`, `lint`, `test`, `coverage`, `compile-tests`,
-`check-deps`, `check-protocol-drift`, `self-check`, and `health`. These are internal step
-identifiers (matched in `taskit-engine::ci::dispatch_cmd`), independent of the CLI's
-subcommand paths above — renaming a CLI category (`dev`/`check`/`test`/...) does not affect
-these `[[ci.steps]] cmd` values.
-
-## Affected-crate mode
-
-Pass `--affected` to limit steps to crates with uncommitted changes plus their dependents
-(configured via `[[workspace.propagation]]`):
-
-```sh
-taskit check lint --affected
-taskit test run --affected
+```text
+fmt
+fmt --check
+lint
+compile-tests
+test
+coverage
+check-deps
+check-protocol-drift
+self-check
+health
+health-gate
 ```
 
-## Exit codes
+Unknown command names fail pipeline construction. `CiConfig.cruxfile` is currently parsed but does
+not select `BuiltinRunner`, `SubprocessCruxRunner`, or `EmbeddedCruxRunner`.
 
-| Code | Meaning |
-|------|---------|
-| 0 | All steps passed |
-| 1 | One or more steps failed, including gate failures that aborted later steps |
+## Gates and fail-fast
+
+- A failed gate skips every remaining step.
+- With fail-fast, any failed step skips the remainder.
+- Without fail-fast, ordinary failures are recorded and later ordinary steps continue.
+- Effective fail-fast is CLI `--fail-fast` or `[ci].fail_fast = true`.
+
+## Offline filtering
+
+CI excludes configured network/credential tests by default. Filtering is active only when
+`[workspace].offline_skip` contains a nextest expression. `--include-network` disables it.
+
+## Telemetry
+
+Each non-dry CI run attempts to record:
+
+```text
+ci_duration_ms
+ci_passed
+```
+
+Records are appended under `.taskit/telemetry/YYYY/MM/DD/history.ndjson`.

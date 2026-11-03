@@ -174,7 +174,7 @@ a protocol-drift status line to the existing Overview tab.
 
 3. Verify:
 
-   ```
+   ```text
    cargo nextest run -p taskit-engine -E 'test(check_)'  → all green
    cargo clippy -p taskit-engine -- -D warnings           → zero warnings
    ```
@@ -329,7 +329,7 @@ a protocol-drift status line to the existing Overview tab.
 
 3. Verify:
 
-   ```
+   ```text
    cargo nextest run -p taskit-engine -E 'test(status_report)'  → all green
    cargo nextest run -p taskit-engine -E 'test(flow_status_shows_all_branches)'  → still green (unchanged CLI output)
    cargo clippy -p taskit-engine -- -D warnings                  → zero warnings
@@ -369,7 +369,7 @@ a protocol-drift status line to the existing Overview tab.
    a comparable `usize`.
 
    Note: this task reuses the existing integration coverage in
-   `crates/taskit-engine/tests/flow_integration.rs` for the *conflict* path (that file already
+   `crates/taskit-engine/tests/flow_integration.rs` for the _conflict_ path (that file already
    has `merge_with_resolution_fast_path_no_conflict` and
    `merge_with_resolution_resolver_resolves_conflict` exercising both branches against a real
    git repo) — this task only needs a small `tests_support` helper so the new unit test above
@@ -481,7 +481,7 @@ a protocol-drift status line to the existing Overview tab.
 
 3. Verify:
 
-   ```
+   ```text
    cargo nextest run -p taskit-engine -E 'test(merge_with_resolution)'  → all green
    cargo nextest run -p taskit-engine --test flow_integration            → all green (existing
                                                                             is_ok()/is_err()/Err
@@ -720,7 +720,7 @@ a protocol-drift status line to the existing Overview tab.
 
 3. Verify:
 
-   ```
+   ```text
    cargo nextest run -p taskit-engine -E 'test(auto_ci_)'  → all green
    cargo nextest run -p taskit-engine                       → all green (full crate, catches
                                                                 any missed call site)
@@ -1108,7 +1108,7 @@ a protocol-drift status line to the existing Overview tab.
 
 3. Verify:
 
-   ```
+   ```text
    cargo nextest run -p taskit-tui -E 'test(snapshot::)'  → all green
    cargo clippy -p taskit-tui -- -D warnings                → zero warnings
    ```
@@ -1249,7 +1249,7 @@ a protocol-drift status line to the existing Overview tab.
 
 3. Verify:
 
-   ```
+   ```text
    cargo nextest run -p taskit-tui -E 'test(app::)'  → all green
    cargo clippy -p taskit-tui -- -D warnings           → zero warnings
    ```
@@ -1437,7 +1437,7 @@ were done in this crate previously.
 
 4. Verify:
 
-   ```
+   ```text
    cargo check -p taskit-tui              → compiles clean
    cargo clippy -p taskit-tui -- -D warnings  → zero warnings
    cargo run -p taskit -- tui             → manually press Tab 3 times to reach Flow, confirm
@@ -1499,7 +1499,7 @@ tests in this file).
 
 2. Verify:
 
-   ```
+   ```text
    cargo check -p taskit-tui                  → compiles clean
    cargo clippy -p taskit-tui -- -D warnings     → zero warnings
    cargo run -p taskit -- tui                 → Overview tab shows a 5th "Protocol:" line
@@ -1525,7 +1525,7 @@ tests in this file).
 
 3. Verify:
 
-   ```
+   ```text
    cargo fmt --all --check                    → no diff
    cargo clippy --workspace --all-targets -- -D warnings  → zero warnings
    cargo nextest run --workspace              → all green

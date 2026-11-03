@@ -1,3 +1,5 @@
+//! Updates workspace dependencies recorded in Cargo.lock.
+
 use taskit_types::error::TaskitError;
 use xshell::cmd;
 

@@ -1,3 +1,5 @@
+//! Measures line coverage with cargo-llvm-cov and enforces configured thresholds.
+
 use taskit_types::error::TaskitError;
 use xshell::cmd;
 

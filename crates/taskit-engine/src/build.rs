@@ -1,3 +1,5 @@
+//! Builds the Cargo workspace in development or release mode.
+
 use taskit_types::error::TaskitError;
 use xshell::cmd;
 

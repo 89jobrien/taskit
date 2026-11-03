@@ -1,3 +1,5 @@
+//! CLI-selectable output formats for pipeline results and diagnostics.
+
 /// Output format for pipeline results.
 #[derive(Debug, Clone, Copy, Default, clap::ValueEnum)]
 pub enum OutputFormat {

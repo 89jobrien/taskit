@@ -1,3 +1,5 @@
+//! Configuration schema, defaults, and validation diagnostics for taskit.toml.
+
 use serde::Deserialize;
 use std::path::PathBuf;
 

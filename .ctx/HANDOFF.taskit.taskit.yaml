@@ -1,28 +1,71 @@
 project: taskit
 id: taskit
-updated: 2026-08-23
-items: []
+updated: 20261007.031009
+items:
+- id: taskit-1
+  doob_uuid: null
+  name: crux-feature-gating
+  priority: P2
+  status: open
+  title: Gate crux behind a Cargo feature + runtime --flag, matching Cicero's per-capability model
+  description: |-
+    taskit-init no longer generates a Cruxfile unconditionally: added InitPlan.crux (bool,
+    default false, interactive-prompt-only, mirrors the existing xtask gate) and renamed the
+    output file Cruxfile -> ci.crux to match the convention already used by CiConfig.cruxfile,
+    test fixtures, and the init-pipeline-runner design doc. This part is done but uncommitted.
+
+    Remaining, not yet implemented: add a `crux` Cargo feature to taskit-engine (gating
+    SubprocessCruxRunner, optional taskit-crux dependency) and taskit (propagating the feature
+    up for `cargo install taskit --features crux`), default-off, plus a runtime --crux CLI flag
+    on the CI-dispatch subcommand that errors clearly if the flag is passed without the feature
+    compiled in. Modeled on Cicero (codeberg.org/trem/cicero): `cicero init` ships with every
+    optional feature (cache, distribution, workspace, commands, etc.) off by default and opts in
+    per-capability -- taskit-crux should follow the same pattern given it currently has zero
+    callers outside its own crate (see taskit-crux/src/lib.rs TODO(#29)) and isn't even a
+    dependency of the root taskit binary today.
+  files:
+  - crates/taskit-init/src/plan.rs
+  - crates/taskit-init/src/lib.rs
+  - crates/taskit-init/src/render_toml.rs
+  - crates/taskit-init/src/render_cruxfile.rs
+  - crates/taskit-init/src/scaffold.rs
+  completed: null
+  extra: []
 log:
-- date: 2026-08-23T00:00:00Z
-  summary: Committed and pushed CLI self-subcommand refactor (Install/SelfCheck/SelfTest -> taskit self install/check/test); full workspace test suite green
-  commits: []
-  commits_since_last_handoff: 1
-  head_commits:
-  - 49b7d90 refactor(taskit): move Install/SelfCheck/SelfTest under new `self` subcommand
-  - 031cca6 chore(rust-audit): fix C-METADATA and C-LINK findings across workspace
-  - 74cde48 docs: update handoff
-  - 6ed2319 chore: gitignore generated session-report/graph artifacts
-  - e4054e8 chore(xtask): add depgraph-report.py for architecture-health audits
-  tests:
-    total: 733
-    passed: 733
-    skipped: 0
-ahead_behind:
-  ahead: 0
-  behind: 0
-branch: develop
-head_sha: 49b7d90
-notes: |-
-  - Working tree clean, develop in sync with origin/develop
-  - No open items
-upstream_tracking: origin/develop
+- date: '20261007.031009'
+  session: 3
+  summary: >-
+    Gated Cruxfile generation in taskit init behind InitPlan.crux (xtask-style opt-in);
+    renamed output Cruxfile -> ci.crux to match existing convention. 70/70 taskit-init tests
+    pass, clippy clean. Broader crux Cargo-feature + --flag gating designed but not yet
+    implemented (see open item).
+- date: 2026-09-30
+  summary: done=0 running=0 pending=17 blocked=0
+  commits:
+  - sha: 71aef4e
+    branch: develop
+  - sha: 80d2a35
+    branch: develop
+- date: '20260915.204047'
+  summary: done=81 running=0 pending=27 blocked=0
+  commits:
+  - sha: ed428fa
+    branch: develop
+  - sha: 591710f
+    branch: develop
+  - sha: cb3aaa5
+    branch: develop
+  - sha: 6c4e1bd
+    branch: develop
+  - sha: 11e9742
+    branch: develop
+  - sha: a25c97a
+    branch: develop
+  - sha: 011f08a
+    branch: develop
+  - sha: 87c98c4
+    branch: develop
+  - sha: f4897d9
+    branch: develop
+  - sha: 7bc91ba
+    branch: develop

@@ -1,3 +1,5 @@
+//! Provides protocol hashing, drift detection, and construction-site checks.
+
 /// Contract-source normalization and hashing utilities.
 pub mod contract_hash;
 /// Protocol drift checking, reporting, and lockfile maintenance.

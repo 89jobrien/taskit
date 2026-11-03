@@ -15,7 +15,7 @@ use std::env;
 use taskit_engine::changelog::ChangelogMode;
 use taskit_engine::command::{
     Audit, Bench, Bootstrap, Build, Changelog, CheckDeps, CheckFreshness, CheckProtocolDrift,
-    CheckProtocolSites, Ci, Clean, Command, CompileTests, Coverage, DevSetup, Drift, Flow,
+    CheckProtocolSites, Ci, Clean, Command, CompileTests, Coverage, Dedupe, DevSetup, Drift, Flow,
     FlowAction, Fmt, Fuzz, Health, Inspect, Install, InstallHooks, Lint, Patch, PreCommit, PrePush,
     Proptest, Publish, Quick, Release, SelfCheck, SelfTest, SnapshotReview, Test, TestReport,
     TodoSync, Update, UpdateClaudeVersion, Version,
@@ -28,7 +28,7 @@ use taskit_types::output_format::OutputFormat;
 use xshell::Shell;
 
 #[derive(Parser)]
-#[command(name = "taskit", about = "Config-driven CI pipeline runner")]
+#[command(name = "taskit", version, about = "Config-driven CI pipeline runner")]
 struct Cli {
     /// Print commands without executing them
     #[arg(long, global = true)]
@@ -170,6 +170,9 @@ enum CheckCmd {
         /// Auto-apply clippy's suggested fixes (--fix --allow-dirty --allow-staged)
         #[arg(long)]
         fix: bool,
+        /// Comma-separated cargo features to enable
+        #[arg(long, value_name = "FEATURES")]
+        features: Option<String>,
     },
     /// Fast local feedback: fmt-check + lint + compile-tests + test (affected crates, offline)
     Quick,
@@ -216,6 +219,9 @@ enum TestCmd {
         /// Skip tests that require external network access or credentials
         #[arg(long)]
         offline: bool,
+        /// Comma-separated cargo features to enable
+        #[arg(long, value_name = "FEATURES")]
+        features: Option<String>,
     },
     /// Run tests with coverage
     Coverage {
@@ -328,6 +334,12 @@ enum ProtocolCmd {
         update: bool,
         #[arg(long)]
         warn_only: bool,
+    },
+    /// Close duplicate marker issues and repoint the sync lockfile
+    TodoDedupe {
+        /// Close duplicates and rewrite the lockfile
+        #[arg(long)]
+        update: bool,
     },
     /// Check workspace dependency freshness (Cargo.lock vs latest published versions)
     Freshness {
@@ -469,11 +481,13 @@ fn check_to_command(cmd: CheckCmd) -> Box<dyn Command> {
             affected,
             continue_on_error,
             fix,
+            features,
         } => Box::new(Lint {
             crate_name,
             affected,
             continue_on_error,
             fix,
+            features,
         }),
         CheckCmd::Quick => Box::new(Quick),
         CheckCmd::Ci {
@@ -505,11 +519,13 @@ fn test_to_command(cmd: TestCmd) -> Box<dyn Command> {
             affected,
             continue_on_error,
             offline,
+            features,
         } => Box::new(Test {
             crate_name,
             affected,
             continue_on_error,
             offline,
+            features,
         }),
         TestCmd::Coverage {
             crate_name,
@@ -587,6 +603,7 @@ fn protocol_to_command(cmd: ProtocolCmd) -> Box<dyn Command> {
             warn_only,
         }),
         ProtocolCmd::TodoSync { update, warn_only } => Box::new(TodoSync { update, warn_only }),
+        ProtocolCmd::TodoDedupe { update } => Box::new(Dedupe { update }),
         ProtocolCmd::Freshness { warn_only } => Box::new(CheckFreshness { warn_only }),
         ProtocolCmd::Audit => Box::new(Audit),
     }
@@ -677,6 +694,13 @@ fn main() -> miette::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn protocol_todo_dedupe_parses() {
+        assert!(Cli::try_parse_from(["taskit", "protocol", "todo-dedupe"]).is_ok());
+        assert!(Cli::try_parse_from(["taskit", "protocol", "todo-dedupe", "--update"]).is_ok());
+        assert!(Cli::try_parse_from(["taskit", "protocol", "todo-dedupe", "--dry-run"]).is_ok());
+    }
 
     #[test]
     fn changelog_modes_parse() {

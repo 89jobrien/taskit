@@ -1,3 +1,5 @@
+//! Checks for unused dependencies with cargo-machete.
+
 use taskit_types::error::TaskitError;
 use xshell::cmd;
 

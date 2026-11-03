@@ -1,3 +1,5 @@
+//! Runs the fast formatting, linting, compilation, and test feedback pipeline.
+
 use taskit_types::error::TaskitError;
 use taskit_types::output_format::OutputFormat;
 
@@ -17,11 +19,11 @@ pub fn run(ctx: &Ctx) -> Result<(), TaskitError> {
         let outcome = Pipeline::new(false)
             .step("fmt --check (affected)", || fmt::run(ctx, true, true))
             .step("lint (affected)", || {
-                lint::run(ctx, None, true, false, false)
+                lint::run(ctx, None, true, false, false, None)
             })
             .step("compile-tests", || testing::compile::run(ctx))
             .step("test (affected, offline)", || {
-                testing::run::run(ctx, None, true, false, true)
+                testing::run::run(ctx, None, true, false, true, None)
             })
             .run();
         taskit_output::write_output(OutputFormat::Human, &outcome).map_err(TaskitError::Pipeline)

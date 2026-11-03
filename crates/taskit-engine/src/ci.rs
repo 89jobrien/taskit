@@ -1,3 +1,5 @@
+//! Builds and runs configured or default CI step pipelines.
+
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -58,6 +60,7 @@ pub fn run(ctx: &Ctx, fail_fast: bool, include_network: bool) -> Result<(), Task
     let capture = matches!(output_format, OutputFormat::Sarif);
     // CLI flag wins; fall back to [ci] fail_fast config; default false.
     let effective_fail_fast = fail_fast || ctx.ci().and_then(|c| c.fail_fast).unwrap_or(false);
+    // TODO(#14): honor CiConfig::cruxfile by selecting an embedded or subprocess runner.
     let outcome = match ctx.ci() {
         Some(cfg) if !cfg.steps.is_empty() => {
             run_from_config_internal(ctx, cfg, effective_fail_fast, offline)
@@ -122,6 +125,7 @@ pub(crate) fn run_from_config_internal(
 /// The `cmd` syntax mirrors taskit's CLI subcommands:
 /// `"fmt --check"`, `"lint"`, `"test"`, `"coverage"`, `"compile-tests"`,
 /// `"check-deps"`, `"check-protocol-drift"`, `"self-check"`.
+// TODO(#35): parse configured CI commands strictly and reject unsupported trailing arguments.
 fn dispatch_cmd<'a>(
     cmd: &str,
     ctx: &'a Ctx,
@@ -134,9 +138,9 @@ fn dispatch_cmd<'a>(
             let check = parts.contains(&"--check");
             Box::new(move || fmt::run(ctx, check, false))
         }
-        "lint" => Box::new(move || lint::run(ctx, None, false, false, false)),
+        "lint" => Box::new(move || lint::run(ctx, None, false, false, false, None)),
         "compile-tests" => Box::new(move || testing::compile::run(ctx)),
-        "test" => Box::new(move || testing::run::run(ctx, None, false, false, offline)),
+        "test" => Box::new(move || testing::run::run(ctx, None, false, false, offline, None)),
         "coverage" => Box::new(move || match ctx.cov() {
             Some(c) => testing::coverage::run(ctx, &c.crate_name, c.threshold()),
             None => {
@@ -148,6 +152,7 @@ fn dispatch_cmd<'a>(
         "check-protocol-drift" => Box::new(move || protocol::drift::run(ctx, false, false, false)),
         "self-check" => Box::new(dev_setup::self_check),
         "health" => Box::new(move || crate::health::run(ctx, false, false, false)),
+        // TODO(#3): include the existing health safety gate in generated and repository CI.
         "health-gate" => Box::new(move || crate::health::run(ctx, false, false, true)),
         other => {
             return Err(TaskitError::other(format!(
@@ -213,7 +218,7 @@ fn run_default_pipeline(
         );
     } else {
         let (sink, wrapped) = with_capture(ctx, reproduction_for_cmd("lint"), || {
-            lint::run(ctx, None, false, false, false)
+            lint::run(ctx, None, false, false, false, None)
         });
         pipeline = pipeline.step_with_context_sink("lint", sink, wrapped);
     }
@@ -247,7 +252,7 @@ fn run_default_pipeline(
         );
     } else {
         let (sink, wrapped) = with_capture(ctx, reproduction_for_cmd("test"), || {
-            testing::run::run(ctx, None, false, false, offline)
+            testing::run::run(ctx, None, false, false, offline, None)
         });
         pipeline = pipeline.step_with_context_sink("test", sink, wrapped);
     }

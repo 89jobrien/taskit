@@ -56,10 +56,12 @@ pub fn run(force: bool, interactive: bool, dry_run: bool) -> Result<(), TaskitEr
     emit_file(target, &toml_content, dry_run)?;
 
     // Cruxfile
-    let crux_content = render_cruxfile::render_cruxfile(&init_plan, &project_name);
-    let crux_path = Path::new("Cruxfile");
-    if !crux_path.exists() || force {
-        emit_file(crux_path, &crux_content, dry_run)?;
+    if init_plan.crux {
+        let crux_content = render_cruxfile::render_cruxfile(&init_plan, &project_name);
+        let crux_path = Path::new("ci.crux");
+        if !crux_path.exists() || force {
+            emit_file(crux_path, &crux_content, dry_run)?;
+        }
     }
 
     // Cargo alias for `cargo taskit`
@@ -158,6 +160,58 @@ mod tests {
         assert!(toml.contains("[workspace]"));
         let crux = render_cruxfile::render_cruxfile(&plan, "test-project");
         assert!(crux.contains("steps:") || crux.contains("taskit ci"));
+    }
+
+    fn minimal_plan(crux: bool) -> plan::InitPlan {
+        plan::InitPlan {
+            crates: vec![],
+            propagation: vec![],
+            surfaces: vec![],
+            coverage: None,
+            ci_steps: vec![],
+            offline_skip: None,
+            flow: None,
+            release: None,
+            git_hooks: false,
+            github_ci: false,
+            deny_toml: false,
+            ctx_scaffold: false,
+            mdbook: false,
+            xtask: false,
+            crux,
+        }
+    }
+
+    #[test]
+    fn crux_file_not_written_when_plan_crux_is_false() {
+        let dir = tempfile::tempdir().unwrap();
+        let init_plan = minimal_plan(false);
+        let crux_path = dir.path().join("ci.crux");
+        if init_plan.crux {
+            let crux_content = render_cruxfile::render_cruxfile(&init_plan, "test-project");
+            emit_file(&crux_path, &crux_content, false).unwrap();
+        }
+        assert!(
+            !crux_path.exists(),
+            "ci.crux should not be written when InitPlan.crux is false"
+        );
+    }
+
+    #[test]
+    fn crux_file_written_as_ci_crux_when_plan_crux_is_true() {
+        let dir = tempfile::tempdir().unwrap();
+        let init_plan = minimal_plan(true);
+        let crux_path = dir.path().join("ci.crux");
+        if init_plan.crux {
+            let crux_content = render_cruxfile::render_cruxfile(&init_plan, "test-project");
+            emit_file(&crux_path, &crux_content, false).unwrap();
+        }
+        assert!(
+            crux_path.exists(),
+            "ci.crux should be written when InitPlan.crux is true"
+        );
+        let written = std::fs::read_to_string(&crux_path).unwrap();
+        assert!(written.contains("steps:") || written.contains("taskit ci"));
     }
 
     #[test]

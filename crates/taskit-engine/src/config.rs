@@ -1,3 +1,5 @@
+//! Loads, discovers, validates, and merges workspace configuration.
+
 // Engine-specific config loading and discovery.
 // Type definitions live in taskit_types::config; re-exported here for sibling modules.
 

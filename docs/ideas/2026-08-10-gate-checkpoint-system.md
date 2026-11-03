@@ -30,6 +30,7 @@ this is wasted wall-clock, especially on larger workspaces.
 Add a checkpoint store (e.g. `target/taskit/checkpoints.json`, alongside the
 existing `target/taskit/state.json` used for `flow auto` resumption) keyed by
 a content hash of the relevant inputs per gate:
+
 - `fmt`/`lint`: hash of tracked `.rs` files (or affected-crate subset).
 - `test`: same, plus test file changes.
 - `protocol-drift`: already has its own hash mechanism in `protocol/drift.rs`

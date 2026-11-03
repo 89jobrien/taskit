@@ -1,0 +1,12 @@
+updated: 2026-10-07
+branch: site/subpages
+build: clean
+tests: "830 passing"
+notes: taskit-init crux gating implemented and tested; not yet committed.
+touched_files:
+- Cargo.lock
+- crates/taskit-init/src/lib.rs
+- crates/taskit-init/src/plan.rs
+- crates/taskit-init/src/render_cruxfile.rs
+- crates/taskit-init/src/render_toml.rs
+- crates/taskit-init/src/scaffold.rs
