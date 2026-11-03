@@ -51,6 +51,9 @@ jobs:
       - name: Run CI gate on develop
         run: taskit check ci --fail-fast
 
+      - name: Discard incidental Cargo.lock drift from CI gate
+        run: git checkout -- Cargo.lock
+
       - name: Create local tracking branches
         run: |
           set -euo pipefail
