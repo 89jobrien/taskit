@@ -128,10 +128,10 @@ pub fn pre_commit(ctx: &Ctx) -> Result<(), TaskitError> {
 
     ctx.run(cmd!(sh, "cargo fmt --check --all"))?;
 
-    if let Err(e) = crate::lint::run(ctx, None, true, false, false) {
+    if let Err(e) = crate::lint::run(ctx, None, true, false, false, None) {
         taskit_output::taskit_err!("lint check failed: {e}");
         taskit_output::taskit_progress!("self-healing: running clippy --fix on affected crates...");
-        crate::lint::run(ctx, None, true, false, true)?;
+        crate::lint::run(ctx, None, true, false, true, None)?;
         // Re-stage any files clippy modified.
         let restaged = cmd!(sh, "git diff --name-only --diff-filter=d")
             .read()
