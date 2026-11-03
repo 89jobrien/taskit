@@ -170,6 +170,9 @@ enum CheckCmd {
         /// Auto-apply clippy's suggested fixes (--fix --allow-dirty --allow-staged)
         #[arg(long)]
         fix: bool,
+        /// Comma-separated cargo features to enable
+        #[arg(long, value_name = "FEATURES")]
+        features: Option<String>,
     },
     /// Fast local feedback: fmt-check + lint + compile-tests + test (affected crates, offline)
     Quick,
@@ -216,6 +219,9 @@ enum TestCmd {
         /// Skip tests that require external network access or credentials
         #[arg(long)]
         offline: bool,
+        /// Comma-separated cargo features to enable
+        #[arg(long, value_name = "FEATURES")]
+        features: Option<String>,
     },
     /// Run tests with coverage
     Coverage {
@@ -475,11 +481,13 @@ fn check_to_command(cmd: CheckCmd) -> Box<dyn Command> {
             affected,
             continue_on_error,
             fix,
+            features,
         } => Box::new(Lint {
             crate_name,
             affected,
             continue_on_error,
             fix,
+            features,
         }),
         CheckCmd::Quick => Box::new(Quick),
         CheckCmd::Ci {
@@ -511,11 +519,13 @@ fn test_to_command(cmd: TestCmd) -> Box<dyn Command> {
             affected,
             continue_on_error,
             offline,
+            features,
         } => Box::new(Test {
             crate_name,
             affected,
             continue_on_error,
             offline,
+            features,
         }),
         TestCmd::Coverage {
             crate_name,

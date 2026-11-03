@@ -9,6 +9,7 @@ target/
 .kgx/
 *.local.md
 .taskit/
+memory.mcpmem*
 
 # handoff-begin
 .ctx/*

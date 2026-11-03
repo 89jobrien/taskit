@@ -71,6 +71,8 @@ pub struct Lint {
     pub continue_on_error: bool,
     /// Enable clippy auto-fix mode.
     pub fix: bool,
+    /// Comma-separated cargo features to enable.
+    pub features: Option<String>,
 }
 impl Command for Lint {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
@@ -80,6 +82,7 @@ impl Command for Lint {
             self.affected,
             self.continue_on_error,
             self.fix,
+            self.features.as_deref(),
         )
     }
 }
@@ -94,6 +97,8 @@ pub struct Test {
     pub continue_on_error: bool,
     /// Skip tests that require network access.
     pub offline: bool,
+    /// Comma-separated cargo features to enable.
+    pub features: Option<String>,
 }
 impl Command for Test {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
@@ -103,6 +108,7 @@ impl Command for Test {
             self.affected,
             self.continue_on_error,
             self.offline,
+            self.features.as_deref(),
         )
     }
 }

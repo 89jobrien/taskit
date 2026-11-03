@@ -138,9 +138,9 @@ fn dispatch_cmd<'a>(
             let check = parts.contains(&"--check");
             Box::new(move || fmt::run(ctx, check, false))
         }
-        "lint" => Box::new(move || lint::run(ctx, None, false, false, false)),
+        "lint" => Box::new(move || lint::run(ctx, None, false, false, false, None)),
         "compile-tests" => Box::new(move || testing::compile::run(ctx)),
-        "test" => Box::new(move || testing::run::run(ctx, None, false, false, offline)),
+        "test" => Box::new(move || testing::run::run(ctx, None, false, false, offline, None)),
         "coverage" => Box::new(move || match ctx.cov() {
             Some(c) => testing::coverage::run(ctx, &c.crate_name, c.threshold()),
             None => {
@@ -218,7 +218,7 @@ fn run_default_pipeline(
         );
     } else {
         let (sink, wrapped) = with_capture(ctx, reproduction_for_cmd("lint"), || {
-            lint::run(ctx, None, false, false, false)
+            lint::run(ctx, None, false, false, false, None)
         });
         pipeline = pipeline.step_with_context_sink("lint", sink, wrapped);
     }
@@ -252,7 +252,7 @@ fn run_default_pipeline(
         );
     } else {
         let (sink, wrapped) = with_capture(ctx, reproduction_for_cmd("test"), || {
-            testing::run::run(ctx, None, false, false, offline)
+            testing::run::run(ctx, None, false, false, offline, None)
         });
         pipeline = pipeline.step_with_context_sink("test", sink, wrapped);
     }

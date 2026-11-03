@@ -13,6 +13,7 @@ pub fn run(
     use_affected: bool,
     continue_on_error: bool,
     offline: bool,
+    features: Option<&str>,
 ) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     let ws = ctx.ws();
@@ -30,6 +31,9 @@ pub fn run(
     }
     if offline && let Some(expr) = ws.offline_skip_expr() {
         extra.extend(["-E".into(), expr]);
+    }
+    if let Some(f) = features {
+        extra.extend(["--features".into(), f.into()]);
     }
     let extra = extra.as_slice();
     util::run_per_crate(
