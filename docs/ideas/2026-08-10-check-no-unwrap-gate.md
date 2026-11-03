@@ -10,7 +10,7 @@ Grounded in `minibox/xtask` (`xtask check no-unwrap`).
 
 ## Problem
 
-`taskit health` already *counts* `.unwrap()`/`.expect()` call sites via
+`taskit health` already _counts_ `.unwrap()`/`.expect()` call sites via
 `SafetyCounts` (added this session in `health.rs::count_safety`), and
 `taskit health` reports regressions in that count vs. the baseline. But it's
 purely informational — there's no hard gate that fails CI when unwrap/expect
@@ -20,7 +20,7 @@ usage crosses a threshold or appears in new code, unlike minibox's dedicated
 ## Evidence
 
 - `crates/taskit-engine/src/health.rs`: `SafetyCounts { unwrap_count,
-  warn_count }`, `count_safety`/`count_safety_markers` — counts only, surfaced
+warn_count }`, `count_safety`/`count_safety_markers` — counts only, surfaced
   via `health` regression reporting (`print_metric` with
   `Direction::LowerIsBetter`), not a standalone pass/fail gate.
 - `minibox/xtask check no-unwrap` — a standalone check subcommand implying

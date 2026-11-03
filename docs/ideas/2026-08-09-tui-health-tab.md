@@ -18,7 +18,7 @@ that the CLI already computes.
 
 - `crates/taskit-tui/src/app.rs`: `Tab::ALL` = `[Overview, Crates, History, Flow]`.
 - `crates/taskit-engine/src/health.rs` (932 lines) implements `health::run(ctx,
-  update, with_coverage)` with `--with-coverage` just added this session.
+update, with_coverage)` with `--with-coverage` just added this session.
 - Overview tab already renders a "CI Telemetry & Drift (7d)" panel
   (`ui.rs:175`) showing `ci_duration_drift`/`protocol_drift` — precedent for
   pulling engine metrics into TUI panels exists (see recent Flow tab work,

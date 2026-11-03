@@ -10,13 +10,13 @@ since the modules share a common "split candidate" audit marker.
 Four modules across the workspace are self-flagged via `// TODO(audit): N lines
 — split candidate.` header comments, each written by a prior audit pass:
 
-| Module | Lines | Note |
-| --- | --- | --- |
-| `taskit-output/src/formatter.rs` | 1,251 | largest module in the workspace |
-| `crates/taskit-engine/src/health.rs` | 932 | |
-| `crates/taskit-engine/src/testing/compile.rs` | 968 | crate-exclusion logic patched 3x (see below) |
-| `crates/taskit-init/src/scaffold.rs` | 831 | |
-| `crates/taskit-engine/src/flow.rs` | 814 | |
+| Module                                        | Lines | Note                                         |
+| --------------------------------------------- | ----- | -------------------------------------------- |
+| `taskit-output/src/formatter.rs`              | 1,251 | largest module in the workspace              |
+| `crates/taskit-engine/src/health.rs`          | 932   |                                              |
+| `crates/taskit-engine/src/testing/compile.rs` | 968   | crate-exclusion logic patched 3x (see below) |
+| `crates/taskit-init/src/scaffold.rs`          | 831   |                                              |
+| `crates/taskit-engine/src/flow.rs`            | 814   |                                              |
 
 `testing/compile.rs` is the highest-signal one: its header explicitly notes the
 crate-exclusion logic "has been patched 3x for different directory types"

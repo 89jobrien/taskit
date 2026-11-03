@@ -13,7 +13,7 @@ Grounded in `minibox/xtask/src/{setup_test_vm,test_in_vm,test_linux,test_image}.
 `docs/ideas/2026-08-09-windows-target-support.md` — that doc identified the
 Windows-target gap and flagged `EmbeddedCruxRunner`'s stub status
 (`docs/ideas/2026-08-09-real-crux-script-engine.md`) as a likely blocker. This
-idea supplies the *mechanism* minibox uses to solve an analogous
+idea supplies the _mechanism_ minibox uses to solve an analogous
 cross-platform testing problem: don't require native runners for every
 target, run tests inside a VM/container instead. **Read the Windows-target
 idea doc first** — this is a proposed implementation path for it, not a

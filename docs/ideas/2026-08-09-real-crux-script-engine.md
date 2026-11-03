@@ -22,12 +22,12 @@ today — it presumably shells out to an external `crux` binary/process instead.
 - `crates/taskit-crux/src/lib.rs:14` doc comment: "Currently a stub — full
   implementation requires the `crux-script` crate."
 - `crates/taskit-crux/src/lib.rs:40`: `// Stub: crux-script runtime not yet
-  available.`
+available.`
 - `crates/taskit-crux/src/lib.rs:8-14`: `// TODO(audit): zero callers outside
-  this file — SubprocessCruxRunner in taskit-engine/src/pipeline_runner.rs is
-  what's actually wired into CI dispatch. Cross-check
-  docs/designs/2026-06-27-init-pipeline-runner-design.md before removing; may
-  be intentional forward scaffolding.`
+this file — SubprocessCruxRunner in taskit-engine/src/pipeline_runner.rs is
+what's actually wired into CI dispatch. Cross-check
+docs/designs/2026-06-27-init-pipeline-runner-design.md before removing; may
+be intentional forward scaffolding.`
 - ~50 lines of conformance tests (lines 60-108) validate only the stub's
   error/success invariants, not real execution semantics.
 

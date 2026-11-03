@@ -24,7 +24,7 @@ been solved twice, separately, in two different files.
 - `minibox/xtask/src/preflight.rs`: a `ToolProbe` trait abstraction that
   probes tool availability uniformly, backing a `doctor` diagnostic command.
 - `taskit-engine/src/check_freshness.rs`: `tool_exists_cmd("cargo",
-  &["outdated", "--version"])` with an explicit comment cross-referencing
+&["outdated", "--version"])` with an explicit comment cross-referencing
   `dev_setup.rs`'s similar handling for `cargo-llvm-cov`.
 - `taskit-engine/src/dev_setup.rs`: presumably has its own, separately
   maintained tool-detection logic (per the cross-reference comment above) —

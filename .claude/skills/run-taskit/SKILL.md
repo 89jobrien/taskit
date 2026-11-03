@@ -92,7 +92,7 @@ taskit-testing 14, taskit-tui 17, taskit-types 76).
 - **`--dry-run` is not honored uniformly.** `taskit --dry-run check ci`
   correctly no-ops the build/test steps and just prints the plan. But
   `taskit --dry-run health check` still ran a real comparison and exited
-  non-zero — `--dry-run` only suppresses *pipeline step execution*, not
+  non-zero — `--dry-run` only suppresses _pipeline step execution_, not
   every subcommand's internal logic. Don't assume `--dry-run` makes a
   subcommand side-effect-free; verify per-subcommand.
 - **This repo currently fails its own `version consistency` health gate**

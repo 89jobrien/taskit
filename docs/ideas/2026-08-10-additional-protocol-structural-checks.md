@@ -14,8 +14,8 @@ Grounded in `minibox/xtask/src/protocol_sites.rs`,
 taskit's protocol-drift system (`protocol/drift.rs`) hashes tracked contract
 surfaces (per `[[protocol.surfaces]]` in `taskit.toml`) and, as of this
 session, can `--watch` and auto-remediate. minibox's equivalent system goes
-further structurally: it also checks for *unused* protocol variants and
-*adapter test coverage*, not just hash drift on tracked files.
+further structurally: it also checks for _unused_ protocol variants and
+_adapter test coverage_, not just hash drift on tracked files.
 
 ## Evidence
 
@@ -49,7 +49,7 @@ Two independent, separable additions:
 2. **Adapter coverage check**: given `taskit-core`'s ports are a small, known
    set (`PipelineRunner`, `ConflictResolver`), a `check-adapter-coverage`
    command could verify every `impl PipelineRunner for X` / `impl
-   ConflictResolver for X` has a corresponding entry exercised by
+ConflictResolver for X` has a corresponding entry exercised by
    `taskit-testing`'s conformance harness.
 
 ## Open Questions

@@ -1,39 +1,40 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+
 ## [unreleased]
 
 ### Features
 
-- *(taskit)* Add --version flag to taskit CLI
-- *(engine)* Read issue state when reconciling todo markers
-- *(flow)* Fall back to local Ollama when no remote credential is set
-- *(engine)* Add todo issue dedupe planning and run
-- *(engine)* Add Dedupe command for todo issue dedupe
-- *(taskit)* Add protocol todo-dedupe subcommand
-- *(tui)* Add rx-runner process abstraction for dashboard actions
-- *(init)* Isolate taskit xtask dispatch; docs, crate READMEs, audit TODOs
-- *(init)* Make Crux pipeline file generation opt-in, rename to ci.crux
+- _(taskit)_ Add --version flag to taskit CLI
+- _(engine)_ Read issue state when reconciling todo markers
+- _(flow)_ Fall back to local Ollama when no remote credential is set
+- _(engine)_ Add todo issue dedupe planning and run
+- _(engine)_ Add Dedupe command for todo issue dedupe
+- _(taskit)_ Add protocol todo-dedupe subcommand
+- _(tui)_ Add rx-runner process abstraction for dashboard actions
+- _(init)_ Isolate taskit xtask dispatch; docs, crate READMEs, audit TODOs
+- _(init)_ Make Crux pipeline file generation opt-in, rename to ci.crux
 
 ### Bug Fixes
 
-- *(ci)* Make tagged releases resumable
-- *(ci)* Use modern protoc for cross builds
-- *(ci)* Drop unsupported ARM Linux release target
-- *(engine)* Only treat leading TODO/FIXME as source markers
-- *(engine)* Adopt the cited issue when reconciling todo markers
-- *(engine)* Correct stale subcommand names in gate hints
-- *(engine)* Keep todo issue tracking stable across moves and reruns
-- *(protocol)* Track the todo-sync lockfile so the gate survives a clean clone
-- *(engine)* Scope version bumps to first-party crates
-- *(engine)* Scope version bumps to first-party crates
-- *(hooks)* Use the real check subcommand names in generated git hooks
-- *(macros)* Remove trailing semicolon for expression-position use
+- _(ci)_ Make tagged releases resumable
+- _(ci)_ Use modern protoc for cross builds
+- _(ci)_ Drop unsupported ARM Linux release target
+- _(engine)_ Only treat leading TODO/FIXME as source markers
+- _(engine)_ Adopt the cited issue when reconciling todo markers
+- _(engine)_ Correct stale subcommand names in gate hints
+- _(engine)_ Keep todo issue tracking stable across moves and reruns
+- _(protocol)_ Track the todo-sync lockfile so the gate survives a clean clone
+- _(engine)_ Scope version bumps to first-party crates
+- _(engine)_ Scope version bumps to first-party crates
+- _(hooks)_ Use the real check subcommand names in generated git hooks
+- _(macros)_ Remove trailing semicolon for expression-position use
 
 ### Refactor
 
-- *(engine)* Split todo_sync into a module directory
-- *(site)* Landing page plus subpages, and honest code blocks
+- _(engine)_ Split todo_sync into a module directory
+- _(site)_ Landing page plus subpages, and honest code blocks
 
 ### Documentation
 
@@ -43,15 +44,15 @@ All notable changes to this project will be documented in this file.
 
 ### Testing
 
-- *(engine)* Require TODO markers to lead the comment
-- *(engine)* Cover doc and block comment markers
+- _(engine)_ Require TODO markers to lead the comment
+- _(engine)_ Cover doc and block comment markers
 
 ### Miscellaneous
 
-- *(roadmap)* Define reliability and CI initiatives
-- *(handoff)* Record todo-sync and conflict-resolution session state
+- _(roadmap)_ Define reliability and CI initiatives
+- _(handoff)_ Record todo-sync and conflict-resolution session state
 - Align develop version to last released 0.9.0
-- *(deny)* Ignore rustls advisories in build-time deps
+- _(deny)_ Ignore rustls advisories in build-time deps
 
 ## Unreleased
 
