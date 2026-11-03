@@ -1,3 +1,5 @@
+//! Detects affected workspace crates from Git changes and configured propagation rules.
+
 use std::collections::BTreeSet;
 use taskit_types::error::TaskitError;
 use xshell::{Shell, cmd};

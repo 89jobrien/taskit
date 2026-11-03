@@ -1,6 +1,9 @@
+//! RAII guard for running tests from a temporary working directory.
+
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
+// TODO(#30): make process-wide temporary workspace CWD changes safe under parallel tests.
 /// RAII guard that sets cwd to a temporary directory and restores
 /// the original cwd on drop.
 pub struct TempDirGuard {

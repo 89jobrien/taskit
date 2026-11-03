@@ -1,3 +1,5 @@
+//! Installs development tools and verifies tool and cache availability.
+
 use taskit_types::error::TaskitError;
 use xshell::cmd;
 

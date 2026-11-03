@@ -1,3 +1,5 @@
+//! Runs a crate's property tests through nextest's test-name filter.
+
 use taskit_types::error::TaskitError;
 use xshell::cmd;
 

@@ -1,3 +1,5 @@
+//! Creates GitHub releases and resolves their target repository.
+
 use std::path::Path;
 
 use taskit_types::error::TaskitError;

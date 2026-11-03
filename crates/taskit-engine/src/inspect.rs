@@ -1,3 +1,5 @@
+//! Evaluates collected health metrics as threshold-based pipeline steps.
+
 use taskit_types::error::TaskitError;
 
 use crate::ctx::Ctx;

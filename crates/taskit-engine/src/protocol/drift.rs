@@ -1,3 +1,5 @@
+//! Checks, updates, and watches hash-tracked protocol contract surfaces.
+
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -160,7 +162,7 @@ pub fn run(ctx: &Ctx, update: bool, warn_only: bool, hook: bool) -> Result<(), T
     report_drift(&drift);
     taskit_output::taskit_err!(
         "protocol-drift: if this change is intentional, \
-         run `taskit check-protocol-drift --update`"
+         run `taskit protocol drift --update`"
     );
 
     if hook || warn_only {
@@ -247,7 +249,7 @@ fn calculate_lockfile(root: &Path, surfaces: &[SurfaceEntry]) -> Result<Lockfile
 fn read_lockfile(path: &Path) -> Result<Lockfile, TaskitError> {
     let content = fs::read_to_string(path).err_context_with(|| {
         format!(
-            "failed to read {}; run `taskit check-protocol-drift --update` to create it",
+            "failed to read {}; run `taskit protocol drift --update` to create it",
             path.display()
         )
     })?;

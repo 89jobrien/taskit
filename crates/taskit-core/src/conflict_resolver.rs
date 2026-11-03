@@ -1,3 +1,5 @@
+//! Conflict-resolution port for transforming conflicted files into resolved content.
+
 use taskit_types::conflict::{ConflictFile, ResolvedFile};
 use taskit_types::error::TaskitError;
 

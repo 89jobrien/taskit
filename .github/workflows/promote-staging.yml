@@ -1,0 +1,119 @@
+name: Promote staging to release
+
+on:
+  push:
+    branches: [staging]
+
+concurrency:
+  group: promote-staging
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  promote:
+    name: Docs, version bump, and promote staging -> release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+          ref: staging
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+
+      - uses: taiki-e/install-action@6c6fd71fe4fb72c3697d269963d0e15df8adedad # v2.85.10
+        with:
+          tool: cargo-llvm-cov,cargo-deny,cargo-machete,git-cliff
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-promote-staging-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-promote-staging-
+
+      - name: Install taskit from this revision
+        run: cargo install --path . --locked
+
+      - name: Build API docs
+        run: cargo doc --no-deps --workspace
+
+      - name: Prepare docs redirect page
+        run: echo '<meta http-equiv="refresh" content="0; url=taskit/index.html">' > target/doc/index.html
+
+      - name: Deploy docs to GitHub Pages
+        uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: target/doc
+          publish_branch: gh-pages
+
+      - name: Classify conventional-commit version bump
+        id: bump
+        run: |
+          set -euo pipefail
+          BASE_TAG="$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD 2>/dev/null || true)"
+          if [ -z "$BASE_TAG" ]; then
+            echo "no prior v* tag found" >&2
+            exit 1
+          fi
+          SUBJECTS="$(git log "$BASE_TAG..HEAD" --pretty=%s)"
+          BODIES="$(git log "$BASE_TAG..HEAD" --pretty=%b)"
+          if [ -z "$SUBJECTS" ]; then
+            echo "no commits since $BASE_TAG, nothing to promote" >&2
+            exit 1
+          fi
+          BUMP=patch
+          if echo "$SUBJECTS" | grep -qE '^feat(\(.+\))?!?:'; then
+            BUMP=minor
+          fi
+          if echo "$SUBJECTS$BODIES" | grep -qE 'BREAKING CHANGE|^[a-z]+(\(.+\))?!:'; then
+            BUMP=major
+          fi
+          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+          echo "base_tag=$BASE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Prep changelog and version bump
+        env:
+          BUMP: ${{ steps.bump.outputs.bump }}
+        run: |
+          set -euo pipefail
+          taskit changelog unreleased
+          taskit release "$BUMP"
+          taskit dev build
+
+      - name: Commit version prep
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Cargo.toml Cargo.lock CHANGELOG.md crates/*/Cargo.toml
+          git diff --cached --quiet && exit 0
+          git commit -m "chore(release): prep ${{ steps.bump.outputs.bump }} version bump"
+
+      - name: Push staging
+        run: git push origin staging
+
+      - name: Create local release tracking branch
+        run: git branch release origin/release
+
+      - name: Promote staging -> release
+        run: taskit flow promote
+
+      - name: Push release
+        run: git push origin release

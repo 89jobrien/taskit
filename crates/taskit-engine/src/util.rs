@@ -1,3 +1,5 @@
+//! Provides tool detection and per-crate command dispatch utilities.
+
 use taskit_types::error::TaskitError;
 use xshell::Shell;
 

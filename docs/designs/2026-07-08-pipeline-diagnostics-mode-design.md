@@ -20,47 +20,47 @@ Pipeline Diagnostics Mode was selected from brainstorm: improve `taskit ci` diag
 
 ### Files to Modify
 
-| File | Purpose | Changes Needed |
-| --- | --- | --- |
-| `crates/taskit-types/src/step.rs` | Public `PipelineOutcome`, `StepResult`, and diagnostic data model | Add run-level and step-level diagnostic context types and fields |
-| `crates/taskit-engine/src/ctx.rs` | Command execution boundary for `xshell::Cmd` | Record commands executed through `Ctx::run` and `Ctx::run_capture`; collect process/workspace provenance |
-| `crates/taskit-engine/src/step.rs` | Pipeline execution and `StepResult` construction | Drain step diagnostic context sinks into each step result; attach run context to the outcome |
-| `crates/taskit-engine/src/ci.rs` | CI pipeline assembly and configured step dispatch | Wrap CI step closures with command capture, provide reproduction commands, and ensure empty/dispatch-failure outcomes include context |
-| `crates/taskit-output/src/formatter.rs` | Output rendering adapters | Render failure diagnostics in human/diagnostic/github/json outputs; include command context in machine-readable outputs |
-| `crates/taskit-output/src/lib.rs` | Formatter re-exports | Re-export any new helper if it is public |
-| `src/main.rs` | CLI help text | Optional wording update for existing `--output diagnostic` format |
+| File                                    | Purpose                                                           | Changes Needed                                                                                                                        |
+| --------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `crates/taskit-types/src/step.rs`       | Public `PipelineOutcome`, `StepResult`, and diagnostic data model | Add run-level and step-level diagnostic context types and fields                                                                      |
+| `crates/taskit-engine/src/ctx.rs`       | Command execution boundary for `xshell::Cmd`                      | Record commands executed through `Ctx::run` and `Ctx::run_capture`; collect process/workspace provenance                              |
+| `crates/taskit-engine/src/step.rs`      | Pipeline execution and `StepResult` construction                  | Drain step diagnostic context sinks into each step result; attach run context to the outcome                                          |
+| `crates/taskit-engine/src/ci.rs`        | CI pipeline assembly and configured step dispatch                 | Wrap CI step closures with command capture, provide reproduction commands, and ensure empty/dispatch-failure outcomes include context |
+| `crates/taskit-output/src/formatter.rs` | Output rendering adapters                                         | Render failure diagnostics in human/diagnostic/github/json outputs; include command context in machine-readable outputs               |
+| `crates/taskit-output/src/lib.rs`       | Formatter re-exports                                              | Re-export any new helper if it is public                                                                                              |
+| `src/main.rs`                           | CLI help text                                                     | Optional wording update for existing `--output diagnostic` format                                                                     |
 
 ### Dependencies
 
-| File | Relationship |
-| --- | --- |
-| `crates/taskit-engine/src/quick.rs` | Uses `Ctx::with_silent` and pipeline-style command execution; must continue to receive command output on failure |
-| `crates/taskit-engine/src/lint.rs` | Uses `Ctx::run` and `Ctx::run_capture`; command recording must not break structured diagnostic capture |
-| `crates/taskit-engine/src/testing/run.rs` | Uses `Ctx::run` and `Ctx::run_capture`; command recording must not break nextest JSON parsing |
-| `crates/taskit-engine/src/testing/compile.rs` | Uses `Ctx::run`; compile-test failures should show the failed package command |
-| `crates/taskit-types/src/error.rs` | `PipelineError` and `StepError` currently surface failed step details; may include reproduction hints without changing error variants |
-| `crates/taskit-output/src/message.rs` | Existing runtime message model references `DiagnosticRecord`; no new message variant is required |
+| File                                          | Relationship                                                                                                                          |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `crates/taskit-engine/src/quick.rs`           | Uses `Ctx::with_silent` and pipeline-style command execution; must continue to receive command output on failure                      |
+| `crates/taskit-engine/src/lint.rs`            | Uses `Ctx::run` and `Ctx::run_capture`; command recording must not break structured diagnostic capture                                |
+| `crates/taskit-engine/src/testing/run.rs`     | Uses `Ctx::run` and `Ctx::run_capture`; command recording must not break nextest JSON parsing                                         |
+| `crates/taskit-engine/src/testing/compile.rs` | Uses `Ctx::run`; compile-test failures should show the failed package command                                                         |
+| `crates/taskit-types/src/error.rs`            | `PipelineError` and `StepError` currently surface failed step details; may include reproduction hints without changing error variants |
+| `crates/taskit-output/src/message.rs`         | Existing runtime message model references `DiagnosticRecord`; no new message variant is required                                      |
 
 ### Test Coverage
 
-| Test Location | Covers |
-| --- | --- |
-| `crates/taskit-types/src/step.rs` inline tests | Public result type construction and diagnostic record preservation |
-| `crates/taskit-engine/src/ctx.rs` inline tests | `Ctx` accessors, dry-run, silent mode behavior |
-| `crates/taskit-engine/src/step.rs` inline tests | Pipeline pass/fail/fail-fast/gate behavior and `StepResult` construction |
-| `crates/taskit-engine/src/ci.rs` inline tests | Configured step dispatch and empty CI behavior |
-| `crates/taskit-output/src/formatter.rs` inline tests | Human, JSON, GitHub, JUnit, diagnostic, SARIF formatter invariants |
-| Gap | No current tests assert command provenance, reproduction hints, run context, or GitHub summary diagnostics |
+| Test Location                                        | Covers                                                                                                     |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `crates/taskit-types/src/step.rs` inline tests       | Public result type construction and diagnostic record preservation                                         |
+| `crates/taskit-engine/src/ctx.rs` inline tests       | `Ctx` accessors, dry-run, silent mode behavior                                                             |
+| `crates/taskit-engine/src/step.rs` inline tests      | Pipeline pass/fail/fail-fast/gate behavior and `StepResult` construction                                   |
+| `crates/taskit-engine/src/ci.rs` inline tests        | Configured step dispatch and empty CI behavior                                                             |
+| `crates/taskit-output/src/formatter.rs` inline tests | Human, JSON, GitHub, JUnit, diagnostic, SARIF formatter invariants                                         |
+| Gap                                                  | No current tests assert command provenance, reproduction hints, run context, or GitHub summary diagnostics |
 
 ### Reference Patterns
 
-| File | Pattern to Follow |
-| --- | --- |
-| `crates/taskit-output/src/formatter.rs` | Existing `OutputFormatter` port and adapter implementations |
-| `crates/taskit-engine/src/lint.rs` | Structured capture path returning `(success, diagnostics)` |
-| `crates/taskit-engine/src/testing/run.rs` | Structured nextest capture and parser boundary |
-| `crates/taskit-engine/src/discovery.rs` | Cargo metadata adapter pattern using `cargo_metadata` without adding dependencies |
-| `crates/taskit-engine/src/ctx.rs` | Centralized command execution through `Ctx::run` and `Ctx::run_capture` |
+| File                                      | Pattern to Follow                                                                 |
+| ----------------------------------------- | --------------------------------------------------------------------------------- |
+| `crates/taskit-output/src/formatter.rs`   | Existing `OutputFormatter` port and adapter implementations                       |
+| `crates/taskit-engine/src/lint.rs`        | Structured capture path returning `(success, diagnostics)`                        |
+| `crates/taskit-engine/src/testing/run.rs` | Structured nextest capture and parser boundary                                    |
+| `crates/taskit-engine/src/discovery.rs`   | Cargo metadata adapter pattern using `cargo_metadata` without adding dependencies |
+| `crates/taskit-engine/src/ctx.rs`         | Centralized command execution through `Ctx::run` and `Ctx::run_capture`           |
 
 ## Public API
 
@@ -129,7 +129,6 @@ pub struct PipelineOutcome {
 }
 ```
 
-
 ### Functions
 
 ```rust
@@ -140,6 +139,7 @@ impl Ctx {
     pub fn pipeline_run_context(&self) -> PipelineRunContext;
 }
 ```
+
 ```rust
 // crates/taskit-engine/src/step.rs
 pub type StepContextSink = Rc<RefCell<StepDiagnosticContext>>;

@@ -3,9 +3,198 @@
 //! Kept separate from [`crate::Snapshot`] because it's session state (what
 //! the user is looking at), not point-in-time data pulled from disk.
 
-use taskit_engine::ctx::Ctx;
+use std::fs;
+use std::path::Path;
 
+use taskit_engine::ctx::Ctx;
+use taskit_types::step::PipelineRunContext;
+
+use crate::action::ActionController;
 use crate::snapshot::Snapshot;
+
+const INSTRUCTION_FILE_CANDIDATES: &[&str] =
+    &["AGENTS.md", "CLAUDE.md", ".github/copilot-instructions.md"];
+const AGENT_CONFIG_CANDIDATES: &[&str] = &[
+    "taskit.toml",
+    "Cruxfile",
+    ".ctx/godmode/tasks.yaml",
+    ".ctx/opavs/tasks.yaml",
+];
+const AGENT_TASK_FILE_CANDIDATES: &[&str] = &[".ctx/godmode/tasks.yaml", ".ctx/opavs/tasks.yaml"];
+const AGENT_PLAN_DIR_CANDIDATES: &[&str] = &[".ctx/godmode/plans", ".ctx/opavs/plans"];
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ProjectInfo {
+    pub(crate) name: String,
+    pub(crate) root: String,
+    pub(crate) taskit_version: String,
+    pub(crate) taskit_binary: Option<String>,
+    pub(crate) git_sha: Option<String>,
+    pub(crate) rustc_version: Option<String>,
+    pub(crate) cargo_version: Option<String>,
+    pub(crate) os: &'static str,
+    pub(crate) arch: &'static str,
+    pub(crate) logical_cpus: usize,
+    pub(crate) ci_step_names: Vec<String>,
+    pub(crate) ci_gate_count: usize,
+    pub(crate) protocol_surface_count: usize,
+    pub(crate) agentic: AgenticContext,
+}
+
+impl Default for ProjectInfo {
+    fn default() -> Self {
+        Self {
+            name: "workspace".to_string(),
+            root: String::new(),
+            taskit_version: String::new(),
+            taskit_binary: None,
+            git_sha: None,
+            rustc_version: None,
+            cargo_version: None,
+            os: std::env::consts::OS,
+            arch: std::env::consts::ARCH,
+            logical_cpus: 1,
+            ci_step_names: Vec::new(),
+            ci_gate_count: 0,
+            protocol_surface_count: 0,
+            agentic: AgenticContext::default(),
+        }
+    }
+}
+
+impl ProjectInfo {
+    fn collect(ctx: &Ctx, run_context: &PipelineRunContext) -> Self {
+        let name = ctx
+            .root()
+            .file_name()
+            .and_then(|name| name.to_str())
+            .filter(|name| !name.is_empty())
+            .unwrap_or("workspace")
+            .to_string();
+        let ci_step_names = ctx
+            .ci()
+            .map(|ci| ci.steps.iter().map(|step| step.name.clone()).collect())
+            .unwrap_or_default();
+        let ci_gate_count = ctx
+            .ci()
+            .map(|ci| ci.steps.iter().filter(|step| step.gate).count())
+            .unwrap_or_default();
+        let protocol_surface_count = ctx
+            .proto()
+            .map(|protocol| protocol.surfaces.len())
+            .unwrap_or_default();
+
+        Self {
+            name,
+            root: run_context.workspace_root.clone(),
+            taskit_version: run_context.taskit_version.clone(),
+            taskit_binary: run_context.taskit_binary.clone(),
+            git_sha: run_context.git_sha.clone(),
+            rustc_version: run_context.rustc_version.clone(),
+            cargo_version: run_context.cargo_version.clone(),
+            os: std::env::consts::OS,
+            arch: std::env::consts::ARCH,
+            logical_cpus: std::thread::available_parallelism()
+                .map(usize::from)
+                .unwrap_or(1),
+            ci_step_names,
+            ci_gate_count,
+            protocol_surface_count,
+            agentic: AgenticContext::collect(ctx.root()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct AgenticContext {
+    pub(crate) instruction_files: Vec<String>,
+    pub(crate) config_files: Vec<String>,
+    pub(crate) plan_count: usize,
+    pub(crate) tasks: Option<AgentTaskCounts>,
+}
+
+impl AgenticContext {
+    fn collect(root: &Path) -> Self {
+        let instruction_files = existing_files(root, INSTRUCTION_FILE_CANDIDATES);
+        let config_files = existing_files(root, AGENT_CONFIG_CANDIDATES);
+        let plan_count = AGENT_PLAN_DIR_CANDIDATES
+            .iter()
+            .map(|path| markdown_file_count(&root.join(path)))
+            .sum();
+
+        let task_counts: Vec<AgentTaskCounts> = AGENT_TASK_FILE_CANDIDATES
+            .iter()
+            .filter_map(|path| fs::read_to_string(root.join(path)).ok())
+            .map(|contents| AgentTaskCounts::parse(&contents))
+            .collect();
+        let tasks = (!task_counts.is_empty()).then(|| {
+            task_counts
+                .into_iter()
+                .fold(AgentTaskCounts::default(), AgentTaskCounts::merge)
+        });
+
+        Self {
+            instruction_files,
+            config_files,
+            plan_count,
+            tasks,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct AgentTaskCounts {
+    pub(crate) pending: usize,
+    pub(crate) active: usize,
+    pub(crate) blocked: usize,
+    pub(crate) done: usize,
+}
+
+impl AgentTaskCounts {
+    fn parse(contents: &str) -> Self {
+        let mut counts = Self::default();
+        for status in contents.lines().filter_map(|line| {
+            let line = line.trim();
+            let line = line.strip_prefix("- ").unwrap_or(line);
+            line.strip_prefix("status:")
+                .map(|value| value.trim().trim_matches(['\'', '"']))
+        }) {
+            match status {
+                "pending" => counts.pending += 1,
+                "active" | "running" | "in_progress" | "in-progress" => counts.active += 1,
+                "blocked" => counts.blocked += 1,
+                "done" | "completed" => counts.done += 1,
+                _ => {}
+            }
+        }
+        counts
+    }
+
+    fn merge(mut self, other: Self) -> Self {
+        self.pending += other.pending;
+        self.active += other.active;
+        self.blocked += other.blocked;
+        self.done += other.done;
+        self
+    }
+}
+
+fn existing_files(root: &Path, candidates: &[&str]) -> Vec<String> {
+    candidates
+        .iter()
+        .filter(|path| root.join(path).is_file())
+        .map(|path| (*path).to_string())
+        .collect()
+}
+
+fn markdown_file_count(path: &Path) -> usize {
+    fs::read_dir(path)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "md"))
+        .count()
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Top-level dashboard tabs.
@@ -43,6 +232,8 @@ pub struct App {
     /// metadata` — cheap enough to shell out for once, too slow to refetch
     /// on every 500ms tick.
     pub crate_names: Vec<String>,
+    pub(crate) project_info: ProjectInfo,
+    pub(crate) actions: ActionController,
     /// Scroll offset for the active tab content.
     pub scroll: u16,
 }
@@ -50,9 +241,17 @@ pub struct App {
 impl App {
     /// Create a new dashboard app state from the runtime context.
     pub fn new(ctx: &Ctx) -> Self {
+        let run_context = ctx.pipeline_run_context();
+        let project_info = ProjectInfo::collect(ctx, &run_context);
+        let actions = ActionController::new(
+            project_info.taskit_binary.clone(),
+            project_info.root.clone(),
+        );
         Self {
             active_tab: Tab::Overview,
-            crate_names: ctx.pipeline_run_context().workspace_members,
+            project_info,
+            actions,
+            crate_names: run_context.workspace_members,
             scroll: 0,
         }
     }
@@ -136,6 +335,8 @@ mod tests {
         App {
             active_tab,
             crate_names: (0..crate_count).map(|i| format!("crate-{i}")).collect(),
+            project_info: ProjectInfo::default(),
+            actions: ActionController::default(),
             scroll: 0,
         }
     }
@@ -277,6 +478,51 @@ mod tests {
         app.scroll_bottom();
         app.clamp_scroll(&snapshot_with_records(0));
         assert_eq!(app.scroll, u16::MAX);
+    }
+
+    #[test]
+    fn agent_task_counts_parse_common_statuses() {
+        let counts = AgentTaskCounts::parse(
+            "status: pending\nstatus: active\nstatus: running\nstatus: in-progress\n\
+             status: blocked\nstatus: done\nstatus: completed\nstatus: unknown\n",
+        );
+
+        assert_eq!(counts.pending, 1);
+        assert_eq!(counts.active, 3);
+        assert_eq!(counts.blocked, 1);
+        assert_eq!(counts.done, 2);
+    }
+
+    #[test]
+    fn agentic_context_discovers_common_project_files() {
+        let temp = tempfile::tempdir().expect("create temp project");
+        fs::create_dir_all(temp.path().join(".ctx/godmode/plans")).expect("create plan directory");
+        fs::write(temp.path().join("AGENTS.md"), "# Instructions").expect("write instructions");
+        fs::write(temp.path().join("taskit.toml"), "[workspace]").expect("write taskit config");
+        fs::write(
+            temp.path().join(".ctx/godmode/tasks.yaml"),
+            "tasks:\n- status: pending\n- status: done\n",
+        )
+        .expect("write task graph");
+        fs::write(temp.path().join(".ctx/godmode/plans/overview.md"), "# Plan")
+            .expect("write plan");
+
+        let context = AgenticContext::collect(temp.path());
+
+        assert_eq!(context.instruction_files, vec!["AGENTS.md"]);
+        assert_eq!(
+            context.config_files,
+            vec!["taskit.toml", ".ctx/godmode/tasks.yaml"]
+        );
+        assert_eq!(context.plan_count, 1);
+        assert_eq!(
+            context.tasks,
+            Some(AgentTaskCounts {
+                pending: 1,
+                done: 1,
+                ..AgentTaskCounts::default()
+            })
+        );
     }
 
     use proptest::{prop_assert, prop_assert_eq, proptest};

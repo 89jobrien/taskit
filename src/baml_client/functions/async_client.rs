@@ -108,7 +108,11 @@ macro_rules! baml_function_async {
 // Generate function structs
 // =============================================================================
 
-baml_function_async!(ResolveConflict(files: &[types::ConflictInput], ) -> (stream_types::ConflictResolution, types::ConflictResolution));
+baml_function_async!(
+    ResolveConflict(
+        files: &[types::ConflictInput],
+    ) -> (stream_types::ConflictResolution, types::ConflictResolution)
+);
 
 // =============================================================================
 // Client Struct

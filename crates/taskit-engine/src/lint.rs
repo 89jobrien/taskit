@@ -1,3 +1,5 @@
+//! Runs Clippy checks or fixes and parses JSON diagnostics.
+
 use taskit_types::error::TaskitError;
 use taskit_types::step::{DiagnosticLevel, DiagnosticRecord};
 use xshell::cmd;
@@ -11,9 +13,15 @@ pub fn run(
     use_affected: bool,
     continue_on_error: bool,
     fix: bool,
+    features: Option<&str>,
 ) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     let ws = ctx.ws();
+    let feature_args: Vec<String> = match features {
+        Some(f) => vec!["--features".into(), f.into()],
+        None => Vec::new(),
+    };
+    let feature_args = feature_args.as_slice();
     util::run_per_crate(
         sh,
         ws,
@@ -24,12 +32,12 @@ pub fn run(
             if fix {
                 ctx.run(cmd!(
                     sh,
-                    "cargo clippy --locked --quiet --fix --allow-dirty --allow-staged -p {name} --all-targets -- -D warnings"
+                    "cargo clippy --locked --quiet --fix --allow-dirty --allow-staged -p {name} --all-targets {feature_args...} -- -D warnings"
                 ))
             } else {
                 ctx.run(cmd!(
                     sh,
-                    "cargo clippy --locked --quiet -p {name} --all-targets -- -D warnings"
+                    "cargo clippy --locked --quiet -p {name} --all-targets {feature_args...} -- -D warnings"
                 ))
             }
         },
@@ -37,12 +45,12 @@ pub fn run(
             if fix {
                 ctx.run(cmd!(
                     sh,
-                    "cargo clippy --locked --quiet --fix --allow-dirty --allow-staged --all-targets --workspace -- -D warnings"
+                    "cargo clippy --locked --quiet --fix --allow-dirty --allow-staged --all-targets --workspace {feature_args...} -- -D warnings"
                 ))
             } else {
                 ctx.run(cmd!(
                     sh,
-                    "cargo clippy --locked --quiet --all-targets --workspace -- -D warnings"
+                    "cargo clippy --locked --quiet --all-targets --workspace {feature_args...} -- -D warnings"
                 ))
             }
         },

@@ -1,4 +1,6 @@
-// TODO(audit): 968 lines — split candidate. Also the crate-exclusion logic
+//! Detects stale workspace crates from source hashes and compiles their nextest binaries.
+
+// TODO(audit)(#26): 968 lines — split candidate. Also the crate-exclusion logic
 // here has been patched 3x for different directory types (ebe2117, bb15aec,
 // af1fa56) because it's a denylist-by-name; consider a general rule instead
 // (e.g. skip anything cargo-metadata excludes / dot-prefixed dirs).
@@ -275,7 +277,7 @@ fn collect_rs_files(
 fn is_ignored_dir_name(name: &str) -> bool {
     matches!(name, "target" | ".git" | "node_modules" | "fuzz")
 }
-// ── helpers ───────────────────────────────────────────────────────────────────
+// Hashing and Cargo package-name helpers.
 
 fn file_hash(path: &Path) -> Option<String> {
     let content = std::fs::read(path).ok()?;

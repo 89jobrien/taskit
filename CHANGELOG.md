@@ -1,11 +1,73 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [unreleased]
+
+### Features
+
+- *(taskit)* Add --version flag to taskit CLI
+- *(engine)* Read issue state when reconciling todo markers
+- *(flow)* Fall back to local Ollama when no remote credential is set
+- *(engine)* Add todo issue dedupe planning and run
+- *(engine)* Add Dedupe command for todo issue dedupe
+- *(taskit)* Add protocol todo-dedupe subcommand
+- *(tui)* Add rx-runner process abstraction for dashboard actions
+- *(init)* Isolate taskit xtask dispatch; docs, crate READMEs, audit TODOs
+- *(init)* Make Crux pipeline file generation opt-in, rename to ci.crux
+
+### Bug Fixes
+
+- *(ci)* Make tagged releases resumable
+- *(ci)* Use modern protoc for cross builds
+- *(ci)* Drop unsupported ARM Linux release target
+- *(engine)* Only treat leading TODO/FIXME as source markers
+- *(engine)* Adopt the cited issue when reconciling todo markers
+- *(engine)* Correct stale subcommand names in gate hints
+- *(engine)* Keep todo issue tracking stable across moves and reruns
+- *(protocol)* Track the todo-sync lockfile so the gate survives a clean clone
+- *(engine)* Scope version bumps to first-party crates
+- *(engine)* Scope version bumps to first-party crates
+- *(hooks)* Use the real check subcommand names in generated git hooks
+- *(macros)* Remove trailing semicolon for expression-position use
+
+### Refactor
+
+- *(engine)* Split todo_sync into a module directory
+- *(site)* Landing page plus subpages, and honest code blocks
+
+### Documentation
+
+- Refresh README command reference
+- Document protocol todo-dedupe and marker rules
+- Update handoff
+
+### Testing
+
+- *(engine)* Require TODO markers to lead the comment
+- *(engine)* Cover doc and block comment markers
+
+### Miscellaneous
+
+- *(roadmap)* Define reliability and CI initiatives
+- *(handoff)* Record todo-sync and conflict-resolution session state
+- Align develop version to last released 0.9.0
+- *(deny)* Ignore rustls advisories in build-time deps
 
 ## Unreleased
 
 ### Features
 
+- **protocol todo-dedupe**: new subcommand closing duplicate auto-generated marker issues,
+  keeping the lowest-numbered one and repointing `taskit-todo-sync.lock`; grouping is
+  derived from the `(title, file)` signal `todo-sync` writes, so an issue a human opened is
+  never closed (94cc269, 0fe491a)
+- **todo-sync**: only a `TODO`/`FIXME` that _begins_ a comment is a marker. A citation
+  inside prose (e.g. `// see TODO(x) in other.rs`) used to register as a marker and file a
+  second issue for work tracked elsewhere (f456232)
+- **todo-sync**: a marker may name its issue with a trailing `(#47)` citation, which now
+  wins over title matching. An unresolved citation falls back to title-plus-file rather
+  than dead-ending, and a citation naming a closed issue is reported but never reopened
+  automatically (71aef4e)
 - **todo-sync**: new subcommand scanning TODO/FIXME source markers and syncing them to
   GitHub issues via `gh`; `--update`/`--warn-only` mirror `check-protocol-drift`'s shape
   (0583e14)
@@ -23,7 +85,7 @@ All notable changes to this project will be documented in this file.
 - **TUI Flow tab**: new `Tab::Flow` rendering git-flow pipeline position, resumable
   `flow auto` state, configured conflict resolver, and `flow auto` run telemetry; adds a
   protocol-drift status line to the Overview tab's health panel (e6f4580, 6bbb510, 3914e56)
-- **flow_auto_\* telemetry**: `flow::auto_with_ci` now emits duration/outcome telemetry
+- **flow*auto*\* telemetry**: `flow::auto_with_ci` now emits duration/outcome telemetry
   readings (caf9d80)
 - **merge_with_resolution**: now returns the count of conflicts it resolved (d0c25d0)
 - **protocol::drift::check**: new read-only variant that recomputes and compares surface
@@ -145,7 +207,7 @@ All notable changes to this project will be documented in this file.
 - **taskit-testing**: new crate with TempDirGuard, `in_temp_dir!`,
   `step_result!`, `single_step_outcome`, and TaskitResultExt (6d672c0)
 - **taskit-macros**: new proc-macro crate with `#[taskit_test(tempdir,
-  offline)]` and `#[derive(ConfigDefaults)]` (6d672c0)
+offline)]` and `#[derive(ConfigDefaults)]` (6d672c0)
 - **taskit-output**: new crate with MessageSink trait, StderrSink,
   BufferSink, TeeSink, structured output macros, and moved formatters
   from taskit-engine (6d672c0)

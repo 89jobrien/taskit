@@ -92,7 +92,7 @@ three adapters, and add `taskit init` for config + Cruxfile generation.
 
 3. Verify:
 
-   ```
+   ```text
    cargo check -p taskit-core
    cargo clippy -p taskit-core -- -D warnings
    ```
@@ -181,7 +181,7 @@ three adapters, and add `taskit init` for config + Cruxfile generation.
 
 3. Verify:
 
-   ```
+   ```text
    cargo test -p taskit-core
    cargo clippy -p taskit-core -- -D warnings
    ```
@@ -249,7 +249,7 @@ three adapters, and add `taskit init` for config + Cruxfile generation.
 
 3. Verify:
 
-   ```
+   ```text
    cargo check -p taskit-engine
    cargo test -p taskit-engine
    cargo clippy -p taskit-engine -- -D warnings
@@ -305,7 +305,7 @@ three adapters, and add `taskit init` for config + Cruxfile generation.
 
 3. Verify:
 
-   ```
+   ```text
    cargo build -p taskit
    cargo test --workspace
    cargo clippy --workspace -- -D warnings
@@ -326,7 +326,7 @@ three adapters, and add `taskit init` for config + Cruxfile generation.
 
 2. Verify:
 
-   ```
+   ```text
    cargo test --workspace           -> all tests pass
    cargo clippy --workspace -- -D warnings -> clean
    cargo build -p taskit            -> binary works
@@ -380,7 +380,7 @@ three adapters, and add `taskit init` for config + Cruxfile generation.
 
 3. Verify:
 
-   ```
+   ```text
    cargo test -p taskit-engine
    cargo clippy -p taskit-engine -- -D warnings
    ```
@@ -421,7 +421,7 @@ three adapters, and add `taskit init` for config + Cruxfile generation.
 
 3. Verify:
 
-   ```
+   ```text
    cargo test -p taskit-engine
    cargo clippy -p taskit-engine -- -D warnings
    ```
@@ -459,7 +459,7 @@ three adapters, and add `taskit init` for config + Cruxfile generation.
 
 3. Verify:
 
-   ```
+   ```text
    cargo test -p taskit-engine
    cargo clippy -p taskit-engine -- -D warnings
    ```
@@ -593,7 +593,7 @@ three adapters, and add `taskit init` for config + Cruxfile generation.
 
 3. Verify:
 
-   ```
+   ```text
    cargo test -p taskit-init
    cargo clippy -p taskit-init -- -D warnings
    ```
@@ -665,7 +665,7 @@ three adapters, and add `taskit init` for config + Cruxfile generation.
 
 3. Verify:
 
-   ```
+   ```text
    cargo test -p taskit-init
    cargo clippy -p taskit-init -- -D warnings
    ```
@@ -725,7 +725,7 @@ three adapters, and add `taskit init` for config + Cruxfile generation.
 
 3. Verify:
 
-   ```
+   ```text
    cargo test -p taskit-init
    cargo clippy -p taskit-init -- -D warnings
    ```
@@ -762,7 +762,7 @@ three adapters, and add `taskit init` for config + Cruxfile generation.
 
 3. Verify:
 
-   ```
+   ```text
    cargo test -p taskit-init
    cargo clippy -p taskit-init -- -D warnings
    ```
@@ -823,7 +823,7 @@ three adapters, and add `taskit init` for config + Cruxfile generation.
 
 3. Verify:
 
-   ```
+   ```text
    cargo build -p taskit
    cargo test --workspace
    cargo clippy --workspace -- -D warnings
@@ -903,7 +903,7 @@ three adapters, and add `taskit init` for config + Cruxfile generation.
 
 3. Verify:
 
-   ```
+   ```text
    cargo test -p taskit-crux
    cargo clippy -p taskit-crux -- -D warnings
    ```
@@ -942,7 +942,7 @@ three adapters, and add `taskit init` for config + Cruxfile generation.
 
 3. Verify:
 
-   ```
+   ```text
    cargo build -p taskit                    -> works without crux
    cargo build -p taskit --features crux    -> works with crux
    cargo test --workspace
@@ -961,7 +961,7 @@ three adapters, and add `taskit init` for config + Cruxfile generation.
 1. Bump all crate versions to `0.4.0`.
 2. Run full verification:
 
-   ```
+   ```text
    cargo test --workspace
    cargo clippy --workspace -- -D warnings
    cargo build -p taskit

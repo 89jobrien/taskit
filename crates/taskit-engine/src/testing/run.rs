@@ -1,3 +1,5 @@
+//! Runs nextest for selected crates and converts libtest JSON failures into diagnostics.
+
 use taskit_types::error::TaskitError;
 use taskit_types::step::{DiagnosticLevel, DiagnosticRecord};
 use xshell::cmd;
@@ -11,6 +13,7 @@ pub fn run(
     use_affected: bool,
     continue_on_error: bool,
     offline: bool,
+    features: Option<&str>,
 ) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
     let ws = ctx.ws();
@@ -28,6 +31,9 @@ pub fn run(
     }
     if offline && let Some(expr) = ws.offline_skip_expr() {
         extra.extend(["-E".into(), expr]);
+    }
+    if let Some(f) = features {
+        extra.extend(["--features".into(), f.into()]);
     }
     let extra = extra.as_slice();
     util::run_per_crate(
@@ -111,7 +117,7 @@ pub fn parse_nextest_json(json_lines: &str) -> Vec<DiagnosticRecord> {
         let rule_id = if stdout.contains("panicked") {
             "TE002".to_string() // TestError (panic)
         } else {
-            "TE001".to_string() // TestFailure
+            "TE001".to_string() // Non-panic test failure
         };
 
         let message = if stdout.is_empty() {

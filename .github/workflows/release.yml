@@ -1,6 +1,8 @@
 name: Release
 
 on:
+  push:
+    branches: [release]
   workflow_dispatch:
     inputs:
       version:
@@ -35,12 +37,12 @@ jobs:
     permissions:
       contents: write
     outputs:
-      tag: ${{ steps.release.outputs.tag }}
+      tag: ${{ steps.plan.outputs.tag || steps.autoplan.outputs.tag }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
-          ref: ${{ inputs.release_ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_ref || 'release' }}
 
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
@@ -65,7 +67,27 @@ jobs:
       - name: Install Taskit from this revision
         run: cargo install --path . --locked
 
+      - name: Plan automatic release (push to release)
+        if: github.event_name == 'push'
+        id: autoplan
+        run: |
+          set -euo pipefail
+          VERSION="$(cargo metadata --no-deps --format-version 1 |
+            jq -er '.packages[] | select(.name == "taskit") | .version')"
+          TAG="v$VERSION"
+          if git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null ||
+             git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "tag already exists: $TAG — version was not bumped since last release, nothing to do" >&2
+            exit 1
+          fi
+          {
+            echo "bump="
+            echo "resume=false"
+            echo "tag=$TAG"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Validate release request
+        if: github.event_name == 'workflow_dispatch'
         id: plan
         env:
           CONFIRMATION: ${{ inputs.confirmation }}
@@ -89,50 +111,60 @@ jobs:
             echo "checked-out revision does not match origin/$RELEASE_REF" >&2
             exit 1
           }
-          git merge-base --is-ancestor refs/remotes/origin/develop HEAD || {
-            echo "$RELEASE_REF does not contain the latest origin/develop" >&2
-            exit 1
-          }
 
           CURRENT="$(cargo metadata --no-deps --format-version 1 |
             jq -er '.packages[] | select(.name == "taskit") | .version')"
-          IFS=. read -r MAJOR MINOR PATCH <<< "$CURRENT"
-          case "$VERSION" in
-            "$MAJOR.$MINOR.$((PATCH + 1))") BUMP="patch" ;;
-            "$MAJOR.$((MINOR + 1)).0") BUMP="minor" ;;
-            "$((MAJOR + 1)).0.0") BUMP="major" ;;
-            *)
-              echo "$VERSION is not Taskit's next patch, minor, or major version from $CURRENT" >&2
-              exit 1
-              ;;
-          esac
-
           TAG="v$VERSION"
-          if git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null ||
-             git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "tag already exists: $TAG" >&2
-            exit 1
-          fi
+          if [ "$CURRENT" = "$VERSION" ]; then
+            git rev-parse --verify "refs/tags/$TAG" >/dev/null || {
+              echo "cannot resume: tag does not exist: $TAG" >&2
+              exit 1
+            }
+            git merge-base --is-ancestor "refs/tags/$TAG" HEAD || {
+              echo "cannot resume: $TAG is not an ancestor of $RELEASE_REF" >&2
+              exit 1
+            }
+            BUMP=""
+            RESUME=true
+          else
+            git merge-base --is-ancestor refs/remotes/origin/develop HEAD || {
+              echo "$RELEASE_REF does not contain the latest origin/develop" >&2
+              exit 1
+            }
+            IFS=. read -r MAJOR MINOR PATCH <<< "$CURRENT"
+            case "$VERSION" in
+              "$MAJOR.$MINOR.$((PATCH + 1))") BUMP="patch" ;;
+              "$MAJOR.$((MINOR + 1)).0") BUMP="minor" ;;
+              "$((MAJOR + 1)).0.0") BUMP="major" ;;
+              *)
+                echo "$VERSION is not Taskit's next patch, minor, or major version from $CURRENT" >&2
+                exit 1
+                ;;
+            esac
+            if git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null ||
+               git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+              echo "tag already exists: $TAG" >&2
+              exit 1
+            fi
 
-          BASE_TAG="$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD 2>/dev/null || true)"
-          test -n "$BASE_TAG" || {
-            echo "no prior v* tag found" >&2
-            exit 1
-          }
-          if git diff --quiet "$BASE_TAG..HEAD" --; then
-            echo "no changes since $BASE_TAG" >&2
-            exit 1
-          fi
+            BASE_TAG="$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD 2>/dev/null || true)"
+            test -n "$BASE_TAG" || {
+              echo "no prior v* tag found" >&2
+              exit 1
+            }
+            if git diff --quiet "$BASE_TAG..HEAD" --; then
+              echo "no changes since $BASE_TAG" >&2
+              exit 1
+            fi
 
-          # Taskit's release contract is intentionally lockstep: release bump
-          # updates every workspace package, and taskit.toml supplies the full
-          # dependency-ordered publish set. This conservatively includes every
-          # affected crate and all transitive downstream dependents.
-          taskit --dry-run release "$BUMP"
-          taskit --dry-run release publish
+            taskit --dry-run release "$BUMP"
+            taskit --dry-run release publish
+            RESUME=false
+          fi
 
           {
             echo "bump=$BUMP"
+            echo "resume=$RESUME"
             echo "tag=$TAG"
           } >> "$GITHUB_OUTPUT"
 
@@ -144,6 +176,7 @@ jobs:
           taskit changelog preview
 
       - name: Apply Taskit release
+        if: github.event_name == 'workflow_dispatch' && steps.plan.outputs.resume != 'true'
         id: release
         env:
           BUMP: ${{ steps.plan.outputs.bump }}
@@ -174,6 +207,17 @@ jobs:
           git push --atomic origin "HEAD:refs/heads/$RELEASE_REF" "refs/tags/$TAG"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
+      - name: Tag automatic release (push to release)
+        if: github.event_name == 'push'
+        env:
+          TAG: ${{ steps.autoplan.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git tag -a "$TAG" -m "taskit $TAG"
+          git push origin "refs/tags/$TAG"
+
   build:
     name: Build ${{ matrix.target }}
     needs: release
@@ -183,9 +227,6 @@ jobs:
       matrix:
         include:
           - target: x86_64-unknown-linux-musl
-            runner: ubuntu-latest
-            use_cross: true
-          - target: aarch64-unknown-linux-musl
             runner: ubuntu-latest
             use_cross: true
           - target: x86_64-apple-darwin
@@ -211,6 +252,18 @@ jobs:
             target
           key: ${{ runner.os }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-${{ matrix.target }}-release-
+
+      - name: Install protobuf compiler
+        if: runner.os == 'macOS'
+        run: brew install protobuf
+
+      - name: Configure modern protobuf compiler for cross
+        if: matrix.use_cross
+        run: |
+          cat > Cross.toml <<'EOF'
+          [target.x86_64-unknown-linux-musl]
+          pre-build = ["apt-get update && apt-get install -y curl unzip && PROTOC_HOST=github.com && curl -fsSL https://$PROTOC_HOST/protocolbuffers/protobuf/releases/download/v25.3/protoc-25.3-linux-x86_64.zip -o /tmp/protoc.zip && unzip -oq /tmp/protoc.zip -d /usr/local"]
+          EOF
 
       - uses: taiki-e/install-action@6c6fd71fe4fb72c3697d269963d0e15df8adedad # v2.85.10
         if: matrix.use_cross
@@ -306,7 +359,6 @@ jobs:
           set -euo pipefail
           for TARGET in \
             x86_64-unknown-linux-musl \
-            aarch64-unknown-linux-musl \
             x86_64-apple-darwin \
             aarch64-apple-darwin; do
             ARCHIVE="artifacts/taskit-${TAG}-${TARGET}.tar.gz"

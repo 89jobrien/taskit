@@ -1,51 +1,39 @@
 # taskit-engine
 
-The engine crate wires everything together. All public functions return
-`Result<T, TaskitError>`. Depends on `taskit-core`, `taskit-types`, and `taskit-output`.
+`taskit-engine` owns taskit's application orchestration and concrete command adapters. It depends
+on `taskit-core`, `taskit-types`, and `taskit-output`.
 
-## Modules
+## Public module groups
 
-### `config.rs`
+```text
+affected, audit, bootstrap, build, cache, changelog, check_deps,
+check_freshness, ci, clean, command, config, ctx, dev_setup, discovery,
+drift, flow, flow_state_store, fmt, health, hooks, inspect, install,
+lint, patch, pipeline_runner, progress, protocol, publish, quick, release,
+step, telemetry, testing, todo_sync, update, update_claude, util, version
+```
 
-- `load()` — find `taskit.toml` from cwd, parse it, merge discovered workspace metadata, and
-  return a `Workspace`
-- `discover(workspace_root)` — build a conventional `Config` from cargo metadata
+Nested public modules include all test runners under `testing`, contract hashing/drift/site checks
+under `protocol`, and GitHub release handling under `release::gh`.
 
-### `ci.rs`
+## Core surfaces
 
-Pipeline assembly and step dispatch. Reads `CiConfig.steps`, constructs a `Pipeline` via
-`taskit-engine/step.rs`, runs it, and returns a `PipelineOutcome`.
+- `Command` is the execution port implemented by typed command structs.
+- `Ctx` carries `Shell`, workspace root, parsed `Config`, dry-run state, output format, transient
+  output suppression, and command provenance.
+- `Workspace` is defined at the crate root and returned by configuration loading.
+- `Pipeline` executes ordered steps and gates with diagnostics and aggregate outcomes.
 
-### `step.rs`
+## Responsibilities
 
-`Pipeline` builder. Each entry is either a `step` (report and continue on failure) or a
-`gate` (abort immediately on failure). `fail_fast` collapses all steps to gate behaviour.
+- configuration discovery and validation
+- affected-crate propagation
+- formatting, linting, nextest, coverage, fuzzing, benchmarks, and snapshots
+- CI pipeline assembly and telemetry
+- health baselines, inspection, and drift
+- protocol hashes, site counts, TODO issue synchronization, freshness, and cargo-deny
+- branch promotion, conflict resolution, push, and resumable flow state
+- bootstrap, hooks, build, install, cleanup, updates, changelog, and release operations
 
-### `pipeline_runner.rs`
-
-- `BuiltinRunner` — runs the step engine in-process
-- `SubprocessCruxRunner` — spawns an external `crux` binary and maps its output to
-  `PipelineOutcome`
-
-### `flow.rs`
-
-Git branching workflow commands:
-
-| Function | Description |
-|----------|-------------|
-| `status` | Print current branch and ahead/behind counts |
-| `sync` | Merge main → develop |
-| `promote` | Advance the current flow branch one step with `--no-ff` merges |
-| `guard` | Assert branch invariants; fails if violated |
-| `auto` | develop → staging → release → main with CI gate and resumable state |
-
-`merge_with_resolution` handles the `flow auto` merge-conflict loop: on conflict it calls
-`ConflictResolver`, stages resolved files, and commits. Unresolvable conflicts raise
-`FlowError::NeedsHuman`. The one-step `promote` path uses plain `--no-ff` merges.
-
-`parse_conflict_paths` parses `git status --porcelain` for `UU`/`AA`/`DD`/`AU`/`UA` markers.
-
-### `ctx.rs`
-
-`Ctx` — shared execution context passed through engine functions: `Shell`, `dry_run` flag,
-`OutputFormatter` reference.
+Current CI dispatch directly invokes engine functions. The runner adapters in
+`pipeline_runner.rs` are not selected by `[ci].cruxfile`.

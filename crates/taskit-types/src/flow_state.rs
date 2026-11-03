@@ -1,3 +1,5 @@
+//! Serializable state and recovery hints for resumable `taskit flow auto` runs.
+
 use serde::{Deserialize, Serialize};
 
 /// Current phase of an in-progress `flow auto` execution.

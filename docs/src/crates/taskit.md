@@ -1,34 +1,28 @@
 # taskit (binary)
 
-The root binary crate. Responsible for CLI parsing, adapter wiring, and dispatch to engine
-functions. Returns `miette::Result<()>` for rich terminal error rendering.
+The root package is the composition root and installed `taskit` binary.
 
-## `src/main.rs`
+## Entry points
 
-Entry point. Parses CLI args with `clap`, loads `Config` via `taskit-engine/config.rs`, then
-dispatches to the appropriate engine function. `taskit init` is handled before config load
-(the config doesn't exist yet).
+- `src/main.rs` defines the grouped Clap CLI, configuration loading, `Ctx`, output sink, command
+  dispatch, completion generation, and dashboard adapter.
+- `src/flow_resolver.rs` implements the BAML-backed `ConflictResolver` used by `flow auto`.
+- A root-local no-op resolver escalates conflicts when `[flow].conflict_resolver = "none"`.
 
-## `src/flow_resolver.rs`
+`taskit init` is dispatched before normal config loading because it may create `taskit.toml`.
+Other commands discover config, switch to the resolved workspace root, then dispatch through
+`taskit_engine::Command`.
 
-`BamlConflictResolver` — the LLM-backed `ConflictResolver` adapter. Wired only at the binary
-boundary to keep BAML out of the engine and core crates.
+## Global CLI options
 
-Uses BAML structured output to call an LLM with the ours/theirs/base content of each
-conflicted file and returns `Vec<ResolvedFile>`. Unresolvable cases propagate
-`FlowError::NeedsHuman`.
+```text
+--dry-run
+--output human|compact|json|github|junit|diagnostic|sarif
+```
 
-## CLI flags (global)
+There is no global `--config` option. See [CLI Commands](../reference/cli.md).
 
-| Flag | Description |
-|------|-------------|
-| `--dry-run` | Print commands without executing |
-| `--output <fmt>` | Select output format |
+## Direct dependencies
 
-Supported output formats: `human` (default), `compact`, `json`, `github`, `junit`,
-`diagnostic`, and `sarif`.
-
-`taskit.toml` is discovered by walking up from the current directory; there is no global
-`--config` flag.
-
-See [Quick start](../README.md#quick-start) for common subcommands.
+The binary depends on `taskit-types`, `taskit-core`, `taskit-engine`, `taskit-init`,
+`taskit-output`, and `taskit-tui`. `taskit-crux` is not linked into the binary.

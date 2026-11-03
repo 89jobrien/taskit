@@ -66,7 +66,7 @@ pub fn verify_dirs(cache_dir: &Path, master_file: &Path) -> Result<bool, TaskitE
     Ok(stored.hash == current)
 }
 
-// ── internals ────────────────────────────────────────────────────────────────
+// Cache hash computation and persistence helpers.
 
 /// Walk `cache_dir`, hash every `.json` file (sorted by path), and combine
 /// into a single deterministic SHA-256 digest.

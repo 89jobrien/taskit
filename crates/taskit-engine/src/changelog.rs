@@ -1,3 +1,5 @@
+//! Generates and previews changelogs with git-cliff.
+
 use taskit_types::error::TaskitError;
 use xshell::cmd;
 

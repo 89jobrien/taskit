@@ -37,9 +37,11 @@ Generate or update CHANGELOG.md from git history using git-cliff.
      ```
 
    - **preview**:
+
      ```bash
      git-cliff --unreleased
      ```
+
      Print output and stop. Do not write to file.
 
 4. If not preview mode, show the diff:

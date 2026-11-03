@@ -1,0 +1,68 @@
+name: Promote develop to staging
+
+on:
+  push:
+    branches: [develop]
+
+concurrency:
+  group: promote-develop
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    name: Gate and promote develop -> staging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+          ref: develop
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+
+      - uses: taiki-e/install-action@6c6fd71fe4fb72c3697d269963d0e15df8adedad # v2.85.10
+        with:
+          tool: cargo-nextest,cargo-llvm-cov,cargo-deny,cargo-machete
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-promote-develop-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-promote-develop-
+
+      - name: Install taskit from this revision
+        run: cargo install --path . --locked
+
+      - name: Run CI gate on develop
+        run: taskit check ci --fail-fast
+
+      - name: Discard incidental Cargo.lock drift from CI gate
+        run: git checkout -- Cargo.lock
+
+      - name: Create local tracking branches
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git branch staging origin/staging
+
+      - name: Promote develop -> staging
+        run: taskit flow promote
+
+      - name: Push staging
+        run: git push origin staging

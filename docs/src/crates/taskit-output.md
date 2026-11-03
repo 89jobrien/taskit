@@ -1,26 +1,34 @@
 # taskit-output
 
-Output formatting crate. Owns the `OutputFormatter` trait and all its implementations.
-Depends only on `taskit-types`.
+`taskit-output` owns formatting and message sinks. It depends on `taskit-types`.
 
-## `OutputFormatter` trait
+## Formatter port and adapters
 
-The engine and binary accept an `&dyn OutputFormatter` to decouple output from logic. All
-pipeline progress, step results, and summary tables route through this interface.
+`OutputFormatter::render` converts `PipelineOutcome` into a string. `formatter_for` selects:
 
-## Implementations
+| Format     | Adapter               |
+| ---------- | --------------------- |
+| Human      | `HumanFormatter`      |
+| Compact    | `CompactFormatter`    |
+| JSON       | `JsonFormatter`       |
+| GitHub     | `GithubFormatter`     |
+| JUnit      | `JunitFormatter`      |
+| Diagnostic | `DiagnosticFormatter` |
+| SARIF      | `SarifFormatter`      |
 
-| Impl | Format | When |
-|------|--------|------|
-| `HumanFormatter` | Human-readable summary table | `--output human` / default |
-| `CompactFormatter` | One line per step, with failure details | `--output compact` |
-| `JsonFormatter` | Structured JSON document | `--output json` |
-| `GithubFormatter` | GitHub Actions annotations and summary | `--output github` |
-| `JunitFormatter` | JUnit XML written to `target/taskit-results.xml` | `--output junit` |
-| `DiagnosticFormatter` | Diagnostic-oriented text output | `--output diagnostic` |
-| `SarifFormatter` | SARIF written to `target/taskit-results.sarif` | `--output sarif` |
+`write_output` sends console formats to stdout/stderr or writes file formats to:
 
-## Dry-run macro
+```text
+target/taskit/taskit-results.xml
+target/taskit/taskit-results.sarif
+```
 
-`taskit_dry!(fmt, ...)` — prints a `[dry-run]`-prefixed line without executing anything.
-Used throughout the engine when `ctx.dry_run` is true.
+## Message sinks
+
+`MessageSink` is the progress/event output port. Implementations include `StderrSink`,
+`BufferSink`, and `TeeSink`; `set_sink` and `sink` manage the process-global selected sink.
+
+Exported macros are `taskit_progress!`, `taskit_skip!`, `taskit_dry!`, `taskit_ok!`,
+`taskit_err!`, and `taskit_warn!`.
+
+See [Output Formats](../reference/output-formats.md) for destinations and scripting caveats.

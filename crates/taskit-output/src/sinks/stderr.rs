@@ -1,3 +1,5 @@
+//! Human-readable stderr sink for pipeline messages.
+
 use crate::message::{Message, StepEvent};
 use crate::sink::MessageSink;
 
