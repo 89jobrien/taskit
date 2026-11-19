@@ -13,9 +13,9 @@ use taskit_types::step::PipelineOutcome;
 
 use crate::ctx::Ctx;
 use crate::{
-    audit, bootstrap, build, changelog, check_deps, check_freshness, ci, clean, dev_setup, drift,
-    flow, fmt, health, hooks, inspect, install, lint, patch, protocol, publish, quick, release,
-    testing, todo_sync, update, update_claude, version,
+    audit, bootstrap, build, changelog, check_deps, check_freshness, ci, clean, dev_setup,
+    doc_examples, drift, flow, fmt, health, hooks, inspect, install, lint, patch, protocol,
+    publish, quick, release, testing, todo_sync, update, update_claude, version,
 };
 
 // Feature backlog grounded in current command, CI, telemetry, and adapter gaps.
@@ -207,6 +207,14 @@ impl Command for CheckProtocolSites {
             self.expected,
             self.warn_only,
         )
+    }
+}
+
+/// `check doc-examples` command.
+pub struct DocExamples;
+impl Command for DocExamples {
+    fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
+        doc_examples::run(ctx)
     }
 }
 

@@ -30,6 +30,8 @@ pub mod ctx;
 pub mod dev_setup;
 /// Workspace discovery helpers.
 pub mod discovery;
+/// Compiles the Rust examples in each workspace crate's `CLAUDE.md`.
+pub mod doc_examples;
 /// Health drift measurement.
 pub mod drift;
 /// Branch flow automation.

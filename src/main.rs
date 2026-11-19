@@ -15,10 +15,10 @@ use std::env;
 use taskit_engine::changelog::ChangelogMode;
 use taskit_engine::command::{
     Audit, Bench, Bootstrap, Build, Changelog, CheckDeps, CheckFreshness, CheckProtocolDrift,
-    CheckProtocolSites, Ci, Clean, Command, CompileTests, Coverage, Dedupe, DevSetup, Drift, Flow,
-    FlowAction, Fmt, Fuzz, Health, Inspect, Install, InstallHooks, Lint, Patch, PreCommit, PrePush,
-    Proptest, Publish, Quick, Release, SelfCheck, SelfTest, SnapshotReview, Test, TestReport,
-    TodoSync, Update, UpdateClaudeVersion, Version,
+    CheckProtocolSites, Ci, Clean, Command, CompileTests, Coverage, Dedupe, DevSetup, DocExamples,
+    Drift, Flow, FlowAction, Fmt, Fuzz, Health, Inspect, Install, InstallHooks, Lint, Patch,
+    PreCommit, PrePush, Proptest, Publish, Quick, Release, SelfCheck, SelfTest, SnapshotReview,
+    Test, TestReport, TodoSync, Update, UpdateClaudeVersion, Version,
 };
 use taskit_engine::ctx::Ctx;
 use taskit_engine::patch;
@@ -189,6 +189,8 @@ enum CheckCmd {
     Compile,
     /// Check for unused dependencies
     Deps,
+    /// Compile and run the Rust examples in each crate's CLAUDE.md
+    DocExamples,
     /// Run pre-commit checks (Rust formatting)
     PreCommit,
     /// Run pre-push checks (affected crate lint + test + coverage + drift)
@@ -499,6 +501,7 @@ fn check_to_command(cmd: CheckCmd) -> Box<dyn Command> {
         }),
         CheckCmd::Compile => Box::new(CompileTests),
         CheckCmd::Deps => Box::new(CheckDeps),
+        CheckCmd::DocExamples => Box::new(DocExamples),
         CheckCmd::PreCommit => Box::new(PreCommit),
         CheckCmd::PrePush => Box::new(PrePush),
     }

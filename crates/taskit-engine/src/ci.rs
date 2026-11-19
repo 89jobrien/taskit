@@ -11,7 +11,7 @@ use crate::{
     check_deps,
     config::CiConfig,
     ctx::Ctx,
-    dev_setup, fmt, lint, protocol,
+    dev_setup, doc_examples, fmt, lint, protocol,
     step::{Pipeline, PipelineOutcome, StepContextSink},
     testing,
 };
@@ -149,6 +149,7 @@ fn dispatch_cmd<'a>(
             }
         }),
         "check-deps" => Box::new(move || check_deps::run(ctx)),
+        "doc-examples" => Box::new(move || doc_examples::run(ctx)),
         "check-protocol-drift" => Box::new(move || protocol::drift::run(ctx, false, false, false)),
         "self-check" => Box::new(dev_setup::self_check),
         "health" => Box::new(move || crate::health::run(ctx, false, false, false)),
@@ -265,6 +266,14 @@ fn run_default_pipeline(
         pipeline = pipeline.step_with_context_sink("check-deps", sink, wrapped);
     }
 
+    // doc-examples
+    {
+        let (sink, wrapped) = with_capture(ctx, reproduction_for_cmd("doc-examples"), || {
+            doc_examples::run(ctx)
+        });
+        pipeline = pipeline.step_with_context_sink("doc-examples", sink, wrapped);
+    }
+
     // check-protocol-drift
     {
         let (sink, wrapped) =
@@ -325,6 +334,7 @@ mod tests {
             "test",
             "coverage",
             "check-deps",
+            "doc-examples",
             "check-protocol-drift",
             "self-check",
             "health",
