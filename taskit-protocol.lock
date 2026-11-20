@@ -25,7 +25,7 @@
     {
       "name": "taskit-engine-discovery",
       "path": "crates/taskit-engine/src/discovery.rs",
-      "hash": "7ba62cc8959ef60cafffbc387a55c98dc3c32ab698bf0da56aa60d6174bd00fc"
+      "hash": "2358682a33412588f52a97704aa5f89f8c4162dcd8428aeb5d3c073a0cfa49a9"
     },
     {
       "name": "taskit-output-sink",

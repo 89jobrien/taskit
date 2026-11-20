@@ -137,9 +137,17 @@ fn walk_for_surfaces(
 
 /// Infer the owning crate name from a relative file path.
 ///
-/// Uses the first path component as the crate directory name.
+/// Under a `crates/` directory the crate is the component after it, so
+/// `crates/notgraph/src/types.rs` is `notgraph`. Otherwise the first path
+/// component is the crate directory. Using `crates` for every member would
+/// give distinct surfaces the same name, which breaks the lockfile lookup.
 fn infer_crate_name(rel_path: &str) -> &str {
-    rel_path.split('/').next().unwrap_or("unknown")
+    let mut parts = rel_path.split('/');
+    match parts.next() {
+        Some("crates") => parts.next().unwrap_or("crates"),
+        Some(first) => first,
+        None => "unknown",
+    }
 }
 
 /// Production adapter: reads cargo metadata from the real workspace.
@@ -281,6 +289,19 @@ mod tests {
         assert_eq!(surfaces.len(), 1);
         assert_eq!(surfaces[0].name, "my-api/types");
         assert_eq!(surfaces[0].path, "my-api/src/types.rs");
+    }
+
+    #[test]
+    fn scan_surfaces_names_members_under_crates_dir_by_crate() {
+        let dir = tempfile::tempdir().unwrap();
+        for member in ["notcore", "notgraph"] {
+            let src = dir.path().join("crates").join(member).join("src");
+            std::fs::create_dir_all(&src).unwrap();
+            std::fs::write(src.join("types.rs"), "pub struct Foo;").unwrap();
+        }
+        let surfaces = scan_surfaces(dir.path()).unwrap();
+        let names: Vec<&str> = surfaces.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, vec!["notcore/types", "notgraph/types"]);
     }
 
     #[test]
