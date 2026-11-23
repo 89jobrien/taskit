@@ -184,8 +184,14 @@ pub struct CrateEntry {
 
 impl CrateEntry {
     /// Package name used for Cargo invocations.
+    ///
+    /// Uses `pkg` when set. Otherwise the last component of `dir` is the
+    /// package name, so `crates/foo` maps to `foo`, not to the path itself.
     pub fn pkg_name(&self) -> &str {
-        self.pkg.as_deref().unwrap_or(&self.dir)
+        match self.pkg.as_deref() {
+            Some(pkg) => pkg,
+            None => self.dir.rsplit('/').next().unwrap_or(&self.dir),
+        }
     }
 }
 
@@ -381,6 +387,30 @@ pub struct CleanConfig {
 mod tests {
     use super::*;
     use proptest::prelude::*;
+
+    #[test]
+    fn crate_entry_pkg_name_uses_last_dir_component() {
+        let nested = CrateEntry {
+            dir: "crates/kan-adapters".to_string(),
+            pkg: None,
+            exclude_from_version_check: false,
+        };
+        assert_eq!(nested.pkg_name(), "kan-adapters");
+
+        let flat = CrateEntry {
+            dir: "my-lib".to_string(),
+            pkg: None,
+            exclude_from_version_check: false,
+        };
+        assert_eq!(flat.pkg_name(), "my-lib");
+
+        let overridden = CrateEntry {
+            dir: "crates/kan-cli".to_string(),
+            pkg: Some("kan".to_string()),
+            exclude_from_version_check: false,
+        };
+        assert_eq!(overridden.pkg_name(), "kan");
+    }
 
     proptest! {
         #[test]
