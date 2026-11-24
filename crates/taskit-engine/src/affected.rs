@@ -9,31 +9,60 @@ use crate::config::WorkspaceConfig;
 #[cfg(test)]
 use crate::config::{CrateEntry, PropagationEntry};
 
-/// Detect affected crates from git diff against `origin/main`.
+/// Detect affected crates from every kind of local change.
+///
+/// Three sources are combined so that work in progress is visible before it
+/// is committed:
+/// - commits on `HEAD` since `origin/main` (the branch's own history),
+/// - tracked edits in the working tree and index, relative to `HEAD`,
+/// - untracked files that are not ignored.
 ///
 /// The crate list and propagation table are read from `ws` rather than
 /// hardcoded constants, making this workspace-agnostic.
 pub fn detect(sh: &Shell, ws: &WorkspaceConfig) -> Result<BTreeSet<String>, TaskitError> {
-    let output = cmd!(sh, "git diff --name-only origin/main...HEAD")
+    let committed = cmd!(sh, "git diff --name-only origin/main...HEAD")
         .read()
         .map_err(|e| {
             TaskitError::other(format!(
                 "failed to detect affected crates — ensure 'origin/main' is fetchable: {e}"
             ))
         })?;
-    let changed_files: Vec<&str> = output.lines().collect();
+    let tracked = cmd!(sh, "git diff --name-only HEAD")
+        .read()
+        .map_err(|e| TaskitError::other(format!("failed to read working-tree changes: {e}")))?;
+    let untracked = cmd!(sh, "git ls-files --others --exclude-standard")
+        .read()
+        .map_err(|e| TaskitError::other(format!("failed to list untracked files: {e}")))?;
 
+    let changed_files = [committed.as_str(), tracked.as_str(), untracked.as_str()]
+        .into_iter()
+        .flat_map(str::lines);
+    Ok(affected_from_files(changed_files, ws))
+}
+
+/// Map changed file paths to crate directories, then apply propagation.
+///
+/// Pure so the mapping can be tested without a git repository.
+fn affected_from_files<'a>(
+    files: impl IntoIterator<Item = &'a str>,
+    ws: &WorkspaceConfig,
+) -> BTreeSet<String> {
     let mut affected = BTreeSet::new();
-    for file in &changed_files {
-        for entry in &ws.crates {
-            if file.starts_with(&format!("{}/", entry.dir)) {
-                affected.insert(entry.dir.clone());
-            }
+    for file in files {
+        if let Some(dir) = crate_for_file(file, ws) {
+            affected.insert(dir.to_string());
         }
     }
-
     apply_propagation(&mut affected, ws);
-    Ok(affected)
+    affected
+}
+
+/// Find which crate directory a file belongs to, or None.
+fn crate_for_file<'a>(file: &str, ws: &'a WorkspaceConfig) -> Option<&'a str> {
+    ws.crates
+        .iter()
+        .find(|e| file.starts_with(&format!("{}/", e.dir)))
+        .map(|e| e.dir.as_str())
 }
 
 /// Expand `affected` in-place by following the propagation table in `ws`.
@@ -69,6 +98,7 @@ pub fn pkg_name<'a>(crate_dir: &'a str, ws: &'a WorkspaceConfig) -> &'a str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
 
     fn make_ws(
         crates: &[(&str, Option<&str>)],
@@ -95,12 +125,32 @@ mod tests {
         }
     }
 
-    /// Find which crate directory a file belongs to, or None.
-    fn crate_for_file<'a>(file: &str, ws: &'a WorkspaceConfig) -> Option<&'a str> {
-        ws.crates
-            .iter()
-            .find(|e| file.starts_with(&format!("{}/", e.dir)))
-            .map(|e| e.dir.as_str())
+    // --- affected_from_files ---
+
+    #[test]
+    fn affected_from_files_includes_every_source_of_change() {
+        let ws = make_ws(&[("my-lib", None), ("my-cli", None)], &[]);
+        // Committed, tracked-but-uncommitted, and untracked files all count.
+        let files = ["my-lib/src/lib.rs", "my-cli/src/main.rs"];
+        let affected = affected_from_files(files, &ws);
+        assert_eq!(
+            affected,
+            ["my-cli".to_string(), "my-lib".to_string()].into()
+        );
+    }
+
+    #[test]
+    fn affected_from_files_ignores_paths_outside_crates() {
+        let ws = make_ws(&[("my-lib", None)], &[]);
+        let affected = affected_from_files(["README.md", "Cargo.lock"], &ws);
+        assert!(affected.is_empty());
+    }
+
+    #[test]
+    fn affected_from_files_propagates_to_dependents() {
+        let ws = make_ws(&[("common", None), ("api", None)], &[("common", &["api"])]);
+        let affected = affected_from_files(["common/src/lib.rs"], &ws);
+        assert_eq!(affected, ["api".to_string(), "common".to_string()].into());
     }
 
     // --- pkg_name ---
@@ -209,5 +259,43 @@ mod tests {
         let mut second = first.clone();
         apply_propagation(&mut second, &ws);
         assert_eq!(first, second);
+    }
+
+    // --- properties ---
+
+    proptest! {
+        #[test]
+        fn affected_only_contains_configured_dirs(
+            files in proptest::collection::vec("[a-z/._-]{0,24}", 0..12),
+        ) {
+            let ws = make_ws(&[("alpha", None), ("beta", None)], &[]);
+            let affected = affected_from_files(files.iter().map(String::as_str), &ws);
+            for dir in &affected {
+                prop_assert!(dir == "alpha" || dir == "beta", "unexpected crate {dir}");
+            }
+        }
+
+        #[test]
+        fn paths_outside_every_crate_dir_affect_nothing(
+            files in proptest::collection::vec("[a-z/._-]{0,24}", 0..12),
+        ) {
+            let ws = make_ws(&[("alpha", None), ("beta", None)], &[]);
+            let outside: Vec<&str> = files
+                .iter()
+                .map(String::as_str)
+                .filter(|f| !f.starts_with("alpha/") && !f.starts_with("beta/"))
+                .collect();
+            prop_assert!(affected_from_files(outside.iter().copied(), &ws).is_empty());
+        }
+
+        #[test]
+        fn any_file_under_a_crate_dir_affects_that_crate(rest in "[a-z/._-]{0,24}") {
+            let ws = make_ws(&[("alpha", None)], &[]);
+            let file = format!("alpha/{rest}");
+            prop_assert_eq!(
+                affected_from_files([file.as_str()], &ws),
+                ["alpha".to_string()].into()
+            );
+        }
     }
 }
