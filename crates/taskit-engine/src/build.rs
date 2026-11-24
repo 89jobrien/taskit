@@ -1,20 +1,45 @@
-//! Builds the Cargo workspace in development or release mode.
+//! Builds cargo packages: the workspace, one workspace member, or a local crate directory.
+
+use std::path::Path;
 
 use taskit_types::error::TaskitError;
-use xshell::cmd;
+use xshell::{Cmd, cmd};
 
 use crate::ctx::Ctx;
 
-/// Build the workspace via `cargo build --workspace`, optionally in release mode.
-pub fn run(ctx: &Ctx, release: bool) -> Result<(), TaskitError> {
+/// Build a cargo package in development or release mode.
+///
+/// With neither `crate_name` nor `path`, builds the whole workspace via
+/// `cargo build --workspace`. With a `crate_name`, builds that package with
+/// `cargo build -p <name>`. With a `path`, builds the crate rooted at that
+/// directory with `cargo build --manifest-path <dir>/Cargo.toml`.
+pub fn run(
+    ctx: &Ctx,
+    crate_name: Option<&str>,
+    path: Option<&Path>,
+    release: bool,
+) -> Result<(), TaskitError> {
     let sh = &ctx.sh;
+    let mut command: Cmd = match (crate_name, path) {
+        (Some(name), _) => cmd!(sh, "cargo build -p {name}"),
+        (None, Some(dir)) => {
+            let manifest = dir.join("Cargo.toml");
+            cmd!(sh, "cargo build --manifest-path {manifest}")
+        }
+        (None, None) => cmd!(sh, "cargo build --workspace"),
+    };
     if release {
-        taskit_output::taskit_progress!("Building workspace (release)...");
-        ctx.run(cmd!(sh, "cargo build --workspace --release"))?;
-    } else {
-        taskit_output::taskit_progress!("Building workspace...");
-        ctx.run(cmd!(sh, "cargo build --workspace"))?;
+        command = command.arg("--release");
     }
+    let label = crate_name
+        .map(str::to_owned)
+        .or_else(|| path.map(|p| p.display().to_string()))
+        .unwrap_or_else(|| "workspace".to_owned());
+    taskit_output::taskit_progress!(
+        "Building {label}{}...",
+        if release { " (release)" } else { "" }
+    );
+    ctx.run(command)?;
     taskit_output::taskit_ok!("build complete");
     Ok(())
 }
@@ -40,16 +65,21 @@ mod tests {
     }
 
     #[test]
-    fn build_dry_run_does_not_panic() {
+    fn build_workspace_dry_run_does_not_panic() {
         let ctx = dry_run_ctx();
-        let result = run(&ctx, false);
-        assert!(result.is_ok());
+        assert!(run(&ctx, None, None, false).is_ok());
     }
 
     #[test]
     fn build_release_dry_run_does_not_panic() {
         let ctx = dry_run_ctx();
-        let result = run(&ctx, true);
-        assert!(result.is_ok());
+        assert!(run(&ctx, None, None, true).is_ok());
+    }
+
+    #[test]
+    fn build_crate_and_path_dry_run_do_not_panic() {
+        let ctx = dry_run_ctx();
+        assert!(run(&ctx, Some("taskit-tui"), None, false).is_ok());
+        assert!(run(&ctx, None, Some(Path::new("crates/taskit-tui")), true).is_ok());
     }
 }

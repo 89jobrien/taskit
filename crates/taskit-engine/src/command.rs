@@ -7,6 +7,8 @@
 //! shared [`Ctx`]. `Init` is intentionally absent: it runs before a `Ctx`
 //! (and thus config) exists.
 
+use std::path::PathBuf;
+
 use taskit_types::error::TaskitError;
 
 use taskit_types::step::PipelineOutcome;
@@ -305,22 +307,52 @@ impl Command for Bootstrap {
     }
 }
 
-/// `dev build` command options.
+/// `build` command options.
 pub struct Build {
+    /// Package to build with `-p`; `None` builds the whole workspace.
+    pub crate_name: Option<String>,
+    /// Directory of a local crate to build; mutually exclusive with `crate_name`.
+    pub path: Option<PathBuf>,
     /// Build in release mode.
     pub release: bool,
 }
 impl Command for Build {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
-        build::run(ctx, self.release)
+        build::run(
+            ctx,
+            self.crate_name.as_deref(),
+            self.path.as_deref(),
+            self.release,
+        )
     }
 }
 
-/// `dev install` command.
-pub struct Install;
+/// `install` command options.
+pub struct Install {
+    /// crates.io crate to install; `None` when installing from `path`.
+    pub crate_name: Option<String>,
+    /// Version requirement for `crate_name`; `None` installs the latest.
+    pub version: Option<String>,
+    /// Local crate directory to install; mutually exclusive with `crate_name`.
+    pub path: Option<PathBuf>,
+}
 impl Command for Install {
     fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
-        install::run(ctx)
+        match (self.crate_name.as_deref(), self.path.as_deref()) {
+            (_, Some(dir)) => install::run_path(ctx, dir),
+            (Some(name), None) => install::run_crate(ctx, name, self.version.as_deref()),
+            (None, None) => Err(TaskitError::other(
+                "install needs a crate name or --path <DIR>",
+            )),
+        }
+    }
+}
+
+/// `self install` command: installs the taskit binary from this workspace.
+pub struct SelfInstall;
+impl Command for SelfInstall {
+    fn run(&self, ctx: &Ctx) -> Result<(), TaskitError> {
+        install::run_self(ctx)
     }
 }
 

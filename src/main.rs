@@ -12,13 +12,14 @@ mod flow_resolver;
 
 use clap::{CommandFactory, Parser, Subcommand};
 use std::env;
+use std::path::PathBuf;
 use taskit_engine::changelog::ChangelogMode;
 use taskit_engine::command::{
     Audit, Bench, Bootstrap, Build, Changelog, CheckDeps, CheckFreshness, CheckProtocolDrift,
     CheckProtocolSites, Ci, Clean, Command, CompileTests, Coverage, Dedupe, DevSetup, Drift, Flow,
     FlowAction, Fmt, Fuzz, Health, Inspect, Install, InstallHooks, Lint, Patch, PreCommit, PrePush,
-    Proptest, Publish, Quick, Release, SelfCheck, SelfTest, SnapshotReview, Test, TestReport,
-    TodoSync, Update, UpdateClaudeVersion, Version,
+    Proptest, Publish, Quick, Release, SelfCheck, SelfInstall, SelfTest, SnapshotReview, Test,
+    TestReport, TodoSync, Update, UpdateClaudeVersion, Version,
 };
 use taskit_engine::ctx::Ctx;
 use taskit_engine::patch;
@@ -42,7 +43,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Build, install, and workspace-setup commands
+    /// Workspace-setup commands: bootstrap, hooks, dev tools, deps
     Dev {
         #[command(subcommand)]
         sub: DevCmd,
@@ -85,6 +86,34 @@ enum Cmd {
     },
     /// Live terminal dashboard: workspace health, CI telemetry, and drift
     Dashboard,
+    /// Build a cargo package: the workspace, one crate (-p), or a local --path
+    Build {
+        /// Package to build with -p (crates.io name or workspace member)
+        #[arg(value_name = "CRATE", conflicts_with = "path")]
+        crate_name: Option<String>,
+        /// Build the crate rooted at this directory (cargo --manifest-path)
+        #[arg(long, value_name = "DIR", conflicts_with = "crate_name")]
+        path: Option<PathBuf>,
+        /// Build in release mode
+        #[arg(long)]
+        release: bool,
+    },
+    /// Install a cargo crate onto PATH (cargo install --force)
+    Install {
+        /// Crate to install from crates.io
+        #[arg(
+            value_name = "CRATE",
+            required_unless_present = "path",
+            conflicts_with = "path"
+        )]
+        crate_name: Option<String>,
+        /// Version requirement for CRATE (default: latest)
+        #[arg(long, value_name = "VERSION", requires = "crate_name")]
+        version: Option<String>,
+        /// Install the local crate rooted at this directory (cargo install --path)
+        #[arg(long, value_name = "DIR", conflicts_with = "crate_name")]
+        path: Option<PathBuf>,
+    },
     /// Generate taskit.toml and Cruxfile for the current workspace
     Init {
         /// Overwrite existing taskit.toml
@@ -115,12 +144,6 @@ enum ChangelogCmd {
 
 #[derive(Subcommand)]
 enum DevCmd {
-    /// Build the workspace (cargo build --workspace)
-    Build {
-        /// Build in release mode
-        #[arg(long)]
-        release: bool,
-    },
     /// Set up a workspace for development: install git hooks and dev tools
     Bootstrap,
     /// Install git hooks that delegate to taskit
@@ -449,6 +472,24 @@ fn to_command(cmd: Cmd, resolver_kind: &ConflictResolverKind) -> Box<dyn Command
         }
         Cmd::Self_ { sub } => self_to_command(sub),
         Cmd::Dashboard => Box::new(Dashboard),
+        Cmd::Build {
+            crate_name,
+            path,
+            release,
+        } => Box::new(Build {
+            crate_name,
+            path,
+            release,
+        }),
+        Cmd::Install {
+            crate_name,
+            version,
+            path,
+        } => Box::new(Install {
+            crate_name,
+            version,
+            path,
+        }),
         Cmd::Changelog { sub } => Box::new(Changelog {
             mode: match sub {
                 None | Some(ChangelogCmd::Unreleased) => ChangelogMode::Unreleased,
@@ -463,7 +504,6 @@ fn to_command(cmd: Cmd, resolver_kind: &ConflictResolverKind) -> Box<dyn Command
 
 fn dev_to_command(cmd: DevCmd) -> Box<dyn Command> {
     match cmd {
-        DevCmd::Build { release } => Box::new(Build { release }),
         DevCmd::Bootstrap => Box::new(Bootstrap),
         DevCmd::InstallHooks => Box::new(InstallHooks),
         DevCmd::Setup => Box::new(DevSetup),
@@ -506,7 +546,7 @@ fn check_to_command(cmd: CheckCmd) -> Box<dyn Command> {
 
 fn self_to_command(cmd: SelfCmd) -> Box<dyn Command> {
     match cmd {
-        SelfCmd::Install => Box::new(Install),
+        SelfCmd::Install => Box::new(SelfInstall),
         SelfCmd::Test => Box::new(SelfTest),
         SelfCmd::Check => Box::new(SelfCheck),
     }
@@ -700,6 +740,30 @@ mod tests {
         assert!(Cli::try_parse_from(["taskit", "protocol", "todo-dedupe"]).is_ok());
         assert!(Cli::try_parse_from(["taskit", "protocol", "todo-dedupe", "--update"]).is_ok());
         assert!(Cli::try_parse_from(["taskit", "protocol", "todo-dedupe", "--dry-run"]).is_ok());
+    }
+
+    #[test]
+    fn install_parses_crate_path_and_version() {
+        assert!(Cli::try_parse_from(["taskit", "install", "ripgrep"]).is_ok());
+        assert!(Cli::try_parse_from(["taskit", "install", "ripgrep", "--version", "14"]).is_ok());
+        assert!(Cli::try_parse_from(["taskit", "install", "--path", "crates/taskit-tui"]).is_ok());
+        assert!(Cli::try_parse_from(["taskit", "install"]).is_err());
+        assert!(Cli::try_parse_from(["taskit", "install", "--version", "14"]).is_err());
+        assert!(Cli::try_parse_from(["taskit", "install", "ripgrep", "--path", "x"]).is_err());
+    }
+
+    #[test]
+    fn self_install_parses() {
+        assert!(Cli::try_parse_from(["taskit", "self", "install"]).is_ok());
+    }
+
+    #[test]
+    fn build_parses_workspace_crate_and_path() {
+        assert!(Cli::try_parse_from(["taskit", "build"]).is_ok());
+        assert!(Cli::try_parse_from(["taskit", "build", "--release"]).is_ok());
+        assert!(Cli::try_parse_from(["taskit", "build", "taskit-tui"]).is_ok());
+        assert!(Cli::try_parse_from(["taskit", "build", "--path", "crates/taskit-tui"]).is_ok());
+        assert!(Cli::try_parse_from(["taskit", "build", "taskit-tui", "--path", "x"]).is_err());
     }
 
     #[test]
